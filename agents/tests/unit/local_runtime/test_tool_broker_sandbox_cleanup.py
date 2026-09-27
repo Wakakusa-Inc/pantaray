@@ -389,6 +389,13 @@ async def test_execute_broker_tool_preserves_cancellation_when_process_cleanup_f
         "pantaray_agents.local_runtime.tooling.resources.cleanup.os.killpg",
         lambda _pid, _sig: (_ for _ in ()).throw(OSError("kill failed")),
     )
+    # The fake pid may belong to a real process on the host; the premise here is
+    # that the tracked process is gone.
+    for target in (
+        "pantaray_agents.local_runtime.tooling.resources.resource_cleanup.process_exists",
+        "pantaray_agents.local_runtime.tooling.resources.process_identity._process_exists",
+    ):
+        monkeypatch.setattr(target, lambda _pid: False)
     _stub_runtime_budget(monkeypatch, timeout_ms=10_000)
 
     task = asyncio.create_task(
