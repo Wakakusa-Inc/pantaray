@@ -21,14 +21,20 @@ from pantaray_agents.local_runtime.tooling.sandbox.command_sandbox_protocol impo
 )
 
 
-async def verify_command(
-    root: Path, *, enabled: bool, ordinary_port: int, protected_port: int
-) -> None:
-    workspace = root / f"workspace-{enabled}"
-    temporary = root / f"temp-{enabled}"
-    workspace.mkdir()
-    temporary.mkdir()
-    private = root / "private"
+def build_probe_request(
+    *,
+    workspace: Path,
+    temporary: Path,
+    private: Path,
+    enabled: bool,
+    ordinary_port: int,
+    protected_port: int,
+) -> BrokerToSandboxCommandRequest:
+    """Build the worker request.
+
+    agents/tests/unit/local_runtime/test_packaged_sandbox_probe.py checks it
+    against the sandbox protocol in PR CI; the probe itself runs only at release.
+    """
     private_file = private / "private.txt"
     code = f"""
 import pathlib, socket
@@ -49,7 +55,7 @@ for port, allowed in (({ordinary_port}, {enabled}), ({protected_port}, False)):
 pathlib.Path('result.txt').write_text('sandbox ok')
 print('sandbox ok')
 """
-    request = BrokerToSandboxCommandRequest(
+    return BrokerToSandboxCommandRequest(
         request_id=f"packaged-probe-{enabled}",
         action_id="packaged-probe-action",
         execution_session_id="packaged-probe-session",
@@ -80,6 +86,23 @@ print('sandbox ok')
         network_policy="allow" if enabled else "deny",
         protected_backend_address=f"*:{protected_port}",
         use_login_environment=False,
+    )
+
+
+async def verify_command(
+    root: Path, *, enabled: bool, ordinary_port: int, protected_port: int
+) -> None:
+    workspace = root / f"workspace-{enabled}"
+    temporary = root / f"temp-{enabled}"
+    workspace.mkdir()
+    temporary.mkdir()
+    request = build_probe_request(
+        workspace=workspace,
+        temporary=temporary,
+        private=root / "private",
+        enabled=enabled,
+        ordinary_port=ordinary_port,
+        protected_port=protected_port,
     )
     worker = await asyncio.create_subprocess_exec(
         sys.executable,
