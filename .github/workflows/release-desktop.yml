@@ -15,9 +15,6 @@ jobs:
     permissions:
       contents: write
     env:
-      PNPM_FETCH_RETRIES: "5"
-      PNPM_FETCH_RETRY_MAX_TIMEOUT_MS: "120000"
-      PNPM_FETCH_TIMEOUT_MS: "600000"
       PNPM_RELEASE_CPU: arm64
       PNPM_RELEASE_OS: darwin
     steps:
@@ -105,9 +102,6 @@ jobs:
           set -euo pipefail
           pnpm install --frozen-lockfile \
             --config.node-linker=hoisted \
-            --config.fetch-retries="$PNPM_FETCH_RETRIES" \
-            --config.fetch-timeout="$PNPM_FETCH_TIMEOUT_MS" \
-            --config.fetch-retry-maxtimeout="$PNPM_FETCH_RETRY_MAX_TIMEOUT_MS" \
             --store-dir="$PNPM_STORE_PATH" \
             --cpu="$PNPM_RELEASE_CPU" \
             --os="$PNPM_RELEASE_OS" \
