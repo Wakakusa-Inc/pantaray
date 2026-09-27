@@ -21,7 +21,8 @@ jobs:
       - name: Install uv
         working-directory: agents
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl --retry 3 --retry-all-errors -LsSf -o "$RUNNER_TEMP/uv-install.sh" https://astral.sh/uv/install.sh
+          sh "$RUNNER_TEMP/uv-install.sh"
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       # 依存関係のインストール（pantaray-cloud は入れない）
@@ -76,7 +77,8 @@ jobs:
       - name: Install uv
         working-directory: agents
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          curl --retry 3 --retry-all-errors -LsSf -o "$RUNNER_TEMP/uv-install.sh" https://astral.sh/uv/install.sh
+          sh "$RUNNER_TEMP/uv-install.sh"
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Install the project
