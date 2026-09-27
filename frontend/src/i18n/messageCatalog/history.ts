@@ -11,8 +11,7 @@ export const HISTORY_MESSAGES = defineMessages({
     'history.newConversation': 'New conversation',
     'history.openOverlayFailed': 'Failed to open overlay.',
     'history.delete.confirmTitle': 'Delete this conversation?',
-    'history.delete.confirmBody':
-      'The conversation will be removed and can’t be restored. Files in your folders won’t be deleted.',
+    'history.delete.confirmBody': 'The conversation will be removed and can’t be restored.',
     'history.delete.busy': 'This conversation is running, so it can’t be deleted right now.',
     'history.delete.failed': 'Failed to delete the conversation.',
     'history.loadFailedPrefix': 'Failed to load history:',
@@ -81,8 +80,7 @@ export const HISTORY_MESSAGES = defineMessages({
     'history.newConversation': '新しい会話',
     'history.openOverlayFailed': 'オーバーレイを開けませんでした。',
     'history.delete.confirmTitle': 'この会話を削除しますか？',
-    'history.delete.confirmBody':
-      '会話の内容が消え、元に戻せません。あなたのフォルダにあるファイルは消えません。',
+    'history.delete.confirmBody': '会話の内容が消え、元に戻せません。',
     'history.delete.busy': 'この会話は実行中のため、いまは削除できません。',
     'history.delete.failed': '会話を削除できませんでした。',
     'history.loadFailedPrefix': '履歴の読み込みに失敗しました:',
