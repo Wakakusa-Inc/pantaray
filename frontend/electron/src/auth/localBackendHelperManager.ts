@@ -44,7 +44,10 @@ type ProbeReadinessFn = (
   expectedHelperInstanceId: string
 ) => Promise<HelperReadinessProbe>;
 
-const HELPER_READY_TIMEOUT_MS = 30_000;
+// Design limit: the first start after an install waits while macOS scans the
+// new files and verifies each native library on first load, which has taken
+// over 30 s; raise this if a first start is observed to exceed 120 s.
+const HELPER_READY_TIMEOUT_MS = 120_000;
 const HELPER_TERMINATION_TIMEOUT_MS = 5_000;
 const HELPER_TERMINATION_POLL_INTERVAL_MS = 50;
 const DEVELOPMENT_HELPER_EXECUTABLE = 'uv';
@@ -238,7 +241,6 @@ export function createLocalBackendHelperManager(params: {
     helperInstanceId: string;
   } {
     const binding = params.getLoopbackBinding();
-    const pythonCachePrefix = buildHelperPythonCachePrefix(params.getControlSocketPath());
     const bindHost = normalizeRequiredString(binding.bindHost, 'bindHost');
     const bindPort = LOCAL_BACKEND_DYNAMIC_PORT;
     const helperInstanceId = randomUUID();
@@ -264,7 +266,7 @@ export function createLocalBackendHelperManager(params: {
           ...process.env,
           [HELPER_INSTANCE_ID_ENV]: helperInstanceId,
           [MAIN_PROCESS_PID_ENV]: String(process.pid),
-          [PYTHON_PYCACHE_PREFIX_ENV]: pythonCachePrefix,
+          [PYTHON_PYCACHE_PREFIX_ENV]: buildHelperPythonCachePrefix(params.getControlSocketPath()),
           [PYTHONPATH_ENV]: buildDevelopmentPythonPath(agentsRoot, process.env[PYTHONPATH_ENV]),
         },
         helperInstanceId,
@@ -281,8 +283,9 @@ export function createLocalBackendHelperManager(params: {
         ...process.env,
         [HELPER_INSTANCE_ID_ENV]: helperInstanceId,
         [MAIN_PROCESS_PID_ENV]: String(process.pid),
+        // No PYTHONPYCACHEPREFIX: with one set, Python ignores the bytecode
+        // shipped next to the bundled sources and recompiles every module.
         [PYTHON_DONT_WRITE_BYTECODE_ENV]: '1',
-        [PYTHON_PYCACHE_PREFIX_ENV]: pythonCachePrefix,
       },
       helperInstanceId,
     };
