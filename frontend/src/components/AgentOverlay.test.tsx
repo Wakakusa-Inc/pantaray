@@ -1718,6 +1718,50 @@ describe('AgentOverlay broader E2E', () => {
     expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'end' });
   });
 
+  it('follows run progress only from the bottom, and shows what the user sends', async () => {
+    submitMessage.mockReturnValueOnce(new Promise(() => {}));
+    const { container } = render(
+      <UiLanguageProvider initialLanguage="en">
+        <AgentOverlay />
+      </UiLanguageProvider>
+    );
+    await act(async () => snapshotListener?.(createResumedSnapshot()));
+    const scroll = container.querySelector<HTMLDivElement>('[data-sharecard-scroll]')!;
+    const scrollHeight = { value: 1000, configurable: true };
+    Object.defineProperties(scroll, { scrollHeight, clientHeight: { value: 200 } });
+    const userScrollsTo = (top: number) => {
+      scroll.scrollTop = top;
+      fireEvent.scroll(scroll);
+    };
+    const progress = (label: string, runId = 'run-1') => {
+      const update = createConversationUpdate(null, true);
+      update.snapshot.page.action.latest_run_id = runId;
+      update.snapshot.page.runs[0].run_id = runId;
+      // prettier-ignore
+      update.snapshot.page.runs[0].entries.push({ step_kind: 'tool', step_id: `step-${label}`, step_number: 2, label, status: 'success', outcome: 'completed', output_available: false, images: [], subject: null, output_preview: null });
+      Object.defineProperty(scroll, 'scrollHeight', { ...scrollHeight, value: 1000 + pageVersion });
+      return act(async () => conversationListener?.(update));
+    };
+    await progress('Read file');
+    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
+    expect(scroll.scrollTop).toBe(scroll.scrollHeight);
+
+    userScrollsTo(300);
+    await progress('Edit file');
+    // A run that starts by itself (a queued message taking over) does not pull the reader back either.
+    await progress('Run tests', 'run-2');
+    expect(scroll.scrollTop).toBe(300);
+
+    userScrollsTo(scroll.scrollHeight - 200);
+    await progress('Write summary');
+    expect(scroll.scrollTop).toBe(scroll.scrollHeight);
+
+    userScrollsTo(300);
+    fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Also update docs' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(scroll.scrollTop).toBe(scroll.scrollHeight);
+  });
+
   it('ignores a late decision failure after the approval process changes', async () => {
     let rejectDecision: (error: Error) => void = () => {};
     submitApprovalDecision.mockImplementationOnce(

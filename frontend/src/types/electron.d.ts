@@ -7,7 +7,7 @@ import type {
   CapturePrivacySettingsInput,
   IdeFileRulesInput,
 } from '../../electron/src/ipc/schemas/privacy';
-import type { AuthState } from '../../electron/src/ipc/context';
+import type { AuthState, UpdateReadyNotice } from '../../electron/src/ipc/context';
 import type {
   ConnectionCommand,
   ConnectionStateResult,
@@ -263,6 +263,13 @@ declare global {
         getLanguage: () => Promise<UiLanguage>;
         setLanguage: (lang: UiLanguage) => Promise<UiLanguage>;
         onLanguageChanged?: (cb: (lang: UiLanguage) => void) => () => void;
+      };
+      update?: {
+        /** A downloaded update waiting for a restart; `null` when none, or after "later". */
+        getReadyNotice: () => Promise<UpdateReadyNotice | null>;
+        dismissReadyNotice: () => Promise<void>;
+        restartToUpdate: () => Promise<void>;
+        onReadyNoticeChanged: (callback: () => void) => () => void;
       };
       approval?: {
         getWorkspaceEditCommandPreference: () => Promise<{

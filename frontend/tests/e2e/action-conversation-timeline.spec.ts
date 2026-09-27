@@ -580,7 +580,7 @@ for (const language of ['ja', 'en'] as const) {
 }
 
 for (const language of ['ja', 'en'] as const) {
-  test(`${language}: transient activity scrolls a restored running conversation to latest`, async ({
+  test(`${language}: transient activity keeps a restored reading position in a running conversation`, async ({
     page,
   }) => {
     await installBridge(page, language);
@@ -645,6 +645,8 @@ for (const language of ['ja', 'en'] as const) {
       (detail) => window.dispatchEvent(new CustomEvent('test:conversation', { detail })),
       update
     );
-    await expect.poll(bottomGap).toBeLessThan(2);
+    // The previous behavior jumped to the bottom within a frame of this update.
+    await page.waitForTimeout(1_000);
+    expect(await scroll.evaluate((element) => element.scrollTop)).toBe(100);
   });
 }

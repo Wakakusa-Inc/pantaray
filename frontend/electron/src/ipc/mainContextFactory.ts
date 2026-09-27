@@ -67,6 +67,7 @@ export function buildMainContext(params: {
   historyFetch: MainContext['history']['fetch'];
   markCompletionViewed: MainContext['history']['markCompletionViewed'];
   actionFiles: MainContext['actionFiles'];
+  update: MainContext['update'];
   actions: MainContext['actions'];
   actionImages: MainContext['actionImages'];
 
@@ -248,6 +249,7 @@ export function buildMainContext(params: {
     },
 
     actionFiles: params.actionFiles,
+    update: params.update,
 
     actions: params.actions,
 

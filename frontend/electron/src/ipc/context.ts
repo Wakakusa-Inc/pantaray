@@ -94,6 +94,13 @@ export type CaptureGateState = {
   introDismissed: boolean;
 };
 
+/**
+ * The main window's "update ready" notice: a downloaded update waiting for a restart.
+ * `version` is what electron-updater reported for it. Main holds the "later" answer
+ * for this app run, so a dismissed notice reads as `null` in a reopened window too.
+ */
+export type UpdateReadyNotice = { version: string | null };
+
 // Main-window pages that main opens on its own; each has a caller.
 export type MainWindowRoute = '/login' | '/workspace';
 
@@ -171,6 +178,13 @@ export type MainContext = {
   ui: {
     getLanguage: () => UiLanguage;
     setLanguage: (lang: unknown) => UiLanguage;
+  };
+
+  update: {
+    getReadyNotice: () => UpdateReadyNotice | null;
+    dismissReadyNotice: () => void;
+    /** The same restart the app and tray menus' "Restart to update" makes. */
+    restartToUpdate: () => void;
   };
 
   approval: {

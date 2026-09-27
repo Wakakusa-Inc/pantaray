@@ -1,6 +1,6 @@
 import { type App, type BrowserWindow, type MenuItemConstructorOptions, type Tray } from 'electron';
 
-import type { UiLanguage } from '../ipc/context';
+import type { UiLanguage, UpdateReadyNotice } from '../ipc/context';
 import { getTrayMenuCopy, getUpdateMenuCopy, type UpdateMenuCopy } from '../ui/mainProcessCopy';
 import type { CaptureStatusSnapshot } from '../screenshot/captureStatus';
 import type { RecordingStartResult } from '../screenshot/screenshotSync';
@@ -77,14 +77,25 @@ function clearTrayStatusTitle(tray: Tray): void {
 export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
   let captureStatusSnapshot: CaptureStatusSnapshot | null = null;
   let captureStatusRefreshSequence = 0;
+  let readyNoticeDismissed = false;
 
-  const handleRestartToUpdateClick = (): void => {
+  // One restart path for the menus, the update dialog and the main window's notice.
+  const restartToUpdate = (): void => {
     try {
+      const updater = deps.getDesktopUpdater();
+      // The main window can ask at any time; only a downloaded update restarts the app.
+      if (!updater?.isUpdateDownloaded()) return;
       deps.onQuitRequested();
-      deps.getDesktopUpdater()?.quitAndInstall();
+      updater.quitAndInstall();
     } catch {
       // no-op
     }
+  };
+
+  const getReadyNotice = (): UpdateReadyNotice | null => {
+    const updater = deps.getDesktopUpdater();
+    if (readyNoticeDismissed || !updater?.isUpdateDownloaded()) return null;
+    return { version: updater.getPendingVersion() };
   };
 
   const handleCheckUpdatesClick = (text: UpdateMenuCopy): void => {
@@ -116,7 +127,7 @@ export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
             defaultId: 0,
           })
           .then(({ response }) => {
-            if (response === 0) handleRestartToUpdateClick();
+            if (response === 0) restartToUpdate();
           });
         return;
       }
@@ -175,7 +186,7 @@ export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
           ? [
               {
                 label: text.restartToUpdate,
-                click: () => handleRestartToUpdateClick(),
+                click: () => restartToUpdate(),
               } satisfies MenuItemConstructorOptions,
             ]
           : []),
@@ -283,7 +294,7 @@ export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
           ? [
               {
                 label: updateText.restartToUpdate,
-                click: () => handleRestartToUpdateClick(),
+                click: () => restartToUpdate(),
               } satisfies MenuItemConstructorOptions,
             ]
           : []),
@@ -308,6 +319,15 @@ export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
     }
   };
 
+  const handleUpdateDownloaded = (): void => {
+    rebuildTrayMenu();
+    rebuildAppMenu();
+    const mainWindow = deps.getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update:readyNoticeChanged');
+    }
+  };
+
   const refreshCaptureStatus = async (): Promise<void> => {
     const refreshSequence = captureStatusRefreshSequence + 1;
     captureStatusRefreshSequence = refreshSequence;
@@ -324,11 +344,16 @@ export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
 
   return {
     consumeManualUpdateCheckPending: deps.consumeManualUpdateCheckPending,
+    dismissReadyNotice: () => {
+      readyNoticeDismissed = true;
+    },
+    getReadyNotice,
     getUpdateMenuCopy,
     handleCheckUpdatesClick,
     handleNoUpdateAvailable,
-    handleRestartToUpdateClick,
     handleUpdateCheckFailed,
+    handleUpdateDownloaded,
+    restartToUpdate,
     refreshCaptureStatus,
     rebuildAppMenu,
     rebuildTrayMenu,

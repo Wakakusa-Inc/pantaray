@@ -6,6 +6,7 @@ import { useI18n } from '@/context/useI18n';
 import { RecordingIntroDialog } from './RecordingIntroDialog';
 import { AiConnectionNotice } from './AiConnectionNotice';
 import { LocalOwnerBoundary } from './LocalOwnerBoundary';
+import { UpdateReadyNotice } from './UpdateReadyNotice';
 import { PANTARAY_ACCOUNT_LOGIN_ENABLED } from '../../electron/src/auth/accountLoginFeature';
 import './Layout.css';
 
@@ -160,6 +161,8 @@ const Layout: React.FC = () => {
           <Outlet />
         </div>
       </main>
+
+      <UpdateReadyNotice />
     </div>
   );
 };

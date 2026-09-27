@@ -48,6 +48,7 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
   let openNewConversationCalls = 0;
   const openActionConversationCalls = [];
   const shortcutInputs = [];
+  const updateCalls = [];
   const ctx = {
     ipcMain: fakeIpc,
     security: { authorize: () => 'main', auditMutation: () => {} },
@@ -86,6 +87,15 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
     ui: {
       getLanguage: () => 'en',
       setLanguage: (_lang) => 'ja',
+    },
+    update: {
+      getReadyNotice: () => ({ version: '0.2.2' }),
+      dismissReadyNotice: () => {
+        updateCalls.push('dismiss');
+      },
+      restartToUpdate: () => {
+        updateCalls.push('restart');
+      },
     },
     shortcut: {
       getState: () => ({ accelerator: 'Option+Space', failure: null }),
@@ -194,6 +204,13 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
   assert.throws(() => setShortcut({}, '   '), /shortcut:setAccelerator/);
   assert.throws(() => setShortcut({}, 'A'.repeat(129)), /shortcut:setAccelerator/);
   assert.deepEqual(shortcutInputs, ['Command+K', "Command+'"]);
+
+  assert.deepEqual(await fakeIpc.invokeHandlers.get('update:getReadyNotice')({}), {
+    version: '0.2.2',
+  });
+  await fakeIpc.invokeHandlers.get('update:dismissReadyNotice')({});
+  await fakeIpc.invokeHandlers.get('update:restartToUpdate')({});
+  assert.deepEqual(updateCalls, ['dismiss', 'restart']);
 
   // dispose が best-effort で動作すること（fake では map から消える）
   res.dispose();

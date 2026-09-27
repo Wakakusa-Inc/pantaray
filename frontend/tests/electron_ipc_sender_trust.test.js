@@ -133,6 +133,25 @@ test('Only the Overlay asks main to open the workspace settings page', () => {
   );
 });
 
+test('Only the main window reads, dismisses, and acts on the update ready notice', () => {
+  const { mainEvent, security } = createSecurityHarness();
+  const overlayEvent = createSender('http://127.0.0.1:3001/notification.html', 2);
+  security.registerWindow('overlay', overlayEvent.sender);
+
+  for (const channel of [
+    'update:getReadyNotice',
+    'update:dismissReadyNotice',
+    'update:restartToUpdate',
+  ]) {
+    assert.equal(security.authorize(channel, mainEvent), 'main');
+    assert.throws(
+      () => security.authorize(channel, overlayEvent),
+      (error) =>
+        error instanceof IpcSenderRejectedError && error.code === 'channel_not_allowed_for_window'
+    );
+  }
+});
+
 test('IPC sender guard rejects an unregistered WebContents with a trusted overlay URL', () => {
   const { security } = createSecurityHarness();
   const unregistered = createSender('http://127.0.0.1:3001/notification.html', 2);

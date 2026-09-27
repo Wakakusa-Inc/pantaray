@@ -124,7 +124,7 @@ describe('RecordingIntroDialog', () => {
       'Pantaray はこの Mac での操作を記録し、それをもとに提案や作業をします。',
       '記録するのは、使っているアプリ、ウィンドウの名前、画面の文字、入力した内容です。',
       'ページの中身は、Chrome ではシークレットウィンドウを除いて記録します。Safari や Firefox などでは記録しません。ウィンドウの名前はどのブラウザでも記録します。',
-      'パスワード管理アプリと、サインイン・決済のページの中身は記録しません。記録はこの Mac に保存され、48 時間で消えます。提案や作業に必要な部分は、選んだ AI に送ります。',
+      'パスワード管理アプリと、サインイン・決済のページの中身は記録しません。記録そのものは、この Mac に最大 48 時間だけ保存されます。そこから作る作業のまとめは、この Mac に残ります。提案や作業に必要な部分は、選んだ AI に送ります。',
     ]);
     // The earlier screen spelled the same facts out in a browser table and a bullet
     // list; the short version replaces both, so neither may come back unnoticed.
