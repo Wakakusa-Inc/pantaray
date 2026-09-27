@@ -1,0 +1,7 @@
+{
+  "web_app_origin": "https://your-frontend.web.app",
+  "supabase_url": "https://your-project.supabase.co",
+  "supabase_publishable_key": "sb_publishable_...",
+  "backend_url": "http://127.0.0.1:8005",
+  "api_host_origin": "https://your-backend-api.example.com"
+}

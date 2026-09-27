@@ -1,0 +1,236 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pantaray-agents"
+version = "0.1.0"
+description = "agents"
+authors = [
+    { name = "Kento Shimizu" }
+]
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["THIRD_PARTY_NOTICES.md"]
+dependencies = [
+    "fastapi[all]>=0.115.6",
+    "pydantic>=2.10.5",
+    "python-dotenv>=1.0.1",
+    "regex==2026.4.4",
+    "sqlite-vec==0.1.9",
+    "uvicorn>=0.34.0",
+    "numpy>=2.2.0",
+    "pillow>=12.3.0",
+    "httpx2==2.12.0",
+    "langgraph>=1.2.4",
+    "jsonschema==4.25.1",
+    "prometheus-client==0.23.1",
+    "pantaray-llm",
+    "onnxruntime==1.29.0",
+    "tokenizers==0.23.2",
+    "python-docx>=1.2.0",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+    # [crypto] pulls in cryptography, which pypdf needs to open an AES-encrypted
+    # PDF; a PDF that only restricts printing is AES with an empty user password,
+    # and without it that common file would read as unopenable.
+    #
+    # The floor is the version that carries every pypdf advisory fix known when
+    # it was set: malformed PDFs are a steady source of denial-of-service reports
+    # against this parser, so raise the floor when a new one lands.
+    "pypdf[crypto]>=6.17.0",
+    # openpyxl parses worksheets with the stdlib's expat, which expands entities;
+    # it switches to defusedxml for every part as soon as the import succeeds.
+    "defusedxml>=0.7.1",
+    # Drawing a PDF page needs a full renderer, and PDFium is the one Chrome
+    # ships, so it is read by more files daily than anything else could be;
+    # PyMuPDF renders as well but is AGPL, which this distribution cannot take.
+    # It is a C++ parser fed files the user did not write, so it is loaded only
+    # in the short-lived sandboxed worker, never in the helper itself.
+    "pypdfium2>=5.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy==1.19.1",
+    "python-multipart>=0.0.9",
+    "email-validator>=2.1.0.post1",
+    "httpx>=0.27.0",
+    "mypy-extensions>=1.0.0",
+    "ruff>=0.3.0",
+    "pytest>=8.0.0",
+    "pytest-xdist==3.8.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "pytest-cov>=6.1.0",
+]
+
+[tool.uv]
+exclude-newer = "14 days"
+required-version = ">=0.12.0"
+
+[tool.uv.workspace]
+members = ["packages/pantaray-llm"]
+
+[tool.uv.sources]
+pantaray-llm = { workspace = true }
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src:packages/pantaray-llm/src"
+explicit_package_bases = true
+namespace_packages = true
+follow_imports = "silent"
+# NOTE:
+# mypy の厳格設定（disallow_untyped_defs 等）をリポジトリ全体に一気に適用すると、
+# mock/clients/実装詳細（ActionAgent runtime 等）まで含めて大量エラーになり CI が常時赤になる。
+# まずは「API境界/契約」として重要なスキーマ群だけを対象にし、段階的に広げる。
+files = [
+    "packages/pantaray-llm/src/pantaray_llm",
+    "src/pantaray_agents/schema/agent",
+    "src/pantaray_agents/schema/websocket",
+    "src/pantaray_agents/schema/repositories",
+    "src/pantaray_agents/schema/variables.py",
+    "src/pantaray_agents/schema/memory_catalog.py",
+    # NOTE: 実装（agents/repositories/utils 等）は段階導入。まずは API 契約（schema）を0件にする。
+    #
+    # 慎重な拡張:
+    # - 3rd party の型スタブが薄い領域（prometheus_client 等）を避け、
+    #   stdlib + fastapi + 自前schema で閉じている範囲から段階的に広げる。
+    "src/pantaray_agents/security",
+    "src/pantaray_agents/config_tunables.py",
+    "src/pantaray_agents/utils/public_error.py",
+    "src/pantaray_agents/utils/trace_context.py",
+    # utils（stdlib中心で閉じている小さなユーティリティから段階導入）
+    "src/pantaray_agents/utils/activity_ids.py",
+    "src/pantaray_agents/utils/markdown_sections.py",
+    "src/pantaray_agents/utils/unified_diff.py",
+    "src/pantaray_agents/utils/tag_streaming.py",
+    "src/pantaray_agents/utils/streaming_helpers.py",
+    "src/pantaray_agents/utils/artifact_patch/parser.py",
+    # ActionAgent runtime（依存が浅い補助モジュールから段階導入）
+    "src/pantaray_agents/agents/action_agent/runtime/error_redaction.py",
+    "src/pantaray_agents/agents/action_agent/runtime/log_safety.py",
+    "src/pantaray_agents/agents/action_agent/runtime/state/context.py",
+    "src/pantaray_agents/agents/action_agent/runtime/state/updates.py",
+    "src/pantaray_agents/agents/action_agent/runtime/steps/counters.py",
+    "src/pantaray_agents/agents/action_agent/runtime/steps/persistence.py",
+    "src/pantaray_agents/agents/action_agent/runtime/state/coercion.py",
+    "src/pantaray_agents/agents/action_agent/runtime/handlers/tool_runtime/parallel_policy.py",
+    "src/pantaray_agents/local_runtime/memory_catalog",
+    "src/pantaray_agents/local_runtime/embedding_local",
+    # 文書の読み取り（documents パッケージと、read ツールの文書分岐・ページ封筒）。
+    "src/pantaray_agents/local_runtime/tooling/documents",
+    "src/pantaray_agents/local_runtime/tooling/brokering/broker_direct_read_document.py",
+    "src/pantaray_agents/local_runtime/tooling/brokering/broker_direct_read_page.py",
+]
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tavily.*"]
+ignore_missing_imports = true
+
+# onnxruntime ships no py.typed marker.
+[[tool.mypy.overrides]]
+module = ["onnxruntime.*"]
+ignore_missing_imports = true
+
+# lxml ships no py.typed marker; python-docx pulls it in.
+[[tool.mypy.overrides]]
+module = ["lxml.*"]
+ignore_missing_imports = true
+
+# openpyxl ships no py.typed marker.
+[[tool.mypy.overrides]]
+module = ["openpyxl.*"]
+ignore_missing_imports = true
+
+# pypdfium2 ships no py.typed marker.
+[[tool.mypy.overrides]]
+module = ["pypdfium2.*"]
+ignore_missing_imports = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pantaray_agents*"]
+
+[tool.setuptools.package-data]
+pantaray_agents = [
+    "config_tunables.toml",
+    "local_runtime/migrations/*.sql",
+    "local_runtime/tooling/seatbelt_profile_templates/*.sbpl",
+    "prompts/*.yaml",
+    "prompts/*/*.yaml",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["src", "packages/pantaray-llm/src"]
+lint.select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C",   # flake8-comprehensions
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+lint.ignore = [
+    "E501",  # line too long
+    "B008",  # Ignore function call in argument defaults (common in FastAPI)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = ["pantaray_agents", "pantaray_llm"]
+
+[tool.ruff.lint.mccabe]
+# 既存コード（ActionAgent/Orchestrationなど）に対してデフォルトの10は厳しすぎ、
+# CIを継続的に回すこと自体ができなくなるため、現実的な上限に調整する。
+# 将来的に関数分割を進めた上で、段階的に下げる想定。
+max-complexity = 100
+
+[tool.ruff.lint.per-file-ignores]
+"tests/integration/test_local_artifact_contracts.py" = ["E402"]
+"tests/integration/test_local_artifact_ws_boundary.py" = ["E402"]
+"tests/integration/test_local_runtime_pipeline_contracts.py" = ["E402"]
+
+# --- Pylint (pyproject) ---
+[tool.pylint.main]
+py-version = "3.12"
+# srcレイアウト向け。Pylint実行時に src をsys.pathへ追加。
+#
+# NOTE:
+# Cursor 等の実行環境では、リポジトリルートから Pylint が起動されることがある。
+# その場合 `os.path.abspath("src")` は意図した `agents/src` を指さないため、
+# 両方の候補を探索して存在する方を追加する。
+init-hook = '''
+import os
+import sys
+
+for p in (
+    os.path.abspath("src"),
+    os.path.abspath(os.path.join("agents", "src")),
+):
+    if os.path.isdir(p) and p not in sys.path:
+        sys.path.insert(0, p)
+'''

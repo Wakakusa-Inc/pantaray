@@ -1,0 +1,85 @@
+import type { ActionConversationUserItem } from '../../../electron/src/actions/actionConversationModel';
+import { useI18n } from '@/context/useI18n';
+import { AttachedImages, type ImageGridCopy } from './AttachedImages';
+
+type Copy = {
+  you: string;
+  userImages: ImageGridCopy;
+  userStatus: Record<
+    'pending' | 'not_executed' | 'submitting' | 'awaiting_refresh' | 'failed',
+    string
+  >;
+};
+const COPY: Record<'en' | 'ja', Copy> = {
+  en: {
+    you: 'You',
+    userImages: {
+      list: (count) => `${count} attached image${count === 1 ? '' : 's'}`,
+      // The image content is unknown here, so the text describes the attachment, never its subject.
+      imageAlt: (position, count) => `Attached image ${position} of ${count}`,
+      open: (position, count) => `Open attached image ${position} of ${count}`,
+      missing: 'Image unavailable',
+      lightbox: {
+        dialogLabel: 'Attached image',
+        close: 'Close',
+        reveal: 'Show in Finder',
+      },
+    },
+    userStatus: {
+      pending: 'Pending',
+      not_executed: 'Not executed',
+      submitting: 'Sending',
+      awaiting_refresh: 'Sent, updating',
+      failed: 'Send failed',
+    },
+  },
+  ja: {
+    you: 'あなた',
+    userImages: {
+      list: (count) => `添付画像 ${count} 件`,
+      imageAlt: (position, count) => `添付画像 ${position} / ${count}`,
+      open: (position, count) => `添付画像 ${position} / ${count} を開く`,
+      missing: '画像を表示できません',
+      lightbox: {
+        dialogLabel: '添付画像',
+        close: '閉じる',
+        reveal: 'Finder で表示',
+      },
+    },
+    userStatus: {
+      pending: '保留',
+      not_executed: '未実行',
+      submitting: '送信中',
+      awaiting_refresh: '送信済み・更新中',
+      failed: '送信失敗',
+    },
+  },
+};
+
+export function UserItem({ item }: { item: ActionConversationUserItem }) {
+  const { language } = useI18n();
+  const copy = COPY[language];
+  const content =
+    item.source === 'canonical' ? item.entry.content : item.submission.request.message.content;
+  const status = item.source === 'canonical' ? item.entry.status : item.submission.state;
+  const images =
+    item.source === 'canonical' ? item.entry.images : item.submission.request.message.images;
+  const state =
+    status !== 'adopted' ? (
+      <span
+        className="action-conversation__state"
+        role={item.source === 'optimistic' ? 'status' : undefined}
+      >
+        {copy.userStatus[status]}
+      </span>
+    ) : null;
+
+  if (content === null && images.length === 0) return state;
+  return (
+    <article className="action-conversation__user" aria-label={copy.you}>
+      {content !== null ? <p>{content}</p> : null}
+      {images.length > 0 ? <AttachedImages images={images} copy={copy.userImages} /> : null}
+      {state}
+    </article>
+  );
+}

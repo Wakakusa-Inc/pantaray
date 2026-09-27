@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notification</title>
+  <!--
+    favicon（managed）
+    - `scripts/generate-favicons.sh` が `favicons/<hash>` を内容ハッシュに置換します
+    - `%BASE_URL%` は Vite が build 時に base（/ または ./）へ展開します
+  -->
+  <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicons/8dfacef16203/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="%BASE_URL%favicons/8dfacef16203/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="%BASE_URL%favicons/8dfacef16203/favicon-16.png" />
+  <!-- メインのCSSは読み込まない or 必要最低限に -->
+</head>
+<body class="overlay-window">
+  <div id="root"></div>
+  <script type="module" src="/src/agent-overlay-entry.tsx"></script>
+</body>
+</html> 

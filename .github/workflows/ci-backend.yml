@@ -1,0 +1,29 @@
+name: CI (backend)
+on:
+  pull_request:
+    paths:
+      - "agents/**"
+      - ".github/workflows/backend-checks.yml"
+      - ".github/workflows/ci-backend.yml"
+  # Independently green PRs can still combine into a red develop; check the
+  # merge result itself so the breakage is visible on the branch, not only on
+  # the next PR that happens to merge develop.
+  push:
+    branches:
+      - develop
+    paths:
+      - "agents/**"
+      - ".github/workflows/backend-checks.yml"
+      - ".github/workflows/ci-backend.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  agents:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/backend-checks.yml

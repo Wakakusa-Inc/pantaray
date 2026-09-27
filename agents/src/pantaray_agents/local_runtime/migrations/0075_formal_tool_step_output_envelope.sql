@@ -1,0 +1,1 @@
+-- Data-only canonicalization is implemented by the version 75 Python migration.

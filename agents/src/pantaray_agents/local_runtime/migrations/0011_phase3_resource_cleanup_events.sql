@@ -1,0 +1,2 @@
+-- 0011 is applied by pantaray_agents.local_runtime.storage.migrations
+-- using an idempotent Python migration so partial startup failures can recover safely.

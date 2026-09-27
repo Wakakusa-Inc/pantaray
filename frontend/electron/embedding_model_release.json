@@ -1,0 +1,34 @@
+{
+  "modelId": "hotchpotch/bekko-embedding-v1-a25m",
+  "sourceRevision": "44f0b8af0f487acd0ccf1a7cb7ae7a29a6dfc09c",
+  "files": [
+    {
+      "sourcePath": "onnx/model_qint8_arm64_not_recommended.onnx",
+      "installName": "model.onnx",
+      "sha256": "9e173e2a846012fba99c1d9fb3e7b38cc860d142dd20baa78ca42fadde51667a",
+      "bytes": 123979898
+    },
+    {
+      "sourcePath": "tokenizer.json",
+      "installName": "tokenizer.json",
+      "sha256": "8bd47075711f75a143d1b78e01a41cc65c1c591b00d3cfeffc23db07adce1392",
+      "bytes": 34363442
+    }
+  ],
+  "manifest": {
+    "model_id": "hotchpotch/bekko-embedding-v1-a25m",
+    "source_revision": "44f0b8af0f487acd0ccf1a7cb7ae7a29a6dfc09c",
+    "model_slug": "bekko-a25m-int8",
+    "artifact_revision": "bede737016ce233a",
+    "model_file": "model.onnx",
+    "model_sha256": "9e173e2a846012fba99c1d9fb3e7b38cc860d142dd20baa78ca42fadde51667a",
+    "tokenizer_file": "tokenizer.json",
+    "tokenizer_sha256": "8bd47075711f75a143d1b78e01a41cc65c1c591b00d3cfeffc23db07adce1392",
+    "dimensions": 384,
+    "max_tokens": 512,
+    "max_text_chars": 512,
+    "pooling": "mean",
+    "query_prefix": "",
+    "document_prefix": ""
+  }
+}

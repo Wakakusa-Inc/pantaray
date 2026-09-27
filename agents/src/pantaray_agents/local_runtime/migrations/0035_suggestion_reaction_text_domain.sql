@@ -1,0 +1,1 @@
+-- Handled by apply_suggestion_reaction_text_domain_migration() in Python.

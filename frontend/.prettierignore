@@ -1,0 +1,3 @@
+# Vendored verbatim from the pinned Zanei release; its bytes are pinned by
+# electron/zanei_release.json, so reformatting it would break the digest.
+tests/fixtures/zanei_privacy_parity_cases.json

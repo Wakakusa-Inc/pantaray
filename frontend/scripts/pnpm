@@ -1,0 +1,253 @@
+#!/usr/bin/env node
+/**
+ * pnpm shim for electron-builder
+ *
+ * 背景:
+ * - 一部環境では `pnpm` が corepack 経由で起動され、署名検証エラーで落ちることがある。
+ * - electron-builder は pnpm 管理の node_modules を扱う際に内部で `pnpm config list` を呼ぶ。
+ *
+ * 目的:
+ * - electron-builder が必要とする最小限の `pnpm config ...` を corepack なしで応答し、
+ *   desktop build を安定させる。
+ *
+ * NOTE:
+ * - これは pnpm の完全実装ではない（ビルド用途の互換 shim）。
+ * - この shim は `electron:build` の実行時のみ PATH 先頭に挿入して利用する。
+ */
+
+'use strict';
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+/** @param {string} s */
+function println(s) {
+  // NOTE:
+  // - electron-builder は `pnpm list --json` の stdout をそのまま JSON.parse する。
+  // - stdout が pipe の場合、`process.stdout.write()` は非同期で、即時 `process.exit()` すると
+  //   出力が途中で途切れることがある（実際に 8192 bytes で切れて壊れた JSON になった）。
+  // - そのため fd=1 へ同期書き込みして、確実に全量を flush する。
+  try {
+    fs.writeFileSync(1, String(s) + '\n');
+  } catch {
+    process.stdout.write(String(s) + '\n');
+  }
+}
+
+/** @param {unknown} value */
+function toJson(value) {
+  // JSON は minify して出力サイズを抑える（stdout経由の転送/parseを安定させる）
+  return JSON.stringify(value);
+}
+
+const args = process.argv.slice(2);
+
+// A few common version flags
+if (args.length === 0) {
+  process.stderr.write('[pnpm-shim] No command provided.\n');
+  process.exit(1);
+}
+
+if (args[0] === '--version' || args[0] === '-v' || args[0] === 'version') {
+  // 形式だけ満たせば十分。package.json の packageManager に合わせておく。
+  println('11.20.0');
+  process.exit(0);
+}
+
+// Minimal config surface used by electron-builder.
+const config = {
+  'node-linker': 'isolated',
+  'virtual-store-dir': 'node_modules/.pnpm',
+  // 参考値（必須ではないが、解析に使われる可能性がある）
+  registry: 'https://registry.npmjs.org/',
+};
+
+if (args[0] === 'config') {
+  const sub = args[1] || '';
+  const wantsJson = args.includes('--json') || args.includes('-j');
+
+  if (sub === 'list') {
+    if (wantsJson) {
+      println(toJson(config));
+      process.exit(0);
+    }
+    // `pnpm config list` 互換: key=value 形式を出す（electron-builder が grep/regex で拾えるようにする）
+    for (const [k, v] of Object.entries(config)) {
+      println(`${k}=${v}`);
+    }
+    process.exit(0);
+  }
+
+  if (sub === 'get') {
+    const key = String(args[2] || '').trim();
+    const value = Object.prototype.hasOwnProperty.call(config, key) ? config[key] : '';
+    if (wantsJson) {
+      println(toJson(value));
+      process.exit(0);
+    }
+    println(String(value));
+    process.exit(0);
+  }
+
+  // Unknown config subcommand: safe fail (electron-builder should not rely on it)
+  process.stderr.write(`[pnpm-shim] Unsupported config subcommand: ${sub}\n`);
+  process.exit(1);
+}
+
+// `pnpm list` / `pnpm ls` (build用途: electron-builder が依存ツリー取得に使う)
+if (args[0] === 'list' || args[0] === 'ls') {
+  const wantsJson = args.includes('--json') || args.includes('-j');
+  if (!wantsJson) {
+    // build ツール用途では JSON が必要。人間向け表示は提供しない。
+    println('');
+    process.exit(0);
+  }
+
+  // `pnpm list --prod --json --depth Infinity` 相当を、インストール済み node_modules から構築する。
+  // - corepack/pnpm が壊れていても動かすため、外部コマンドに依存しない。
+  // - electron-builder(app-builder-lib) は「JSON配列の先頭要素」を読む前提なので、
+  //   そのフォーマットに合わせる。
+  try {
+    const rootDir = process.cwd();
+    const rootDirResolved = path.resolve(rootDir);
+
+    const parseDepth = () => {
+      const idx = args.findIndex((a) => a === '--depth');
+      if (idx >= 0) {
+        const v = String(args[idx + 1] || '').trim();
+        if (!v) return Infinity;
+        if (v.toLowerCase() === 'infinity') return Infinity;
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? n : Infinity;
+      }
+      return Infinity;
+    };
+    const maxDepth = parseDepth();
+
+    const readJson = (p) => {
+      const raw = fs.readFileSync(p, 'utf8');
+      return JSON.parse(raw);
+    };
+
+    const readPackageJson = (dir) => readJson(path.join(dir, 'package.json'));
+
+    const resolveInstalledDir = (fromDir, depName) => {
+      // Node の解決規則に近づける: fromDir から親方向へ辿り、最初に見つかった node_modules を採用する。
+      // hoisted linker では依存がルートの node_modules に置かれるため、これが無いと依存ツリーが欠落する。
+      let cur = path.resolve(String(fromDir || rootDir));
+      // 念のため rootDir より上には行かない
+      while (cur.startsWith(rootDirResolved)) {
+        const p = path.join(cur, 'node_modules', depName);
+        if (fs.existsSync(p)) {
+          try {
+            return fs.realpathSync(p);
+          } catch {
+            return p;
+          }
+        }
+        const parent = path.dirname(cur);
+        if (parent === cur) break;
+        cur = parent;
+      }
+      return null;
+    };
+
+    const cache = new Map(); // realPath -> node
+
+    const buildNode = (pkgDir, depthLeft) => {
+      if (!pkgDir) return null;
+      const key = String(pkgDir);
+      if (cache.has(key)) return cache.get(key);
+
+      const pkg = readPackageJson(pkgDir);
+      const node = {
+        name: String(pkg.name || ''),
+        version: String(pkg.version || ''),
+        path: pkgDir,
+        // pnpm list の出力は dependencies/optionalDependencies に「子ノード」を入れる
+        dependencies: {},
+        optionalDependencies: {},
+      };
+      cache.set(key, node);
+
+      if (depthLeft <= 0) {
+        return node;
+      }
+
+      const deps = pkg && pkg.dependencies && typeof pkg.dependencies === 'object' ? pkg.dependencies : {};
+      for (const depName of Object.keys(deps)) {
+        const resolved = resolveInstalledDir(pkgDir, depName);
+        if (!resolved) continue;
+        const child = buildNode(resolved, depthLeft === Infinity ? Infinity : depthLeft - 1);
+        if (child) node.dependencies[depName] = child;
+      }
+
+      const optDeps = pkg && pkg.optionalDependencies && typeof pkg.optionalDependencies === 'object' ? pkg.optionalDependencies : {};
+      for (const depName of Object.keys(optDeps)) {
+        const resolved = resolveInstalledDir(pkgDir, depName);
+        if (!resolved) continue;
+        const child = buildNode(resolved, depthLeft === Infinity ? Infinity : depthLeft - 1);
+        if (child) node.optionalDependencies[depName] = child;
+      }
+
+      return node;
+    };
+
+    const rootPkg = readPackageJson(rootDir);
+    const rootNode = {
+      name: String(rootPkg.name || ''),
+      version: String(rootPkg.version || ''),
+      path: rootDir,
+      // `pnpm list` 互換: dependencies と optionalDependencies を分ける
+      dependencies: {},
+      optionalDependencies: {},
+    };
+
+    // `--prod` は root の devDependencies を除外する。子パッケージはそもそも devDeps を辿らない。
+    const rootDeps = rootPkg && rootPkg.dependencies && typeof rootPkg.dependencies === 'object' ? rootPkg.dependencies : {};
+    for (const depName of Object.keys(rootDeps)) {
+      const resolved = resolveInstalledDir(rootDir, depName);
+      if (!resolved) continue;
+      const child = buildNode(resolved, maxDepth === Infinity ? Infinity : maxDepth - 1);
+      if (child) rootNode.dependencies[depName] = child;
+    }
+    const rootOptDeps = rootPkg && rootPkg.optionalDependencies && typeof rootPkg.optionalDependencies === 'object' ? rootPkg.optionalDependencies : {};
+    for (const depName of Object.keys(rootOptDeps)) {
+      const resolved = resolveInstalledDir(rootDir, depName);
+      if (!resolved) continue;
+      const child = buildNode(resolved, maxDepth === Infinity ? Infinity : maxDepth - 1);
+      if (child) rootNode.optionalDependencies[depName] = child;
+    }
+
+    const out = [rootNode];
+    println(toJson(out));
+    process.exit(0);
+  } catch (e) {
+    process.stderr.write(`[pnpm-shim] Failed to emulate pnpm list: ${e instanceof Error ? e.message : String(e)}\n`);
+    println('[]');
+    process.exit(0);
+  }
+}
+
+// `pnpm store path` (best-effort)
+if (args[0] === 'store' && args[1] === 'path') {
+  // pnpm のデフォルトに近いパスを返す（実体が無くても致命にしない）
+  const home = os.homedir();
+  const store =
+    process.platform === 'darwin'
+      ? path.join(home, 'Library', 'pnpm', 'store', 'v3')
+      : path.join(home, '.pnpm-store', 'v3');
+  println(store);
+  process.exit(0);
+}
+
+// `pnpm root` (best-effort)
+if (args[0] === 'root') {
+  println('node_modules');
+  process.exit(0);
+}
+
+process.stderr.write(`[pnpm-shim] Unsupported command: ${args.join(' ')}\n`);
+process.exit(1);
+

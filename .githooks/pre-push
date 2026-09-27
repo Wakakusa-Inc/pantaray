@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+python3 "$REPO_ROOT/scripts/ci/run_local_ci.py" --mode staged

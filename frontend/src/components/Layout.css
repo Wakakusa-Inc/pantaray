@@ -1,0 +1,44 @@
+.app-user-dropdown a.app-user-dropdown-item {
+  display: block;
+  text-decoration: none;
+}
+
+.app-user-dropdown [role='status'] {
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header .app-user-dropdown {
+    animation: none;
+  }
+}
+
+.app-connection-notice {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--border-color-hover);
+  border-radius: 8px;
+  background: var(--surface-bg);
+  color: var(--text-secondary);
+}
+
+.app-connection-notice p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+
+.app-connection-notice a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.app-connection-notice a:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 4px;
+}

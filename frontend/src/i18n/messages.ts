@@ -1,0 +1,24 @@
+import {
+  AUTH_MESSAGES,
+  COMMON_MESSAGES,
+  HISTORY_MESSAGES,
+  OVERLAY_MESSAGES,
+  SETTINGS_MESSAGES,
+} from './messageCatalog';
+
+export const MESSAGES = {
+  en: {
+    ...COMMON_MESSAGES.en,
+    ...SETTINGS_MESSAGES.en,
+    ...HISTORY_MESSAGES.en,
+    ...AUTH_MESSAGES.en,
+    ...OVERLAY_MESSAGES.en,
+  },
+  ja: {
+    ...COMMON_MESSAGES.ja,
+    ...SETTINGS_MESSAGES.ja,
+    ...HISTORY_MESSAGES.ja,
+    ...AUTH_MESSAGES.ja,
+    ...OVERLAY_MESSAGES.ja,
+  },
+} as const;

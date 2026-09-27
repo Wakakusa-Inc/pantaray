@@ -1,0 +1,46 @@
+# Pantaray local runtime tunables.
+#
+# このファイルは local runtime の「非機密かつ環境非依存」な調整値の唯一の source of
+# truth である。環境変数が持つのは secret と machine / deployment 固有の値（path, URL,
+# key, NODE_ENV, USE_MOCKS, host / port）だけで、ここに定義した値と同名の環境変数を
+# 設定しても読まれない（互換目的の env override は存在しない）。値は起動時に strict
+# 検証され、ファイル欠落・型不一致・範囲外はいずれも起動失敗になる。
+
+[action_agent]
+# ActionAgent の 1 プロセスあたりの実行上限と cancel 判定の猶予。
+max_steps = 300
+max_tool_steps = 300
+max_parallel_memory_queries = 10
+max_parallel_tool_calls = 3
+# action.executing profile が使う local runtime 側の入力予算（トークン）。cloud
+# proxy の profile はモデル名しか持たず local runtime へ予算を伝えない。
+# gpt-6-luna は 272,000 入力トークンを超えると長文料金へ切り替わる。Cloud の
+# 課金単価は通常料金だけを持つため、入力予算を通常料金の範囲に固定する。
+context_window_tokens = 272000
+cancel_check_max_consecutive_failures = 3
+cancel_check_failure_grace_seconds = 60
+
+[artifact_paths]
+# artifact root からの相対 storage path template。衝突回避のため {user_id} を必ず含む。
+long_term_insight_storage_path_template = "users/{user_id}/insights/long_term.md"
+structured_facts_storage_path_template = "users/{user_id}/facts/structured_facts.md"
+
+[websocket]
+# 1 message あたりの受け入れ上限と rate limit。
+max_message_bytes = 262144
+rate_limit_window_seconds = 10.0
+rate_limit_max_messages = 200
+
+[websocket_capacity]
+# 同時 WS 接続数の上限。
+max_connections_total = 2
+max_connections_per_user = 2
+
+[websocket_session]
+# in-memory session store の保持上限と resume 許容範囲。
+max_age_seconds = 3600
+max_resume_missing_chunks = 2000
+store_max_sessions = 16
+store_max_processes_per_session = 100
+store_max_events_per_session = 5000
+store_max_chunks_per_process = 300

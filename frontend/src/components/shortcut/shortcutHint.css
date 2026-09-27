@@ -1,0 +1,29 @@
+.shortcut-keycaps {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  /* Keeps the caps centred on the text they sit inside when used mid-sentence. */
+  vertical-align: middle;
+}
+
+.shortcut-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 var(--space-xs);
+  box-sizing: border-box;
+  background: var(--surface-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-meta-size);
+  line-height: 1;
+}
+
+.shortcut-hint-status {
+  color: var(--text-muted);
+  font-size: var(--text-meta-size);
+}

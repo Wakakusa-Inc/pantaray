@@ -1,0 +1,87 @@
+.recording-intro-dialog {
+  background: #20252d;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-primary);
+  max-width: min(660px, calc(100vw - 32px));
+  padding: 24px;
+  width: 100%;
+}
+
+.recording-intro-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.recording-intro-dialog h2 {
+  font-size: 16px;
+  margin: 0 0 10px;
+}
+
+.recording-intro-body {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0 0 10px;
+}
+
+.recording-intro-actions {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.recording-intro-primary {
+  background: #dfe7f0;
+  border: 0;
+  border-radius: 8px;
+  color: #171b21;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 18px;
+}
+
+.recording-intro-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.recording-intro-later {
+  background: transparent;
+  border: 0;
+  color: #bcd3ec;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.recording-intro-settings {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  margin-top: 10px;
+  padding: 7px 14px;
+}
+
+.recording-intro-primary:focus-visible,
+.recording-intro-later:focus-visible,
+.recording-intro-settings:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
+
+.recording-intro-note,
+.recording-intro-unavailable {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 12px 0 0;
+}

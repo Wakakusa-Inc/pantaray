@@ -1,0 +1,521 @@
+.action-conversation {
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.action-conversation__items {
+  display: grid;
+  gap: var(--space-md);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * grid item の既定 min-width:auto は、幅を超える子要素があるとトラック自体を広げてしまう。
+ * 会話は常にパネル幅に収め、はみ出す要素（ツール出力など）は各自の中でスクロールさせる。
+ */
+.action-conversation__items > li,
+.action-conversation__run > *,
+.action-conversation__work > * {
+  min-width: 0;
+}
+
+.action-conversation__run,
+.action-conversation__work {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.action-conversation__state {
+  color: var(--text-secondary);
+  font-size: var(--text-meta-size);
+}
+
+/* 失敗だけは色でも分かるようにする。成功した行は状態語そのものを持たない。 */
+.action-conversation__state--failed {
+  color: rgba(254, 202, 202, 0.95);
+}
+
+/* ユーザー発話だけを吹き出しにし、エージェントの返答は地の文として置く。 */
+.action-conversation__user {
+  width: fit-content;
+  max-width: 85%;
+  margin-left: auto;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface-bg);
+}
+
+.action-conversation__user p,
+.action-conversation__outcome > p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.action-conversation__state {
+  display: inline-block;
+  margin-top: var(--space-xs);
+}
+
+.action-conversation__composer {
+  display: grid;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.action-conversation__composer textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 72px;
+  resize: none;
+  padding: var(--space-sm);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: var(--surface-bg);
+  font: inherit;
+}
+
+.action-conversation__composer textarea:focus-visible,
+.action-conversation__composer button:focus-visible,
+.action-conversation__retry:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+.action-conversation__composer [role='alert'] {
+  color: rgba(254, 202, 202, 0.95);
+  font-size: var(--text-meta-size);
+}
+
+.action-conversation__composer button,
+.action-conversation__retry {
+  justify-self: end;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: var(--surface-bg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.action-conversation__composer button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.action-conversation__retry {
+  margin-top: var(--space-sm);
+}
+
+.action-conversation__retry[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.action-conversation__user .action-conversation__state + .action-conversation__state {
+  margin-left: var(--space-sm);
+}
+
+.action-conversation__disclosure {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.action-conversation__disclosure::before {
+  display: inline-block;
+  margin-right: var(--space-xs);
+  content: '▸';
+}
+
+.action-conversation__disclosure[aria-expanded='true']::before {
+  content: '▾';
+}
+
+/* 畳んだ作業の件数。見出しの後ろに小さく置く。 */
+.action-conversation__count {
+  margin-left: var(--space-xs);
+  color: var(--text-muted);
+  font-size: var(--text-meta-size);
+}
+
+.action-conversation__disclosure:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 3px;
+}
+
+.action-conversation__tool,
+/* 同じツールが続いた区間。畳んだ見出しの下に、展開すると個々の行がぶら下がる。 */
+.action-conversation__tool-group {
+  display: grid;
+  gap: var(--space-xs);
+  padding-left: var(--space-lg);
+  min-width: 0;
+  color: var(--text-secondary);
+}
+
+/*
+ * ツール行は「何をしたか」の 1 文。何行にも伸びると作業のログが会話を押しつぶすので、
+ * 収まらない分は折り返さず末尾を省略する。開くと下に出力が付く。
+ */
+.action-conversation__tool-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  text-align: left;
+}
+
+.action-conversation__tool > .action-conversation__tool-line,
+.action-conversation__tool-group > .action-conversation__tool-line {
+  justify-self: stretch;
+}
+
+/*
+ * 行の本体。開くものがある行はこれがそのまま開閉ボタンになる。状態語だけは本体の外に置くので、
+ * ボタンになっても読み上げ領域が作り直されない。
+ */
+.action-conversation__tool-line-body {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  text-align: left;
+}
+
+/* 開閉の三角は行の先頭に固定する。長い文が来ても縮めない。 */
+.action-conversation__tool-line::before,
+.action-conversation__tool-line-body::before,
+.action-conversation__tool-icon {
+  flex: none;
+}
+
+/* 開くものが無い行は三角を持たないが、場所は空けてアイコンの列を揃える。 */
+.action-conversation__tool-line-body:not(.action-conversation__disclosure)::before {
+  display: inline-block;
+  margin-right: var(--space-xs);
+  visibility: hidden;
+  content: '▸';
+}
+
+.action-conversation__tool-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* コマンドそのものを見せる行。文ではないので等幅で置く。 */
+.action-conversation__tool-text--mono {
+  font-family: var(--font-mono);
+}
+
+/* 引数を持たないツールの、結果の頭。行の主語ではないので一段弱く置く。 */
+.action-conversation__tool-preview {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+.action-conversation__tool-line > .action-conversation__state {
+  flex: none;
+  margin-top: 0;
+  margin-left: auto;
+}
+
+.action-conversation__tool-output-detail {
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.action-conversation__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * 出力は行の幅いっぱいを使い、長い行は折り返す。高さは上限までで、そこから先はこの箱の中だけを
+ * 縦にスクロールさせる。リサイズハンドルは持たない（オーバーレイの高さは内容から測るため、
+ * 利用者が引き伸ばせる箱があると窓の高さが追従してしまう）。
+ */
+.action-conversation__tool-output-text {
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 16em;
+  margin: 0;
+  padding: var(--space-sm);
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: inherit;
+  background: var(--surface-bg);
+  font: var(--text-meta-size) var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.action-conversation__tool-output-text:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+.action-conversation__tool-output-failure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.action-conversation__composer-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.overlay-approval-mode {
+  display: grid;
+  gap: var(--space-xs);
+  justify-items: start;
+}
+
+/* The composer's shared button rule end-aligns grid children; the trigger owns
+   its own alignment. */
+.overlay-approval-mode > .overlay-approval-mode__trigger {
+  justify-self: start;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: var(--surface-bg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.overlay-approval-mode__trigger:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.overlay-approval-mode__trigger:focus-visible,
+.overlay-approval-mode__item:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+.overlay-approval-mode__badge {
+  color: var(--text-secondary);
+  font-size: var(--text-meta-size);
+}
+
+/* Floating popover portalled to <body>: the composer lives inside the overlay's
+   scroll container, whose height drives the overlay window resize and whose
+   overflow would clip an in-flow popup. Coordinates come from the trigger's
+   viewport rect (see ApprovalModeMenu). Opaque like .app-user-dropdown so the
+   conversation underneath stays unreadable through it. */
+.overlay-approval-mode__menu {
+  position: fixed;
+  z-index: 1000;
+  display: grid;
+  max-width: 260px;
+  padding: var(--space-xs);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: rgb(26, 30, 36);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.overlay-approval-mode__menu > .overlay-approval-mode__item {
+  justify-self: stretch;
+  display: grid;
+  gap: 2px;
+  padding: var(--space-xs) var(--space-sm);
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.overlay-approval-mode__item:hover {
+  background: var(--surface-bg-hover);
+}
+
+.overlay-approval-mode__item[aria-checked='true'] .overlay-approval-mode__item-label::before {
+  content: '✓ ';
+}
+
+.overlay-approval-mode__item-description {
+  color: var(--text-secondary);
+  font-size: var(--text-meta-size);
+}
+
+.overlay-approval-mode__error {
+  color: rgba(254, 202, 202, 0.95);
+  font-size: var(--text-meta-size);
+}
+
+/* Attached images ------------------------------------------------------------------------- */
+
+/* Fixed thumbnail boxes: the overlay window resizes to the measured content height, so a
+   thumbnail whose size depended on the decoded image would move the window when the image
+   finally arrives. Wrapping flex rather than a grid because the bubble is `width: fit-content`,
+   where auto-fill tracks would collapse to a single column. */
+.action-conversation__attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.action-conversation__thumb {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--surface-bg);
+  font-size: var(--text-meta-size);
+  text-align: center;
+  cursor: pointer;
+}
+
+.action-conversation__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.action-conversation__thumb--missing {
+  padding: var(--space-xs);
+  cursor: default;
+}
+
+.action-conversation__thumb:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+/* Portalled to <body> and fixed: a full-size image inside the measured conversation subtree
+   would drag the overlay window to full screen. */
+.action-conversation__lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.action-conversation__lightbox {
+  display: grid;
+  gap: var(--space-sm);
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.action-conversation__lightbox img {
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.action-conversation__lightbox-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.action-conversation__lightbox-actions button {
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  background: var(--surface-bg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.action-conversation__lightbox-actions button:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 2px;
+}
+
+/* Composer attachments -------------------------------------------------------------------- */
+
+.action-conversation__composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.action-conversation__composer-attachment {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.action-conversation__composer-attachment img {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+/* Keeps the attach and send buttons together on the right of the actions row. */
+.action-conversation__composer-submit {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+/* The composer's shared button rule end-aligns grid children; this one is anchored instead. */
+.action-conversation__composer .action-conversation__composer-attachment-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  justify-self: auto;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  line-height: 1;
+}
