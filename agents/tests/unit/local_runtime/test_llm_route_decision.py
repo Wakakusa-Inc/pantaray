@@ -233,6 +233,23 @@ async def test_a_present_cloud_session_reaches_only_the_pantaray_proxy(
     assert result.text == "hello"
 
 
+async def test_a_cloud_session_without_a_proxy_url_sends_nothing(
+    boundaries: Callable[..., Boundaries], tmp_path: Path
+) -> None:
+    """Electron gives the runtime no proxy URL while account login is disabled."""
+    configure_connection()
+    sign_in(tmp_path)
+    cloud, provider = boundaries()
+
+    with pytest.raises(RuntimeError, match="LLM_PROXY_URL"):
+        await generate(
+            owner=ACCOUNT_OWNER, proxy_client=LocalLlmProxyClient(proxy_url=None)
+        )
+
+    assert cloud.requests == []
+    assert provider.requests == []
+
+
 async def test_a_stored_connection_reaches_only_its_own_provider(
     boundaries: Callable[..., Boundaries],
 ) -> None:

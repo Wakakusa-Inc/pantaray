@@ -38,24 +38,18 @@ def validate_env_vars() -> tuple[list[str], list[str]]:
         "LOCAL_DB_PATH",
         "LOCAL_DB_BUSY_TIMEOUT_MS",
         "LOCAL_ARTIFACT_ROOT",
-        "LLM_PROXY_URL",
-        "WEB_TOOLS_PROXY_URL",
     ]
     missing = [name for name in required_env_vars if not optional_env(name)]
     if missing:
         raise ValueError(
             f"Missing required environment variables: {', '.join(missing)}"
         )
-    parse_network_url(
-        required_env("LLM_PROXY_URL"),
-        env_name="LLM_PROXY_URL",
-        allow_path=True,
-    )
-    parse_network_url(
-        required_env("WEB_TOOLS_PROXY_URL"),
-        env_name="WEB_TOOLS_PROXY_URL",
-        allow_path=True,
-    )
+    # Electron passes the Cloud proxy URLs only while Pantaray account login is
+    # enabled; without them the Cloud route is unavailable.
+    for name in ("LLM_PROXY_URL", "WEB_TOOLS_PROXY_URL"):
+        value = optional_env(name)
+        if value is not None:
+            parse_network_url(value, env_name=name, allow_path=True)
     return ALLOWED_ORIGINS, ALLOWED_HOSTS
 
 

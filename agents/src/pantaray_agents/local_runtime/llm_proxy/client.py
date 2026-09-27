@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
 
@@ -83,7 +84,6 @@ from pantaray_llm.contracts.action_turn import LlmActionTurnResponse
 from pantaray_llm.contracts.request import LlmRequest
 from pantaray_llm.contracts.tool_use import LlmToolUseResponse
 from pantaray_llm.contracts.uploaded_blob import UploadedBlob
-from pantaray_llm.env import read_required_env
 from pantaray_llm.errors import (
     PROXY_AUTHENTICATION_FAILED,
     PROXY_CONNECTION_NOT_CONFIGURED,
@@ -311,8 +311,10 @@ def _read_inference_profile(config: object | None) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
 
 
-def _read_required_llm_proxy_url() -> str:
-    raw = read_required_env(LLM_PROXY_URL_ENV)
+def _read_llm_proxy_url() -> str | None:
+    raw = os.getenv(LLM_PROXY_URL_ENV)
+    if raw is None or not raw.strip():
+        return None
     parsed_url = parse_network_url(
         raw,
         env_name=LLM_PROXY_URL_ENV,
@@ -340,7 +342,7 @@ class _AioClient:
 
 
 class LocalLlmProxyClient:
-    def __init__(self, *, proxy_url: str) -> None:
+    def __init__(self, *, proxy_url: str | None) -> None:
         self._proxy_url = proxy_url
         self.aio = _AioClient(self)
 
@@ -372,6 +374,12 @@ class LocalLlmProxyClient:
         response_schema: object | None,
         multipart_files: list[MultipartFile],
     ) -> ProxyResponse:
+        if self._proxy_url is None:
+            # Electron leaves the URL out while Pantaray account login is disabled,
+            # so a cloud session should not exist; refuse instead of guessing.
+            raise RuntimeError(
+                f"{LLM_PROXY_URL_ENV} is not set: the Pantaray Cloud route is unavailable."
+            )
         response: httpx2.Response = await post_request(
             proxy_url=self._proxy_url,
             request_json=request_json,
@@ -565,7 +573,7 @@ class LocalLlmProxyClient:
 
 
 def build_local_llm_proxy_client() -> LocalLlmProxyClient:
-    return LocalLlmProxyClient(proxy_url=_read_required_llm_proxy_url())
+    return LocalLlmProxyClient(proxy_url=_read_llm_proxy_url())
 
 
 __all__ = ["LocalLlmProxyClient", "build_local_llm_proxy_client"]

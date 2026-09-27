@@ -56,8 +56,8 @@ const successfulCodeExchange = {
 
 vi.mock('../lib/supabase', () => {
   return {
-    supabaseAuthStorageKey: 'sb-test-auth-token',
-    supabase: {
+    getSupabaseAuthStorageKey: () => 'sb-test-auth-token',
+    getSupabase: () => ({
       auth: {
         getSession: (...args: unknown[]) => getSessionMock(...args),
         exchangeCodeForSession: (...args: unknown[]) => exchangeCodeForSessionMock(...args),
@@ -74,7 +74,7 @@ vi.mock('../lib/supabase', () => {
           };
         },
       },
-    },
+    }),
   };
 });
 

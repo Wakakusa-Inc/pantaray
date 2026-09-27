@@ -10,13 +10,14 @@ function parseApiOrigin(value) {
   return url;
 }
 
-function buildContentSecurityPolicy({ isDev, apiOrigin }) {
+function buildContentSecurityPolicy({ isDev, apiOrigin, accountLoginEnabled }) {
   const apiUrl = parseApiOrigin(apiOrigin);
+  const supabase = accountLoginEnabled ? ' https://*.supabase.co wss://*.supabase.co' : '';
   const connectSrc = isDev
-    ? "connect-src 'self' ws://localhost:* http://localhost:* ws://127.0.0.1:* http://127.0.0.1:* https://*.supabase.co wss://*.supabase.co;"
+    ? `connect-src 'self' ws://localhost:* http://localhost:* ws://127.0.0.1:* http://127.0.0.1:*${supabase};`
     : apiUrl
-      ? `connect-src 'self' ${apiUrl.origin} ${apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'}//${apiUrl.host} https://*.supabase.co wss://*.supabase.co;`
-      : "connect-src 'self' https://*.supabase.co wss://*.supabase.co;";
+      ? `connect-src 'self' ${apiUrl.origin} ${apiUrl.protocol === 'https:' ? 'wss:' : 'ws:'}//${apiUrl.host}${supabase};`
+      : `connect-src 'self'${supabase};`;
 
   return [
     "default-src 'self';",

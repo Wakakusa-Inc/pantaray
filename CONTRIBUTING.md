@@ -55,24 +55,20 @@ cp frontend/.env.example frontend/.env.local
 cp agents/.env.local.backend.example agents/.env.local.backend.local
 ```
 
-`frontend/.env.local` needs, among the keys documented in the example:
+`frontend/.env.local` needs `BACKEND_URL` and `VITE_API_HOST` — the same loopback origin with an
+explicit port, such as `http://127.0.0.1:8005`. `VITE_API_HOST` is what the packaged app's content
+security policy allows. The other keys in the frontend example are optional.
 
-- `BACKEND_URL` and `VITE_API_HOST` — the same loopback origin with an explicit port, such as
-  `http://127.0.0.1:8005`. `VITE_API_HOST` is what the packaged app's content security policy
-  allows.
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_WEB_APP_URL` — the Pantaray account
-  sign-in. These are public client values, not secrets. The renderer does not start without the
-  two Supabase values.
-
-The other keys in the frontend example are optional.
-
-`agents/.env.local.backend.local` needs every key in the example. Electron fills in the
+`agents/.env.local.backend.local` needs every uncommented key in the example. Electron fills in the
 machine-specific paths — the database, the artifact directory, and the log file — when it starts
 the runtime.
 
-`LLM_PROXY_URL` and `WEB_TOOLS_PROXY_URL` are full URLs, used as given with no path completion, and
-they are only contacted while signed in to a Pantaray account — signed out, inference and web
-search go straight to the provider you configured in the app.
+Pantaray account login is off (`PANTARAY_ACCOUNT_LOGIN_ENABLED` in
+`frontend/electron/src/auth/accountLoginFeature.ts`), so the account and Cloud keys that are
+commented out in the examples — `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`,
+`VITE_WEB_APP_URL`, `LLM_PROXY_URL`, `WEB_TOOLS_PROXY_URL` — are neither required nor read until
+that flag is turned on. Inference and web search go straight to the provider you configure in the
+app.
 
 **Never put a provider secret in these files.** `OPENAI_API_KEY`, `TAVILY_API_KEY` and friends do
 not belong there; the app takes provider credentials through its own settings screen, encrypts
@@ -162,5 +158,7 @@ unit suites. Cover the provider adapters with fixed responses.
 ## Never commit secrets
 
 API keys, access tokens, `.env` files, and database contents do not belong in the repository. The
-environment files above are all git-ignored; keep it that way. If you believe a secret has been
+environment files above are all git-ignored; keep it that way. The only checked-in exceptions are
+the desktop packaging inputs `frontend/.env.production` and `agents/.env.local.backend.production`,
+which hold public values that ship in the app. If you believe a secret has been
 committed, treat it as a security report and follow [SECURITY.md](SECURITY.md).

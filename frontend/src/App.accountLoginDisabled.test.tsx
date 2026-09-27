@@ -9,11 +9,7 @@ vi.mock('./pages/SuggestionHistoryPage', () => ({ default: () => <h1>Local histo
 vi.mock('./pages/SettingsPage', () => ({ default: () => <h1>Local settings</h1> }));
 vi.mock('./pages/WorkspacePage', () => ({ default: () => <h1>Local workspace</h1> }));
 vi.mock('./components/RecordingIntroDialog', () => ({ RecordingIntroDialog: () => null }));
-vi.mock('./lib/supabase', () => ({
-  supabase: {
-    auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) },
-  },
-}));
+// The real Supabase module loads here: with account login off it needs no Supabase setting.
 
 const auth: AuthContextType = {
   authStatus: 'unauthenticated',

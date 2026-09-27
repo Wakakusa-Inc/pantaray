@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, supabaseAuthStorageKey } from '../lib/supabase';
+import { getSupabase, getSupabaseAuthStorageKey } from '../lib/supabase';
 import { useI18n } from '@/context/useI18n';
 import { BrandWordmark } from '@/components/BrandWordmark';
 import { validatePassword } from '@/lib/passwordPolicy';
@@ -47,12 +47,12 @@ function exchangePkceRecoveryCodeOnce(code: string): Promise<boolean> {
     return pkceRecoveryExchange.promise;
   }
 
-  if (!hasPasswordRecoveryCodeVerifier(getBrowserLocalStorage(), supabaseAuthStorageKey)) {
+  if (!hasPasswordRecoveryCodeVerifier(getBrowserLocalStorage(), getSupabaseAuthStorageKey())) {
     return Promise.resolve(false);
   }
 
-  const promise = supabase.auth
-    .exchangeCodeForSession(code)
+  const promise = getSupabase()
+    .auth.exchangeCodeForSession(code)
     .then(({ data, error }) => !error && Boolean(data.session))
     .catch(() => false);
   pkceRecoveryExchange = { code, promise };
@@ -99,7 +99,7 @@ const ResetPassword: React.FC = () => {
       const {
         data: { session },
         error,
-      } = await supabase.auth.getSession();
+      } = await getSupabase().auth.getSession();
 
       if (cancelled) {
         return;
@@ -160,7 +160,7 @@ const ResetPassword: React.FC = () => {
 
     const {
       data: { subscription: authSubscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = getSupabase().auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' && session) {
         markPasswordRecoverySessionVerified(storage);
         void verifyRecoverySession();
@@ -219,7 +219,7 @@ const ResetPassword: React.FC = () => {
       const {
         data: { session },
         error: sessionError,
-      } = await supabase.auth.getSession();
+      } = await getSupabase().auth.getSession();
 
       if (sessionError || !session || !hasVerifiedRecoverySession || recoveryStatus !== 'ready') {
         clearPasswordRecoverySessionMarker(storage);
@@ -233,7 +233,7 @@ const ResetPassword: React.FC = () => {
       localStorage.setItem('skipAuthRedirect', 'true');
 
       // パスワード更新
-      const { error } = await supabase.auth.updateUser({
+      const { error } = await getSupabase().auth.updateUser({
         password,
       });
 
@@ -246,11 +246,11 @@ const ResetPassword: React.FC = () => {
         setMessageType('success');
         setMessage(t('auth.message.passwordUpdated'));
 
-        const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
+        const { error: signOutError } = await getSupabase().auth.signOut({ scope: 'local' });
         const {
           data: { session: remainingSession },
           error: remainingSessionError,
-        } = await supabase.auth.getSession();
+        } = await getSupabase().auth.getSession();
 
         if (signOutError || remainingSessionError || remainingSession) {
           console.error('Password reset sign-out failed:', signOutError ?? remainingSessionError);

@@ -33,14 +33,21 @@ const REQUIRED_LOCAL_BACKEND_KEYS = [
   'ALLOWED_ORIGINS',
   'ALLOWED_HOSTS',
   'LOCAL_DB_BUSY_TIMEOUT_MS',
-  'LLM_PROXY_URL',
-  'WEB_TOOLS_PROXY_URL',
 ];
+// The Cloud route is reachable only through a Pantaray account session, so these
+// ship only while account login is enabled; the runtime treats their absence as
+// "no Cloud route".
+const CLOUD_PROXY_KEYS = ['LLM_PROXY_URL', 'WEB_TOOLS_PROXY_URL'];
 
-const LOCAL_BACKEND_BUNDLE_KEYS = new Set([
-  ...REQUIRED_LOCAL_BACKEND_KEYS,
-  ...RUNTIME_MATERIALIZED_KEYS,
-]);
+function requiredLocalBackendKeys(accountLoginEnabled) {
+  return accountLoginEnabled
+    ? [...REQUIRED_LOCAL_BACKEND_KEYS, ...CLOUD_PROXY_KEYS]
+    : REQUIRED_LOCAL_BACKEND_KEYS;
+}
+
+function localBackendBundleKeys(accountLoginEnabled) {
+  return new Set([...requiredLocalBackendKeys(accountLoginEnabled), ...RUNTIME_MATERIALIZED_KEYS]);
+}
 
 function requireKey(env, key) {
   const value = String(env[key] || '').trim();
@@ -86,10 +93,10 @@ function normalizeValue(key, rawValue) {
   return rawValue;
 }
 
-function buildLocalBackendRuntimeBundle(env, { releaseBuild = false } = {}) {
+function buildLocalBackendRuntimeBundle(env, { accountLoginEnabled, releaseBuild = false }) {
   const forcedValues = releaseBuild ? RELEASE_FORCED_VALUES : {};
   const requiredEntries = Object.fromEntries(
-    REQUIRED_LOCAL_BACKEND_KEYS.filter((key) => !(key in forcedValues)).map((key) => [
+    requiredLocalBackendKeys(accountLoginEnabled).filter((key) => !(key in forcedValues)).map((key) => [
       key,
       normalizeValue(key, requireKey(env, key)),
     ])
@@ -110,13 +117,14 @@ function buildLocalBackendRuntimeBundle(env, { releaseBuild = false } = {}) {
  * 配布ビルドの bundle は `os.environ` へそのまま注入されるため、鍵集合を許可リストで固定する。
  * 生成時に通る `buildLocalBackendRuntimeBundle` と同じ集合を、読み込み時にも要求する。
  */
-function assertLocalBackendRuntimeBundleKeys(bundle) {
+function assertLocalBackendRuntimeBundleKeys(bundle, { accountLoginEnabled }) {
   if (!bundle || typeof bundle !== 'object' || Array.isArray(bundle)) {
     throw new Error('local backend runtime bundle root must be an object.');
   }
+  const expected = localBackendBundleKeys(accountLoginEnabled);
   const actual = new Set(Object.keys(bundle));
-  const unknown = [...actual].filter((key) => !LOCAL_BACKEND_BUNDLE_KEYS.has(key)).sort();
-  const missing = [...LOCAL_BACKEND_BUNDLE_KEYS].filter((key) => !actual.has(key)).sort();
+  const unknown = [...actual].filter((key) => !expected.has(key)).sort();
+  const missing = [...expected].filter((key) => !actual.has(key)).sort();
   if (unknown.length === 0 && missing.length === 0) return;
   throw new Error(
     [
@@ -129,9 +137,9 @@ function assertLocalBackendRuntimeBundleKeys(bundle) {
 
 module.exports = {
   HELPER_RUNTIME_MANIFEST_FILENAME,
-  LOCAL_BACKEND_BUNDLE_KEYS,
   LOCAL_EMBEDDING_MODEL_DIRNAME,
   RUNTIME_MATERIALIZED_KEYS,
   assertLocalBackendRuntimeBundleKeys,
   buildLocalBackendRuntimeBundle,
+  localBackendBundleKeys,
 };

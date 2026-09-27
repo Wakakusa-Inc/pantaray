@@ -18,7 +18,7 @@ import SettingsPage from './pages/SettingsPage';
 import ConfirmationSuccess from './pages/ConfirmationSuccess';
 import PasswordResetSuccess from './pages/PasswordResetSuccess';
 import EmailVerificationPage from './pages/EmailVerificationPage';
-import { supabase } from './lib/supabase';
+import { getSupabase } from './lib/supabase';
 import Layout from './components/Layout';
 import { LocalOwnerBoundary } from './components/LocalOwnerBoundary';
 import SuggestionHistoryPage from './pages/SuggestionHistoryPage';
@@ -89,7 +89,7 @@ const AuthStateManager: React.FC = () => {
     // 認証状態の変更を監視
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = getSupabase().auth.onAuthStateChange((_event, session) => {
       console.log('Auth state changed in AuthStateManager:', {
         event: _event,
         hasSession: !!session,

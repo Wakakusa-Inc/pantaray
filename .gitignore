@@ -130,6 +130,9 @@ celerybeat.pid
 !.env.local.backend.example
 !.env.compose.example
 !.env.test
+# Desktop packaging inputs: public values only.
+!frontend/.env.production
+!agents/.env.local.backend.production
 env.local.backend.json
 *.env
 .venv

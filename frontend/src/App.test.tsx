@@ -15,12 +15,12 @@ vi.mock('./pages/SettingsPage', () => ({ default: () => <h1>Local settings</h1> 
 vi.mock('./pages/WorkspacePage', () => ({ default: () => <h1>Local workspace</h1> }));
 vi.mock('./components/RecordingIntroDialog', () => ({ RecordingIntroDialog: () => null }));
 vi.mock('./lib/supabase', () => ({
-  supabase: {
+  getSupabase: () => ({
     auth: {
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
       getSession: async () => ({ data: { session: null }, error: null }),
     },
-  },
+  }),
 }));
 
 let auth: AuthContextType;

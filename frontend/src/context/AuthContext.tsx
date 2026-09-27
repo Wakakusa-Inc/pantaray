@@ -1,7 +1,7 @@
 import React, { useState, useEffect, ReactNode } from 'react';
 import { AuthContext } from './AuthContextDef';
 import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase, getRedirectUrl, getPasswordResetRedirectUrl } from '../lib/supabase';
+import { getSupabase, getRedirectUrl, getPasswordResetRedirectUrl } from '../lib/supabase';
 import { INITIAL_LOCAL_RUNTIME_STATE } from '../../electron/src/auth/localRuntimeState';
 import { resolveSupabaseSignUpResult } from '../lib/signUpResult';
 import type { SignUpResult } from '../lib/signUpResult';
@@ -86,17 +86,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
       const {
         data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, next) => {
+      } = getSupabase().auth.onAuthStateChange((_event, next) => {
         if (!active) return;
         receivedNotification = true;
         applySession(next);
       });
       unsubscribe = () => subscription.unsubscribe();
-      void supabase.auth.getSession().then(({ data, error }) => {
-        if (!active || receivedNotification) return;
-        if (error) handleInitialError();
-        else applySession(data.session);
-      }, handleInitialError);
+      void getSupabase()
+        .auth.getSession()
+        .then(({ data, error }) => {
+          if (!active || receivedNotification) return;
+          if (error) handleInitialError();
+          else applySession(data.session);
+        }, handleInitialError);
     }
 
     return () => {
@@ -114,7 +116,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
         return { error: new AuthError('Electron では外部ブラウザでログインしてください') };
       }
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await getSupabase().auth.signInWithPassword({
         email,
         password,
       });
@@ -137,7 +139,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           error: new AuthError('Electron では外部ブラウザでサインアップしてください'),
         } as const;
       }
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await getSupabase().auth.signUp({
         email,
         password,
         options: {
@@ -162,8 +164,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       // Web: セッションを強制的にリフレッシュしてからサインアウト
-      await supabase.auth.refreshSession();
-      const { error } = await supabase.auth.signOut();
+      await getSupabase().auth.refreshSession();
+      const { error } = await getSupabase().auth.signOut();
       return { error };
     } catch (error) {
       console.error('サインアウトエラー:', error);
@@ -182,7 +184,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           error: new AuthError('Electron では外部ブラウザでパスワードリセットしてください'),
         };
       }
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await getSupabase().auth.resetPasswordForEmail(email, {
         redirectTo: getPasswordResetRedirectUrl(),
       });
       return { error };

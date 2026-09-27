@@ -368,7 +368,7 @@ function materializeLocalBackendRuntimeConfig(params) {
 
   const raw = readFileSyncWithInterruptedReadRetry(bundlePath, 'utf8');
   const parsed = JSON.parse(raw);
-  assertLocalBackendRuntimeBundleKeys(parsed);
+  assertLocalBackendRuntimeBundleKeys(parsed, { accountLoginEnabled: params.accountLoginEnabled });
   const helperExecutablePath = path.join(
     params.resourcesPath,
     LOCAL_BACKEND_HELPER_EXECUTABLE_RELATIVE_PATH
@@ -393,7 +393,9 @@ function materializeLocalBackendRuntimeConfig(params) {
 
 function materializeDevelopmentLocalBackendRuntimeConfig(params) {
   const { envPath, env } = readDevelopmentLocalBackendEnv(params.agentsRoot);
-  const bundleConfig = buildLocalBackendRuntimeBundle(env);
+  const bundleConfig = buildLocalBackendRuntimeBundle(env, {
+    accountLoginEnabled: params.accountLoginEnabled,
+  });
   const appRuntimeManifestPath = materializeDevelopmentAppRuntimeManifest({
     agentsRoot: params.agentsRoot,
     userDataDir: params.userDataDir,

@@ -11,7 +11,7 @@ const webAuth = vi.hoisted(() => ({
   signUp: vi.fn(),
   resetPasswordForEmail: vi.fn(),
 }));
-vi.mock('../lib/supabase', () => ({ supabase: { auth: webAuth } }));
+vi.mock('../lib/supabase', () => ({ getSupabase: () => ({ auth: webAuth }) }));
 
 afterEach(() => {
   cleanup();
