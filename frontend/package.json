@@ -59,6 +59,9 @@
       ],
       "category": "public.app-category.utilities"
     },
+    "dmg": {
+      "artifactName": "${productName}.${ext}"
+    },
     "files": [
       "dist/**/*",
       "shared/**/*",
