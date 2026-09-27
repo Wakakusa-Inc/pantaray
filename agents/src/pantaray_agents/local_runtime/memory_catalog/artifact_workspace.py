@@ -5,9 +5,14 @@ from pathlib import Path
 
 from pantaray_agents.local_runtime.memory_references.reference_parser import (
     extract_markdown_references,
+    remove_reference_ids,
 )
 
-from .draft import create_memory_draft
+from .agent_experience_content import (
+    AGENT_EXPERIENCE_ENTRIES_ROOT,
+    is_action_evidence_line,
+)
+from .draft import create_memory_draft, replace_draft_documents
 from .errors import MemoryCatalogIntegrityError
 from .fragments import artifact_content_sha256
 from .models import DraftLink, MemoryDocument, MemoryDraftCheckpoint, MemorySource
@@ -50,11 +55,19 @@ def prepare_artifact_draft(
     else:
         if node.current_revision_id is None:
             raise MemoryCatalogIntegrityError("active memory node has no revision")
-        documents = read_artifact_revision_documents(
+        links = list_revision_links(
             connection=connection,
-            artifact_root=artifact_root,
             user_id=user_id,
             revision_id=node.current_revision_id,
+        )
+        documents = drop_deleted_references(
+            read_artifact_revision_documents(
+                connection=connection,
+                artifact_root=artifact_root,
+                user_id=user_id,
+                revision_id=node.current_revision_id,
+            ),
+            linked_ref_ids=frozenset(link.local_ref_id for link in links),
         )
         carried_links = _load_carried_links(
             connection=connection,
@@ -110,6 +123,70 @@ def read_artifact_revision_documents(
             "artifact revision content is missing or changed"
         )
     return documents
+
+
+def drop_deleted_references(
+    documents: tuple[MemoryDocument, ...], *, linked_ref_ids: frozenset[str]
+) -> tuple[MemoryDocument, ...]:
+    """Drop tags whose link went with a deleted conversation (evidence: the line)."""
+
+    return tuple(
+        MemoryDocument(
+            document.source_path,
+            _drop_unlinked_tags(
+                document.content,
+                linked_ref_ids=linked_ref_ids,
+                is_experience_entry=document.source_path.startswith(
+                    f"{AGENT_EXPERIENCE_ENTRIES_ROOT}/"
+                ),
+            ),
+        )
+        for document in documents
+    )
+
+
+def drop_links_to_deleted_targets(
+    *, connection: sqlite3.Connection, draft: MemoryDraftCheckpoint
+) -> tuple[MemoryDraftCheckpoint, int]:
+    """Retire refs whose target was deleted with its conversation during a run.
+
+    Returns the draft to publish and how many refs it dropped.
+    """
+
+    active = tuple(link for link in draft.links if link.state != "removed")
+    targets = tuple({link.target_fragment_id for link in active})
+    placeholders = ",".join("?" for _ in targets)
+    live = {
+        str(row[0])
+        for row in connection.execute(
+            f"""SELECT fragment_id FROM memory_fragments
+                WHERE user_id = ? AND fragment_id IN ({placeholders})""",
+            (draft.user_id, *targets),
+        )
+    }
+    kept = frozenset(
+        link.local_ref_id for link in active if link.target_fragment_id in live
+    )
+    dropped = len(active) - len(kept)
+    if not dropped:
+        return draft, 0
+    documents = drop_deleted_references(draft.documents, linked_ref_ids=kept)
+    return replace_draft_documents(draft=draft, documents=documents), dropped
+
+
+def _drop_unlinked_tags(
+    content: str, *, linked_ref_ids: frozenset[str], is_experience_entry: bool
+) -> str:
+    lines: list[str] = []
+    for line in content.splitlines(keepends=True):
+        unlinked = {
+            occurrence.local_ref_id for occurrence in extract_markdown_references(line)
+        } - linked_ref_ids
+        if not unlinked:
+            lines.append(line)
+        elif not (is_experience_entry and is_action_evidence_line(line)):
+            lines.append(remove_reference_ids(line, unlinked))
+    return "".join(lines)
 
 
 def _load_carried_links(

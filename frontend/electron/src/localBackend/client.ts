@@ -47,6 +47,10 @@ const ALLOWED_LOCAL_BACKEND_ROUTES: ReadonlyArray<{
   { path: /^\/v1\/agents\/users\/[^/]+\/context-source\/transitions$/, methods: new Set(['POST']) },
   { path: /^\/api\/agent\/history$/, methods: new Set(['GET']) },
   {
+    path: /^\/api\/agent\/history\/items\/(conversation|suggestion)\/[^/]+$/,
+    methods: new Set(['DELETE']),
+  },
+  {
     path: /^\/api\/agent\/history\/[^/]+\/overlay-bootstrap$/,
     methods: new Set(['GET']),
   },
@@ -264,6 +268,8 @@ export function createLocalBackendClient(params: {
         const detail = extractErrorDetail(errorPayload, fallback);
         throw new LocalBackendRequestError(detail.message, response.status, detail.errorCode);
       }
+      // 204 carries no body; its callers type the result as `void`.
+      if (response.status === 204) return undefined as T;
       try {
         return (await response.json()) as T;
       } catch (error) {

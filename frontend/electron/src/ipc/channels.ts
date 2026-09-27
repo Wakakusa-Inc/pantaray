@@ -94,6 +94,7 @@ export const validInvokeChannels = [
   // Suggestion history (main SSOT)
   'history:fetch',
   'history:markCompletionViewed',
+  'history:deleteItem',
   'history:openNewConversation',
   'history:openConversation',
   'screenshot:getStatus',

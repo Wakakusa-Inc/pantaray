@@ -99,11 +99,13 @@ async def execute_memory_update_job(
                 workspace_scope=workspace_scope,
             )
             agent = await build_agent()
-            await agent.update(
-                prepared.context,
-                tool_definitions=prepared.tool_definitions,
-                tool_result_directory_fd=workspace_scope.require_tool_results_fd(),
-            )
+            # With every input deleted from history, the run publishes nothing.
+            if prepared.has_evidence:
+                await agent.update(
+                    prepared.context,
+                    tool_definitions=prepared.tool_definitions,
+                    tool_result_directory_fd=workspace_scope.require_tool_results_fd(),
+                )
             # Everything above stayed in the run-only workspace; this is where
             # the edits become the owner's memory, so the route they were made
             # on has to still be current.

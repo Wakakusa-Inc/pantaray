@@ -13,6 +13,7 @@ import { submitActionApprovalDecision } from '../actions/actionApprovalSubmissio
 import { createActionReadState } from '../history/actionReadState';
 import { broadcastHistoryChanged } from '../orchestration/historyNotifications';
 import { createHistoryFetcher } from '../history/historyFetch';
+import { createHistoryItemDeleter } from '../history/historyItemDelete';
 import type { MainContext } from '../ipc/context';
 import { createOverlayBootstrapFetcher } from '../history/overlayBootstrapFetch';
 import { startMainIpcRuntime } from './ipcBootstrap';
@@ -170,6 +171,15 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
     getRuntimeState: params.supabaseWiring.getRuntimeState,
     getCompletionUnreadSnapshot: actionReadState.snapshotCompletionUnread,
   });
+  const historyDeleteItem = createHistoryItemDeleter({
+    requestJson,
+    closeConversationWindow: ({ kind, id }) => {
+      const overlayId = params.notificationWindow.resolveOverlayId(
+        kind === 'conversation' ? { actionId: id } : { suggestionId: id }
+      );
+      if (overlayId) params.notificationWindow.destroyOverlayWindow(overlayId);
+    },
+  });
   const overlayBootstrapFetch = createOverlayBootstrapFetcher({ requestJson });
   const getUserId = () => params.supabaseWiring.getLocalOwnerId();
   const actionApprovalDecisionFetch = createActionApprovalDecisionFetcher({
@@ -290,6 +300,7 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
         signOut: params.supabaseWiring.signOut,
         startBrowserLogin: params.authCoordinator.startBrowserLogin,
         historyFetch,
+        historyDeleteItem,
         markCompletionViewed: (request) => {
           actionReadState.markCompletionViewed(request);
           broadcastHistoryChanged(params.getMainWindow(), { source: 'read_state' });

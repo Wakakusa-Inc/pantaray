@@ -168,4 +168,29 @@ describe('useSuggestionHistory', () => {
     await act(async () => pending[6].resolve(historyResult([refreshed], null)));
     expect(result.current.isUnread(refreshed)).toBe(false);
   });
+  it('削除した行は消え、削除前に始まった読み取りで戻らない', async () => {
+    const pending: Array<ReturnType<typeof deferred<HistoryFetchResult>>> = [];
+    const fetch = vi.fn<HistoryBridge['fetch']>(() => {
+      const request = deferred<HistoryFetchResult>();
+      pending.push(request);
+      return request.promise;
+    });
+    const onChanged = installHistoryBridge(fetch);
+    const { result } = renderHook(() => useSuggestionHistory(), { wrapper: Wrapper });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const other = { ...CURRENT_ITEM, action_id: 'action-other', title: 'Other' };
+    await act(async () => pending[0].resolve(historyResult([CURRENT_ITEM, other], null)));
+
+    // A realtime refresh read the list before the delete committed.
+    act(() => onChanged.mock.calls[0][0]({}));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    act(() => result.current.removeItem('conversation:action-current'));
+    expect(result.current.items).toEqual([other]);
+
+    await act(async () => pending[1].resolve(historyResult([CURRENT_ITEM, other], null)));
+    expect(result.current.items).toEqual([other]);
+    await act(async () => pending[2].resolve(historyResult([other], null)));
+    expect(result.current.items).toEqual([other]);
+  });
 });

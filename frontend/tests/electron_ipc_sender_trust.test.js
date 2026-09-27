@@ -91,12 +91,14 @@ test('Conversation submission and read receipts belong to Overlay; History opens
   );
   assert.equal(security.authorize('action:readConversationPage', mainEvent), 'main');
   assert.equal(security.authorize('action:readConversationPage', overlayEvent), 'overlay');
-  assert.equal(security.authorize('history:openNewConversation', mainEvent), 'main');
-  assert.throws(
-    () => security.authorize('history:openNewConversation', overlayEvent),
-    (error) =>
-      error instanceof IpcSenderRejectedError && error.code === 'channel_not_allowed_for_window'
-  );
+  for (const channel of ['history:openNewConversation', 'history:deleteItem']) {
+    assert.equal(security.authorize(channel, mainEvent), 'main');
+    assert.throws(
+      () => security.authorize(channel, overlayEvent),
+      (error) =>
+        error instanceof IpcSenderRejectedError && error.code === 'channel_not_allowed_for_window'
+    );
+  }
   assert.equal(security.authorize('auth:getState', overlayEvent), 'overlay');
   assert.equal(security.authorize('history:markCompletionViewed', overlayEvent), 'overlay');
   assert.throws(

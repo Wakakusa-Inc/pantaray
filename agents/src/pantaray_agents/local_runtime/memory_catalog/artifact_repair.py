@@ -17,6 +17,7 @@ from .agent_experience_validation import (
     build_agent_experience_evidence_edges,
     validate_agent_experience_evidence_links,
 )
+from .artifact_workspace import drop_deleted_references
 from .draft import create_memory_draft
 from .errors import MemoryCatalogIntegrityError
 from .models import (
@@ -108,9 +109,12 @@ def rebuild_agent_experience_repair_draft(
     documents: tuple[MemoryDocument, ...],
 ) -> MemoryDraftCheckpoint:
     parse_agent_experience_tree(documents)
+    repaired = _drop_deleted_action_evidence(
+        connection=connection, user_id=user_id, documents=documents
+    )
     links: list[DraftLink] = []
     seen_ref_ids: set[str] = set()
-    for document in documents:
+    for document in repaired:
         if document.source_path == AGENT_EXPERIENCE_INDEX_PATH:
             continue
         experience_id_from_path(document.source_path)
@@ -141,7 +145,7 @@ def rebuild_agent_experience_repair_draft(
                     state="carried",
                 )
             )
-    if not links:
+    if not links and repaired == documents:
         raise MemoryCatalogIntegrityError(
             "Agent Experience repair has no reconstructable evidence"
         )
@@ -149,7 +153,7 @@ def rebuild_agent_experience_repair_draft(
         user_id=user_id,
         owner_node_id=node_id,
         base_revision_id=base_revision_id,
-        documents=documents,
+        documents=repaired,
         carried_links=tuple(links),
     )
 
@@ -162,11 +166,15 @@ def validate_agent_experience_repair_draft(
 ) -> None:
     if source_record_id != draft.user_id or draft.base_revision_id is None:
         raise MemoryCatalogIntegrityError("Agent Experience repair identity is invalid")
-    base_documents = _load_revision_documents(
+    base_documents = _drop_deleted_action_evidence(
         connection=connection,
         user_id=draft.user_id,
-        node_id=draft.owner_node_id,
-        revision_id=draft.base_revision_id,
+        documents=_load_revision_documents(
+            connection=connection,
+            user_id=draft.user_id,
+            node_id=draft.owner_node_id,
+            revision_id=draft.base_revision_id,
+        ),
     )
     if draft.documents != base_documents:
         raise MemoryCatalogIntegrityError(
@@ -203,6 +211,34 @@ def validate_agent_experience_repair_draft(
         raise MemoryCatalogIntegrityError(
             "Agent Experience repair evidence differs from its base revision"
         )
+
+
+def _drop_deleted_action_evidence(
+    *,
+    connection: sqlite3.Connection,
+    user_id: str,
+    documents: tuple[MemoryDocument, ...],
+) -> tuple[MemoryDocument, ...]:
+    """Drop the evidence of Actions deleted from history; it cannot be rebuilt."""
+
+    live_actions = {
+        str(row[0])
+        for row in connection.execute(
+            """SELECT source_record_id FROM memory_nodes
+               WHERE user_id = ? AND source_type = 'action'""",
+            (user_id,),
+        )
+    }
+    return drop_deleted_references(
+        documents,
+        linked_ref_ids=frozenset(
+            evidence.local_ref_id
+            for document in documents
+            if document.source_path != AGENT_EXPERIENCE_INDEX_PATH
+            for evidence in parse_agent_experience_evidence(document.content)
+            if evidence.action_id in live_actions
+        ),
+    )
 
 
 def _load_revision_documents(
