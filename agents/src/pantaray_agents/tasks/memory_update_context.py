@@ -94,6 +94,14 @@ class PreparedMemoryUpdateRun:
     def editable_sources(self) -> tuple[MemorySource, ...]:
         return tuple(route.source for route in self.router.routes)
 
+    @property
+    def has_evidence(self) -> bool:
+        return bool(
+            self.context.short_term_insights
+            or self.context.activity_summaries
+            or self.context.action_turns
+        )
+
     def base_draft(self, source: MemorySource) -> MemoryDraftCheckpoint:
         """The category's draft before the agent touched it."""
 
@@ -130,7 +138,17 @@ def prepare_memory_update_run(
             connection=connection, process_id=payload["process_id"]
         )
         fact_id = _resolve_fact_id(connection=connection, payload=payload)
-        terminals = distinct_action_terminals(tuple(payload["action_terminals"]))
+        # An Action deleted from history since the run was queued is skipped.
+        terminals = tuple(
+            terminal
+            for terminal in distinct_action_terminals(
+                tuple(payload["action_terminals"])
+            )
+            if connection.execute(
+                "SELECT 1 FROM agent_actions WHERE user_id = ? AND action_id = ?",
+                (user_id, terminal["action_id"]),
+            ).fetchone()
+        )
         short_term_insights = _render_short_insights(
             connection=connection,
             user_id=user_id,

@@ -12,7 +12,7 @@ from .agent_experience_content import (
     AGENT_EXPERIENCE_ENTRIES_ROOT,
     is_action_evidence_line,
 )
-from .draft import create_memory_draft
+from .draft import create_memory_draft, replace_draft_documents
 from .errors import MemoryCatalogIntegrityError
 from .fragments import artifact_content_sha256
 from .models import DraftLink, MemoryDocument, MemoryDraftCheckpoint, MemorySource
@@ -143,6 +143,35 @@ def drop_deleted_references(
         )
         for document in documents
     )
+
+
+def drop_links_to_deleted_targets(
+    *, connection: sqlite3.Connection, draft: MemoryDraftCheckpoint
+) -> tuple[MemoryDraftCheckpoint, int]:
+    """Retire refs whose target was deleted with its conversation during a run.
+
+    Returns the draft to publish and how many refs it dropped.
+    """
+
+    active = tuple(link for link in draft.links if link.state != "removed")
+    targets = tuple({link.target_fragment_id for link in active})
+    placeholders = ",".join("?" for _ in targets)
+    live = {
+        str(row[0])
+        for row in connection.execute(
+            f"""SELECT fragment_id FROM memory_fragments
+                WHERE user_id = ? AND fragment_id IN ({placeholders})""",
+            (draft.user_id, *targets),
+        )
+    }
+    kept = frozenset(
+        link.local_ref_id for link in active if link.target_fragment_id in live
+    )
+    dropped = len(active) - len(kept)
+    if not dropped:
+        return draft, 0
+    documents = drop_deleted_references(draft.documents, linked_ref_ids=kept)
+    return replace_draft_documents(draft=draft, documents=documents), dropped
 
 
 def _drop_unlinked_tags(

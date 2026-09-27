@@ -86,6 +86,18 @@ def _bootstrap(db_path: Path) -> None:
                 """,
                 (PROCESS_ID, USER_ID, NOW, NOW, NOW),
             )
+            # The Action the terminals name; a deleted one is skipped.
+            connection.execute(
+                """
+                INSERT INTO agent_actions(
+                    action_id, user_id, initial_user_message_id,
+                    execution_target_json, status, final_output, prompt_name,
+                    prompt_version, created_at, updated_at
+                ) VALUES ('action-1', ?, 'message-1', '{"kind":"scratch"}',
+                          'success', 'done', 'action', '1', ?, ?)
+                """,
+                (USER_ID, NOW, NOW),
+            )
 
 
 def _payload() -> MemoryUpdateJobPayload:
