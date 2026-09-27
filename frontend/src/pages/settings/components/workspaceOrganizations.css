@@ -110,6 +110,16 @@
   z-index: 6;
 }
 
+/* Option text sits 9px in (8px padding + 1px border), so the heading and the new-organization
+   field start their text at the same column. */
+.workspace-project-organization-popover .workspace-organization-select legend {
+  padding: 0 9px;
+}
+
+.workspace-project-organization-popover .workspace-input {
+  padding: 0 9px;
+}
+
 .workspace-project-organization-popover:focus {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;

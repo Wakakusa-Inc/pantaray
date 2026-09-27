@@ -185,8 +185,7 @@ function OrganizationPicker(props: OrganizationPickerProps) {
           className="workspace-organization-create-option"
           onClick={startCreating}
         >
-          <Plus size={12} strokeWidth={2.5} aria-hidden="true" />
-          <span>{props.t('settings.workspace.addOrganization')}</span>
+          {props.t('settings.workspace.addOrganization')}
         </button>
       </>
     );
