@@ -8,6 +8,7 @@ from pathlib import Path
 import pantaray_agents.dependencies as deps
 from pantaray_agents.local_runtime.context.source_control import context_source_control
 from pantaray_agents.local_runtime.context.source_gate import SourceInvalidated
+from pantaray_agents.local_runtime.context.source_transport import source_scope
 from pantaray_agents.local_runtime.runtime.bootstrap import read_local_runtime_db_config
 from pantaray_agents.local_runtime.runtime.job_route_identity import (
     require_current_route_identity,
@@ -148,8 +149,8 @@ async def _process_while_readable(
     """Run the agent, or return None when the activity permit was revoked meanwhile.
 
     As in the short Insight, a run that can read raw activity runs under
-    `SourceGate.track`: revoking the permit cancels it, model calls and run-step
-    writes included, and nothing it produced is published.
+    `SourceGate.track` and `source_scope`: revoking the permit cancels it, model
+    calls and run-step writes included, and nothing it produced is published.
     """
     if activity_start is None:
         return await agent.process(request)
@@ -157,7 +158,10 @@ async def _process_while_readable(
     source = activity_start.source
     try:
         async with gate.track(source):
-            return await agent.process(request)
+            # Guards each model request's send, so a revocation that lands
+            # before the cancel reaches this task still stops the next send.
+            with source_scope(gate, source):
+                return await agent.process(request)
     except asyncio.CancelledError:
         # `SourceGate.revoke` drops the permit before it cancels this task; a
         # permit that still matches means the job itself was cancelled.

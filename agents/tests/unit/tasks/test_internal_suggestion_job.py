@@ -15,6 +15,7 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
 from pantaray_agents.local_runtime.agent_state import LocalSuggestionRepository
 from pantaray_agents.local_runtime.context import store
 from pantaray_agents.local_runtime.context.source_gate import SourceGate
+from pantaray_agents.local_runtime.context.source_transport import source_http_request
 from pantaray_agents.local_runtime.memory_catalog.connection import (
     open_memory_catalog_connection,
 )
@@ -1193,3 +1194,26 @@ async def test_a_revoked_activity_permit_publishes_nothing(
     repository.save_suggestion.assert_not_awaited()
     repository.cancel_suggestion_if_processing.assert_awaited_once()
     repository.finalize_suggestion_start_error_if_processing.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_model_request_started_after_revocation_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository, get_agent, gate = _readable_insight_job(monkeypatch, process=None)
+    sent = []
+
+    async def _process(_request: object) -> SimpleNamespace:
+        gate.revoke("user-1")
+        # Before the cancel reaches this task, the next model send must not start.
+        async with source_http_request("user-1"):
+            sent.append(True)
+        return SimpleNamespace(status="success")
+
+    get_agent.return_value.process = _process
+
+    await _run_suggestion_job(_payload())
+
+    assert sent == []
+    repository.save_suggestion.assert_not_awaited()
+    repository.cancel_suggestion_if_processing.assert_awaited_once()
