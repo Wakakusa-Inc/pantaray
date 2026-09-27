@@ -196,6 +196,10 @@ def render_action_evidence_anchor(action_id: str) -> str:
     return f"{_EVIDENCE_PREFIX}{action_id}"
 
 
+def is_action_evidence_line(line: str) -> bool:
+    return line.startswith(_EVIDENCE_PREFIX)
+
+
 def initial_agent_experience_documents() -> tuple[tuple[str, str], ...]:
     return ((AGENT_EXPERIENCE_INDEX_PATH, render_agent_experience_index(())),)
 
@@ -282,6 +286,7 @@ __all__ = [
     "experience_entry_path",
     "experience_id_from_path",
     "initial_agent_experience_documents",
+    "is_action_evidence_line",
     "parse_agent_experience_markdown",
     "parse_agent_experience_evidence",
     "render_action_evidence_anchor",

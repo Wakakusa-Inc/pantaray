@@ -5,8 +5,13 @@ from pathlib import Path
 
 from pantaray_agents.local_runtime.memory_references.reference_parser import (
     extract_markdown_references,
+    remove_reference_ids,
 )
 
+from .agent_experience_content import (
+    AGENT_EXPERIENCE_ENTRIES_ROOT,
+    is_action_evidence_line,
+)
 from .draft import create_memory_draft
 from .errors import MemoryCatalogIntegrityError
 from .fragments import artifact_content_sha256
@@ -50,11 +55,19 @@ def prepare_artifact_draft(
     else:
         if node.current_revision_id is None:
             raise MemoryCatalogIntegrityError("active memory node has no revision")
-        documents = read_artifact_revision_documents(
+        links = list_revision_links(
             connection=connection,
-            artifact_root=artifact_root,
             user_id=user_id,
             revision_id=node.current_revision_id,
+        )
+        documents = drop_deleted_references(
+            read_artifact_revision_documents(
+                connection=connection,
+                artifact_root=artifact_root,
+                user_id=user_id,
+                revision_id=node.current_revision_id,
+            ),
+            linked_ref_ids=frozenset(link.local_ref_id for link in links),
         )
         carried_links = _load_carried_links(
             connection=connection,
@@ -110,6 +123,41 @@ def read_artifact_revision_documents(
             "artifact revision content is missing or changed"
         )
     return documents
+
+
+def drop_deleted_references(
+    documents: tuple[MemoryDocument, ...], *, linked_ref_ids: frozenset[str]
+) -> tuple[MemoryDocument, ...]:
+    """Drop tags whose link went with a deleted conversation (evidence: the line)."""
+
+    return tuple(
+        MemoryDocument(
+            document.source_path,
+            _drop_unlinked_tags(
+                document.content,
+                linked_ref_ids=linked_ref_ids,
+                is_experience_entry=document.source_path.startswith(
+                    f"{AGENT_EXPERIENCE_ENTRIES_ROOT}/"
+                ),
+            ),
+        )
+        for document in documents
+    )
+
+
+def _drop_unlinked_tags(
+    content: str, *, linked_ref_ids: frozenset[str], is_experience_entry: bool
+) -> str:
+    lines: list[str] = []
+    for line in content.splitlines(keepends=True):
+        unlinked = {
+            occurrence.local_ref_id for occurrence in extract_markdown_references(line)
+        } - linked_ref_ids
+        if not unlinked:
+            lines.append(line)
+        elif not (is_experience_entry and is_action_evidence_line(line)):
+            lines.append(remove_reference_ids(line, unlinked))
+    return "".join(lines)
 
 
 def _load_carried_links(
