@@ -6,14 +6,17 @@ import ipaddress
 import os
 import uuid
 from pathlib import Path
-from typing import cast
 
 from ...runtime.runtime_env import (
     read_local_backend_bound_host,
     read_local_backend_bound_port,
 )
 from ..brokering.broker_protocol import ValidatedCommandRequest
-from .command_sandbox_protocol import BrokerToSandboxCommandRequest
+from ..models import BrokerNetworkPolicy
+from .command_sandbox_protocol import (
+    ActionSandboxStorage,
+    BrokerToSandboxCommandRequest,
+)
 from .macos_runtime import app_python_runtime_root, toolchain_read_roots
 
 GENERATED_PYTHON_SCRIPT_NAME = "generated_main.py"
@@ -24,6 +27,49 @@ def build_sandbox_request(
     request: ValidatedCommandRequest,
     temp_dir: Path,
 ) -> BrokerToSandboxCommandRequest:
+    return compose_sandbox_request(
+        temp_dir=temp_dir,
+        real_read_roots=request.real_read_roots,
+        real_write_roots=[*request.real_write_roots, str(temp_dir)],
+        private_storage_roots=request.private_storage_roots,
+        action_storage=ActionSandboxStorage(
+            plan_path=request.action_plan_path,
+            workspace_root=request.action_workspace_root,
+            published_results_root=request.published_results_root,
+        ),
+        app_runtime_python=Path(request.app_runtime_python),
+        cwd=request.cwd,
+        argv=_resolve_sandbox_argv(request=request, temp_dir=temp_dir),
+        env=request.env,
+        timeout_ms=request.timeout_ms,
+        stdout_max_bytes=request.stdout_max_bytes,
+        stderr_max_bytes=request.stderr_max_bytes,
+        temp_storage_limit_bytes=request.temp_storage_limit_bytes,
+        network_policy=request.network_policy,
+        use_login_environment=request.use_login_environment,
+    )
+
+
+def compose_sandbox_request(
+    *,
+    temp_dir: Path,
+    real_read_roots: list[str],
+    real_write_roots: list[str],
+    private_storage_roots: list[str],
+    action_storage: ActionSandboxStorage | None,
+    app_runtime_python: Path,
+    cwd: str,
+    argv: list[str],
+    env: dict[str, str],
+    timeout_ms: int,
+    stdout_max_bytes: int,
+    stderr_max_bytes: int,
+    temp_storage_limit_bytes: int,
+    network_policy: BrokerNetworkPolicy,
+    use_login_environment: bool,
+) -> BrokerToSandboxCommandRequest:
+    """Add what every sandboxed command shares; the caller owns its write roots."""
+
     raw_host = read_local_backend_bound_host()
     host = ipaddress.ip_address("127.0.0.1" if raw_host == "localhost" else raw_host)
     port = read_local_backend_bound_port()
@@ -35,46 +81,30 @@ def build_sandbox_request(
         host.is_unspecified or host.is_loopback
     ):
         address = f"[{host}]"
-    protected_backend_address = f"{address}:{port}"
-    argv = _resolve_sandbox_argv(request=request, temp_dir=temp_dir)
-    real_read_roots = _dedupe_root_strings(
-        *request.real_read_roots,
-        str(temp_dir),
-    )
-    real_write_roots = _dedupe_root_strings(
-        *request.real_write_roots,
-        str(temp_dir),
-    )
     return BrokerToSandboxCommandRequest(
         request_id=str(uuid.uuid4()),
-        action_id=request.action_id,
-        execution_session_id=request.execution_session_id,
-        tool_invocation_id=cast(str, request.tool_invocation_id),
-        manifest_id=request.manifest_id,
-        real_read_roots=real_read_roots,
-        real_write_roots=real_write_roots,
-        action_plan_path=request.action_plan_path,
-        private_storage_roots=request.private_storage_roots,
-        action_workspace_root=request.action_workspace_root,
-        published_results_root=request.published_results_root,
-        app_runtime_root=str(app_python_runtime_root(Path(request.app_runtime_python))),
-        cwd=request.cwd,
+        real_read_roots=_dedupe_root_strings(*real_read_roots, str(temp_dir)),
+        real_write_roots=_dedupe_root_strings(*real_write_roots),
+        private_storage_roots=private_storage_roots,
+        action_storage=action_storage,
+        app_runtime_root=str(app_python_runtime_root(app_runtime_python)),
+        cwd=cwd,
         argv=argv,
         runtime_read_roots=_dedupe_root_strings(*toolchain_read_roots()),
         env={
-            **request.env,
+            **env,
             "TMPDIR": str(temp_dir),
-            "HOME": str(Path.home() if request.use_login_environment else temp_dir),
+            "HOME": str(Path.home() if use_login_environment else temp_dir),
             "RUSTUP_HOME": os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")),
         },
-        timeout_ms=request.timeout_ms,
-        stdout_max_bytes=request.stdout_max_bytes,
-        stderr_max_bytes=request.stderr_max_bytes,
+        timeout_ms=timeout_ms,
+        stdout_max_bytes=stdout_max_bytes,
+        stderr_max_bytes=stderr_max_bytes,
         temp_dir=str(temp_dir),
-        temp_storage_limit_bytes=request.temp_storage_limit_bytes,
-        network_policy=request.network_policy,
-        use_login_environment=request.use_login_environment,
-        protected_backend_address=protected_backend_address,
+        temp_storage_limit_bytes=temp_storage_limit_bytes,
+        network_policy=network_policy,
+        use_login_environment=use_login_environment,
+        protected_backend_address=f"{address}:{port}",
     )
 
 
