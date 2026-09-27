@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import type { UpdateReadyNotice as Notice } from '../../electron/src/ipc/context';
 import { useI18n } from '@/context/useI18n';
 
-/** Main-window chip for a downloaded update. Main owns the state, including "later". */
+/** Main-window button for a downloaded update. It stays until the update is installed. */
 export function UpdateReadyNotice() {
   const { t } = useI18n();
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -24,32 +25,25 @@ export function UpdateReadyNotice() {
     };
   }, []);
 
-  const dismiss = () => {
-    setNotice(null);
-    void window.electron?.update?.dismissReadyNotice();
-  };
-
-  // The live region stays mounted so the chip's appearance is announced.
+  // The live region stays mounted so the button's appearance is announced.
   return (
     <div className="app-update-notice-region" role="status" aria-live="polite">
       {notice && (
-        <div className="app-update-notice">
-          <p>
-            {notice.version
-              ? t('layout.updateReady.message', { version: notice.version })
-              : t('layout.updateReady.messageWithoutVersion')}
-          </p>
-          <button
-            type="button"
-            className="app-update-notice-restart"
-            onClick={() => void window.electron?.update?.restartToUpdate()}
-          >
-            {t('layout.updateReady.restart')}
-          </button>
-          <button type="button" className="app-update-notice-later" onClick={dismiss}>
-            {t('layout.updateReady.later')}
-          </button>
-        </div>
+        <button
+          type="button"
+          className="app-update-button"
+          title={
+            notice.version
+              ? t('layout.updateReady.hint', { version: notice.version })
+              : t('layout.updateReady.hintWithoutVersion')
+          }
+          onClick={() => void window.electron?.update?.restartToUpdate()}
+        >
+          <RefreshCw size={13} aria-hidden="true" />
+          {notice.version
+            ? t('layout.updateReady.button', { version: notice.version })
+            : t('layout.updateReady.buttonWithoutVersion')}
+        </button>
       )}
     </div>
   );

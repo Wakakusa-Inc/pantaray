@@ -135,16 +135,12 @@ test('Only the Overlay asks main to open the workspace settings page', () => {
   );
 });
 
-test('Only the main window reads, dismisses, and acts on the update ready notice', () => {
+test('Only the main window reads and acts on the update ready notice', () => {
   const { mainEvent, security } = createSecurityHarness();
   const overlayEvent = createSender('http://127.0.0.1:3001/notification.html', 2);
   security.registerWindow('overlay', overlayEvent.sender);
 
-  for (const channel of [
-    'update:getReadyNotice',
-    'update:dismissReadyNotice',
-    'update:restartToUpdate',
-  ]) {
+  for (const channel of ['update:getReadyNotice', 'update:restartToUpdate']) {
     assert.equal(security.authorize(channel, mainEvent), 'main');
     assert.throws(
       () => security.authorize(channel, overlayEvent),
