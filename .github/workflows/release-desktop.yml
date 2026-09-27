@@ -9,7 +9,7 @@ permissions: {}
 
 jobs:
   build_and_release:
-    runs-on: [self-hosted, macOS, arm64]
+    runs-on: macos-15
     # Signing/notarization secrets live in this environment.
     environment: release
     permissions:
@@ -73,7 +73,7 @@ jobs:
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
@@ -113,7 +113,20 @@ jobs:
             --reporter=append-only
 
       - name: Stage desktop release environment files
-        run: node frontend/scripts/stage-desktop-release-env.js
+        # The hosted runner has no runner-owned inputs, so the two release env
+        # files come from environment secrets and are staged the same way.
+        env:
+          DESKTOP_RELEASE_FRONTEND_ENV: ${{ secrets.DESKTOP_RELEASE_FRONTEND_ENV }}
+          DESKTOP_RELEASE_BACKEND_ENV: ${{ secrets.DESKTOP_RELEASE_BACKEND_ENV }}
+        run: |
+          set -euo pipefail
+          umask 077
+          source_dir="$HOME/.config/pantaray/desktop-release"
+          mkdir -p "$source_dir/frontend" "$source_dir/agents"
+          printf '%s\n' "$DESKTOP_RELEASE_FRONTEND_ENV" > "$source_dir/frontend/.env.production"
+          printf '%s\n' "$DESKTOP_RELEASE_BACKEND_ENV" > "$source_dir/agents/.env.local.backend.production"
+          node frontend/scripts/stage-desktop-release-env.js
+          rm -rf "$source_dir"
 
       - name: Icon policy (lucide-only)
         working-directory: frontend
@@ -203,7 +216,7 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
 
-          # self-hosted では、一時キーチェーンが search list に入っていないと
+          # 一時キーチェーンが search list に入っていないと
           # `security find-identity` / electron-builder 側の探索で 0 valid になることがあるため、
           # 既存の search list を保持した上で一時キーチェーンを先頭に追加する（ジョブ末尾で復元）。
           # NOTE: macOS の /bin/bash は 3.2 系のため `mapfile` は使わない（bash3 互換にする）。
@@ -247,7 +260,7 @@ jobs:
           security find-identity -p basic -v "$KEYCHAIN_PATH" "$SYSTEM_KEYCHAIN" "$SYSTEM_ROOTS_KEYCHAIN" || true
 
           # NOTE: `security find-identity` の "valid" 判定は、チェーン検証のために
-          # System/Root keychain を参照できる必要がある（self-hosted で 0 になる原因になり得る）。
+          # System/Root keychain を参照できる必要がある（参照できないと 0 になる）。
           security find-identity -p codesigning -v "$KEYCHAIN_PATH" "$SYSTEM_KEYCHAIN" "$SYSTEM_ROOTS_KEYCHAIN"
 
           rm -f "$CERT_PATH"
