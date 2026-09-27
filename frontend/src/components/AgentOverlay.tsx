@@ -443,7 +443,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
     permissionsReady && composer.attachmentsInFlight === 0 && !supplementInvalid;
   const acceptSuggestion = () => {
     if (!canDecide || !canAcceptSuggestion || approvalMode.mode === null) return;
-    ctrl.onAccept({ supplement, approvalMode: approvalMode.mode, images });
+    ctrl.onAccept({ supplement, supplementProjectRefs: [], approvalMode: approvalMode.mode, images });
   };
   const composerContent =
     toolOutputLoader &&

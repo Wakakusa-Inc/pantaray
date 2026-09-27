@@ -10,6 +10,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    NonNegativeInt,
     PositiveInt,
     TypeAdapter,
     model_validator,
@@ -181,6 +182,17 @@ class ApprovedSuggestion(_ActionConversationModel):
     content: NonBlankText
 
 
+class UserEntryProjectRef(_ActionConversationModel):
+    """A workspace project named in ``UserEntry.content``, as it was when sent.
+
+    ``start`` and ``end`` are Unicode code-point offsets into that content.
+    """
+
+    display_name: NonBlankText
+    start: NonNegativeInt
+    end: NonNegativeInt
+
+
 class UserEntry(_ActionConversationModel):
     step_kind: Literal["user"]
     step_id: ActionConversationIdentity
@@ -190,6 +202,7 @@ class UserEntry(_ActionConversationModel):
     content: NonBlankText | None
     approved_suggestion: ApprovedSuggestion | None
     images: tuple[ImageInput, ...]
+    project_refs: tuple[UserEntryProjectRef, ...]
     status: UserEntryStatus
 
     @model_validator(mode="after")

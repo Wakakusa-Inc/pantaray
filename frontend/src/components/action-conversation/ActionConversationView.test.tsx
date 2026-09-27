@@ -36,6 +36,7 @@ const canonicalUser = (key: string, content: string): CanonicalUserItem => ({
     accepted_sequence: 1,
     content,
     images: [],
+    project_refs: [],
     status: 'adopted',
   },
 });

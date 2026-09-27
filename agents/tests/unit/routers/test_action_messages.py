@@ -27,6 +27,9 @@ from pantaray_agents.schema.agent.action_message import (
     ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
     ACTION_MESSAGE_ID_MAX_CODEPOINTS,
     ACTION_MESSAGE_MAX_IMAGES,
+    ACTION_MESSAGE_MAX_PROJECT_REFS,
+    ACTION_PROJECT_REF_MAX_PATHS,
+    ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS,
 )
 
 IMAGE_UUID = "3f861ab4-7b3c-5d90-b520-3424da5bca75"
@@ -334,6 +337,108 @@ def test_message_limits_reject_before_canonical_submit(
 
     assert response.status_code == 422
     assert response.json() == {"type": "ActionMessageValidationError", **expected}
+
+
+# The leading emoji is one code point (two UTF-16 units): "Demo App" starts at 8.
+PROJECT_REF_CONTENT = "\N{ROCKET} Check Demo App and Docs"
+
+
+def _project_ref(
+    name: str = "Demo App", start: int = 8, **overrides: object
+) -> dict[str, object]:
+    ref: dict[str, object] = {
+        "project_id": "project-1",
+        "display_name": name,
+        "paths": ["/workspace/demo-app"],
+        "start": start,
+        "end": start + len(name),
+    }
+    ref.update(overrides)
+    return ref
+
+
+def test_project_refs_reach_the_canonical_command_as_code_point_spans(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commands: list[SubmitActionMessageCommand] = []
+
+    def submit(command: SubmitActionMessageCommand) -> StartedActionMessageResult:
+        commands.append(command)
+        return _started(command, inserted=True)
+
+    monkeypatch.setattr(router_module, "submit_canonical_action_message", submit)
+    body = _request()
+    message = body["message"]
+    assert isinstance(message, dict)
+    # The spans point into the trimmed content the backend stores.
+    message["content"] = f"  {PROJECT_REF_CONTENT}\n"
+    message["project_refs"] = [
+        _project_ref(),
+        _project_ref("Docs", 21, project_id="project-2", paths=[]),
+    ]
+
+    with _client() as client:
+        response = client.post("/v1/agents/users/user-1/actions/messages", json=body)
+
+    assert response.status_code == 200, response.text
+    refs = commands[0].message.project_refs
+    assert [(ref.display_name, ref.start, ref.end) for ref in refs] == [
+        ("Demo App", 8, 16),
+        ("Docs", 21, 25),
+    ]
+    assert refs[0].paths == ("/workspace/demo-app",)
+
+
+@pytest.mark.parametrize(
+    ("project_refs", "field", "reason"),
+    [
+        ([_project_ref(start=9)], "message.project_refs", "invalid"),
+        ([_project_ref("Docs", 21), _project_ref()], "message.project_refs", "invalid"),
+        ([_project_ref(), _project_ref()], "message.project_refs", "invalid"),
+        (
+            [_project_ref(paths=["workspace/demo-app"])],
+            "message.project_refs.0.paths.0",
+            "invalid",
+        ),
+        (
+            [_project_ref(paths=["/workspace"] * (ACTION_PROJECT_REF_MAX_PATHS + 1))],
+            "message.project_refs.0.paths",
+            "too_many",
+        ),
+        (
+            [
+                _project_ref(
+                    display_name="x" * (ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS + 1)
+                )
+            ],
+            "message.project_refs.0.display_name",
+            "too_long",
+        ),
+        (
+            [_project_ref()] * (ACTION_MESSAGE_MAX_PROJECT_REFS + 1),
+            "message.project_refs",
+            "too_many",
+        ),
+    ],
+)
+def test_invalid_project_refs_reject_before_canonical_submit(
+    monkeypatch: pytest.MonkeyPatch,
+    project_refs: list[dict[str, object]],
+    field: str,
+    reason: str,
+) -> None:
+    monkeypatch.setattr(router_module, "submit_canonical_action_message", pytest.fail)
+    body = _request()
+    message = body["message"]
+    assert isinstance(message, dict)
+    message["content"] = PROJECT_REF_CONTENT
+    message["project_refs"] = project_refs
+
+    with _client() as client:
+        response = client.post("/v1/agents/users/user-1/actions/messages", json=body)
+
+    assert response.status_code == 422
+    assert (response.json()["field"], response.json()["reason"]) == (field, reason)
 
 
 def test_scoped_image_references_reach_the_canonical_command(

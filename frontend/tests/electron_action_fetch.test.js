@@ -1,7 +1,10 @@
 const assert = require('assert');
 const { test } = require('node:test');
 
-const { ActionWireContractError } = require('../electron/dist/actions/actionContracts.js');
+const {
+  ActionWireContractError,
+  codePointSpanInTrimmedText,
+} = require('../electron/dist/actions/actionContracts.js');
 const {
   ACTION_CONVERSATION_REQUEST_TIMEOUT_MS,
   createActionFetcher,
@@ -42,6 +45,7 @@ const USER_ENTRY = {
     { kind: 'image', storage_path: 'captures/image.png' },
     { kind: 'image', storage_path: 'captures/screen.png' },
   ],
+  project_refs: [],
   status: 'adopted',
 };
 const TOOL_ENTRY = {
@@ -321,6 +325,54 @@ test('Action message request はtrim後のUnicode code-point上限をserverと�
   ];
   for (const request of invalidRequests) {
     await assert.rejects(() => fetcher.submitMessage(request));
+  }
+  assert.equal(requests.length, 1);
+});
+
+test('Composer の UTF-16 範囲は trim 後の本文の code-point 範囲になる', () => {
+  // 🚀 is two UTF-16 units and one code point; the leading spaces are trimmed away.
+  const draft = '  🚀 Check Demo App 😀 and Docs ';
+  const utf16Start = draft.indexOf('Docs');
+  const span = codePointSpanInTrimmedText(draft, utf16Start, utf16Start + 'Docs'.length);
+
+  assert.deepEqual(span, { start: 23, end: 27 });
+  assert.equal(Array.from(draft.trim()).slice(span.start, span.end).join(''), 'Docs');
+  const emoji = draft.indexOf('😀');
+  assert.deepEqual(codePointSpanInTrimmedText(draft, emoji, emoji + 2), { start: 17, end: 18 });
+});
+
+test('Action message request は project_refs を通し、上限超過と未知の欄を送信前に落とす', async () => {
+  const requests = [];
+  const fetcher = createFetcher(async (request) => {
+    requests.push(request);
+    return MESSAGE_RESPONSE;
+  });
+  const ref = {
+    project_id: 'project-1',
+    display_name: 'Demo App',
+    paths: ['/workspace/demo-app'],
+    start: 0,
+    end: 8,
+  };
+
+  await fetcher.submitMessage({
+    ...MESSAGE_REQUEST,
+    message: { ...MESSAGE_REQUEST.message, content: 'Demo App', project_refs: [ref] },
+  });
+
+  assert.deepEqual(requests[0].body.message.project_refs, [ref]);
+  for (const projectRefs of [
+    Array.from({ length: 33 }, () => ref),
+    [{ ...ref, paths: Array.from({ length: 33 }, () => '/workspace') }],
+    [{ ...ref, start: -1 }],
+    [{ ...ref, folder_ids: [] }],
+  ]) {
+    await assert.rejects(() =>
+      fetcher.submitMessage({
+        ...MESSAGE_REQUEST,
+        message: { ...MESSAGE_REQUEST.message, project_refs: projectRefs },
+      })
+    );
   }
   assert.equal(requests.length, 1);
 });

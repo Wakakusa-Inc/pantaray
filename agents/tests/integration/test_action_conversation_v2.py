@@ -64,7 +64,10 @@ from pantaray_agents.local_runtime.tooling.agent_experience.action_history impor
     AgentExperienceActionHistoryTools,
 )
 from pantaray_agents.routers.local.registry import register_local_routers
-from pantaray_agents.schema.action_conversation import ActionConversationPage
+from pantaray_agents.schema.action_conversation import (
+    ActionConversationPage,
+    UserEntry,
+)
 from pantaray_agents.schema.agent.action import RuntimeStateCheckpointPayload
 from pantaray_agents.tasks.types import ActionJobRuntimePayload
 
@@ -259,6 +262,44 @@ def test_assistant_message_is_public_history_before_the_first_user(
     duplicate = _message("another-reply", "別の返信")
     duplicate["target"] = request["target"]
     assert client.post(MESSAGES_PATH, json=duplicate).status_code == 409
+
+
+def test_project_refs_are_stored_projected_and_given_to_the_model(
+    runtime_client: tuple[TestClient, Path],
+) -> None:
+    client, db_path = runtime_client
+    request = _message("message-refs", "\N{ROCKET} Check Demo App")
+    message = request["message"]
+    assert isinstance(message, dict)
+    message["project_refs"] = [
+        {
+            "project_id": "project-1",
+            "display_name": "Demo App",
+            "paths": ["/workspace/demo-app"],
+            "start": 8,
+            "end": 16,
+        }
+    ]
+    response = client.post(MESSAGES_PATH, json=request)
+    assert response.status_code == 200, response.text
+
+    state = _read_state(client, response.json()["action_id"])
+    page = ActionConversationPage.model_validate_json(json.dumps(state))
+    user = page.runs[0].entries[0]
+    assert isinstance(user, UserEntry)
+    assert [(ref.display_name, ref.start, ref.end) for ref in user.project_refs] == [
+        ("Demo App", 8, 16)
+    ]
+    with sqlite3.connect(db_path) as connection:
+        (request_text,) = connection.execute(
+            "SELECT user_request_text FROM agent_action_steps WHERE user_message_id = ?",
+            ("message-refs",),
+        ).fetchone()
+    assert request_text == (
+        "\N{ROCKET} Check Demo App\n\n"
+        "Referenced workspace projects:\n"
+        "- Demo App: /workspace/demo-app"
+    )
 
 
 @pytest.mark.parametrize(

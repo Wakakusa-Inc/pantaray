@@ -67,6 +67,27 @@ test('Overlay reads the workspace approval default but cannot write it', () => {
   );
 });
 
+test('Overlay reads workspace projects but cannot change them', () => {
+  const { mainEvent, security } = createSecurityHarness();
+  const overlayEvent = createSender('http://127.0.0.1:3001/notification.html', 2);
+  security.registerWindow('overlay', overlayEvent.sender);
+
+  assert.equal(security.authorize('workspaceSettings:get', overlayEvent), 'overlay');
+  assert.equal(security.authorize('workspaceSettings:get', mainEvent), 'main');
+  for (const channel of [
+    'workspaceSettings:createProject',
+    'workspaceSettings:deleteProject',
+    'workspaceSettings:createFolder',
+    'workspaceSettings:updateReadAccessScope',
+  ]) {
+    assert.throws(
+      () => security.authorize(channel, overlayEvent),
+      (error) =>
+        error instanceof IpcSenderRejectedError && error.code === 'channel_not_allowed_for_window'
+    );
+  }
+});
+
 test('Conversation submission and read receipts belong to Overlay; History opens belong to main', () => {
   const { mainEvent, security } = createSecurityHarness();
   const overlayEvent = createSender('http://127.0.0.1:3001/notification.html', 2);

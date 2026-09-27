@@ -28,6 +28,7 @@ function user(stepId, messageId, acceptedSequence, status = 'adopted') {
     accepted_sequence: acceptedSequence,
     content: `USER ${messageId ?? stepId}`,
     images: [],
+    project_refs: [],
     status,
   };
 }

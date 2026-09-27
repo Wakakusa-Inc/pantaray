@@ -45,7 +45,7 @@ function conversationPage(actionId, status = 'processing') {
 }
 
 function actionRequest(supplement = null, commandId = null) {
-  return { suggestionId: 'sug-1', commandId, supplement, approvalMode: 'prompt_each_time', images: [] };
+  return { suggestionId: 'sug-1', commandId, supplement, supplementProjectRefs: [], approvalMode: 'prompt_each_time', images: [] };
 }
 
 function createManagerHarness(overrides = {}) {
@@ -472,6 +472,7 @@ test('OrchestrationManager: command allocation時のexact envelopeだけを再�
       command_id: snapshot.commandId,
       language: 'ja',
       supplement: 'Keep this condition',
+      supplement_project_refs: [],
       approval_mode: 'always_allow',
       images,
     },

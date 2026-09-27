@@ -145,6 +145,7 @@ test('OrchestrationManager: approval pending は process_paused payload から�
     suggestionId: 'sug-1',
     commandId: null,
     supplement: null,
+    supplementProjectRefs: [],
     approvalMode: 'prompt_each_time',
     images: [],
   });

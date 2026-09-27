@@ -24,6 +24,9 @@ const MAIN_AND_OVERLAY_CHANNELS = new Set<IpcChannel>([
   // Read-only: the overlay's permission control opens on the Settings default
   // before a conversation exists. The matching setter stays main-only.
   'approval:getWorkspaceEditCommandPreference',
+  // Read-only: the overlay composer lists workspace projects to reference.
+  // Every workspaceSettings write stays main-only.
+  'workspaceSettings:get',
   'action:readConversationPage',
   'action:readToolOutputPage',
   'share:savePng',

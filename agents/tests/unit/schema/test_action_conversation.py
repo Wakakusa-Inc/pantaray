@@ -80,6 +80,7 @@ def _user_payload(number: int = 1, **overrides: object) -> dict[str, object]:
         "accepted_sequence": number,
         "content": "Do the work",
         "images": (),
+        "project_refs": (),
         "status": "adopted",
     }
     payload.update(overrides)
@@ -699,6 +700,7 @@ def test_historical_read_does_not_apply_new_ingress_limits() -> None:
             ImageInput(storage_path=f"captures/{index}.png")
             for index in range(ACTION_MESSAGE_MAX_IMAGES + 1)
         ),
+        project_refs=(),
         status="adopted",
     )
 
