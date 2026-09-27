@@ -56,6 +56,23 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
 
+      - name: Extract release notes
+        # Each release needs its own section in CHANGELOG.md; a missing one stops
+        # the release before the build instead of publishing an empty page.
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          awk -v heading="## ${VERSION}" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/release-notes.md"; then
+            echo "CHANGELOG.md has no notes for ${VERSION}" >&2
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
@@ -410,12 +427,12 @@ jobs:
             fi
             gh release edit "$TAG" \
               --title "desktop v${VERSION}" \
-              --notes "" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
               --draft=false \
               "${RELEASE_FLAGS[@]}"
           else
             gh release create "$TAG" "${ASSETS[@]}" \
               --title "desktop v${VERSION}" \
-              --notes "" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
               "${RELEASE_FLAGS[@]}"
           fi
