@@ -95,9 +95,6 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
     },
     update: {
       getReadyNotice: () => ({ version: '0.2.2' }),
-      dismissReadyNotice: () => {
-        updateCalls.push('dismiss');
-      },
       restartToUpdate: () => {
         updateCalls.push('restart');
       },
@@ -224,9 +221,8 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
   assert.deepEqual(await fakeIpc.invokeHandlers.get('update:getReadyNotice')({}), {
     version: '0.2.2',
   });
-  await fakeIpc.invokeHandlers.get('update:dismissReadyNotice')({});
   await fakeIpc.invokeHandlers.get('update:restartToUpdate')({});
-  assert.deepEqual(updateCalls, ['dismiss', 'restart']);
+  assert.deepEqual(updateCalls, ['restart']);
 
   // dispose が best-effort で動作すること（fake では map から消える）
   res.dispose();

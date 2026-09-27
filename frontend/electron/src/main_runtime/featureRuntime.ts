@@ -312,7 +312,6 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
         },
         update: {
           getReadyNotice: params.updateUi.getReadyNotice,
-          dismissReadyNotice: params.updateUi.dismissReadyNotice,
           restartToUpdate: params.updateUi.restartToUpdate,
         },
         actions: {

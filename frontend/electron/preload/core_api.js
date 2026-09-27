@@ -45,7 +45,6 @@ function createCoreApi({ ipcRenderer, ipcPolicy, initialUiLanguage, processRef }
     },
     update: {
       getReadyNotice: () => ipcRenderer.invoke('update:getReadyNotice'),
-      dismissReadyNotice: () => ipcRenderer.invoke('update:dismissReadyNotice'),
       restartToUpdate: () => ipcRenderer.invoke('update:restartToUpdate'),
       onReadyNoticeChanged: (callback) => {
         const listener = () => callback();

@@ -8,7 +8,6 @@ function bridge(initial: Notice | null) {
   const changes = new Set<() => void>();
   const api = {
     getReadyNotice: vi.fn<() => Promise<Notice | null>>().mockResolvedValue(initial),
-    dismissReadyNotice: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     restartToUpdate: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     onReadyNoticeChanged: (notify: () => void) => {
       changes.add(notify);
@@ -35,28 +34,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('stays hidden until main reports a downloaded update, then offers the restart', async () => {
+it('stays hidden until main reports a downloaded update, then restarts to install it', async () => {
   const api = bridge(null);
   await renderNotice();
   expect(screen.queryByRole('button')).not.toBeInTheDocument();
 
-  api.getReadyNotice.mockResolvedValue({ version: '0.2.2' });
+  api.getReadyNotice.mockResolvedValue({ version: '0.2.4' });
   await act(async () => api.notify());
 
-  expect(screen.getByRole('status')).toHaveTextContent(
-    '新しいバージョン（0.2.2）の準備ができました'
-  );
-  fireEvent.click(screen.getByRole('button', { name: '再起動して更新' }));
+  const button = screen.getByRole('button', { name: '0.2.4 に更新' });
+  expect(screen.getByRole('status')).toContainElement(button);
+  expect(button).toHaveAttribute('title', '再起動して 0.2.4 に更新します');
+  fireEvent.click(button);
   expect(api.restartToUpdate).toHaveBeenCalledTimes(1);
 });
 
-it('shows an update that finished downloading before the window opened, and "later" hides it', async () => {
-  const api = bridge({ version: null });
+it('shows an update that finished downloading before the window opened, even without a version', async () => {
+  bridge({ version: null });
   await renderNotice();
-  expect(screen.getByText('新しいバージョンの準備ができました')).toBeVisible();
 
-  fireEvent.click(screen.getByRole('button', { name: 'あとで' }));
-
-  expect(api.dismissReadyNotice).toHaveBeenCalledTimes(1);
-  expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  const button = screen.getByRole('button', { name: '更新' });
+  expect(button).toHaveAttribute('title', '再起動して更新します');
 });

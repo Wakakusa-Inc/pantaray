@@ -50,48 +50,31 @@
   max-width: 100%;
 }
 
-.app-update-notice {
+.app-update-button {
   margin: 0 var(--space-lg) var(--space-lg);
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-md);
-  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-lg);
-  border: 1px solid var(--border-color-hover);
-  border-radius: 8px;
-  background: #20252d;
-  color: var(--text-primary);
-  font-size: var(--text-ui-size-sm);
-}
-
-.app-update-notice p {
-  margin: 0;
-}
-
-.app-update-notice button {
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px 0 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 13px;
+  /* Same colors as the settings page's .workspace-button-primary. */
+  background: rgba(125, 171, 220, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(125, 171, 220, 0.4);
+  color: var(--text-primary);
   cursor: pointer;
   font: inherit;
-  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
 }
 
-.app-update-notice-restart {
-  background: #dfe7f0;
-  color: #171b21;
-  font-weight: var(--weight-semibold);
+.app-update-button:hover {
+  background: rgba(125, 171, 220, 0.32);
 }
 
-.app-update-notice-later {
-  background: transparent;
-  color: var(--text-secondary);
-}
-
-.app-update-notice-later:hover {
-  color: var(--text-primary);
-}
-
-.app-update-notice button:focus-visible {
+.app-update-button:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;
 }
