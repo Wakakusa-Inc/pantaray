@@ -9,20 +9,25 @@ from pydantic import BaseModel, ConfigDict, ValidationError, model_validator
 from ..models import BrokerNetworkPolicy
 
 
+class ActionSandboxStorage(BaseModel):
+    """An Action's own storage, the exceptions to the private-storage deny."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    plan_path: str
+    workspace_root: str
+    published_results_root: str
+
+
 class BrokerToSandboxCommandRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     request_id: str
-    action_id: str
-    execution_session_id: str
-    tool_invocation_id: str
-    manifest_id: str
     real_read_roots: list[str]
     real_write_roots: list[str]
-    action_plan_path: str
     private_storage_roots: list[str]
-    action_workspace_root: str
-    published_results_root: str
+    # None for a command that belongs to no Action: private storage stays whole.
+    action_storage: ActionSandboxStorage | None
     app_runtime_root: str
     cwd: str
     argv: list[str]

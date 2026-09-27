@@ -51,7 +51,8 @@ def render_seatbelt_profile(
         ),
         "{{FILE_READ_ROOT_CLAUSES}}": _render_file_read_root_clauses(request),
         "{{FILE_WRITE_ROOT_CLAUSES}}": _render_file_write_root_clauses(request),
-        "{{ACTION_PLAN_DENY_CLAUSES}}": _render_action_plan_deny_clauses(request),
+        "{{ACTION_PLAN_READ_DENY}}": _render_action_plan_deny(request, "file-read*"),
+        "{{ACTION_PLAN_WRITE_DENY}}": _render_action_plan_deny(request, "file-write*"),
         "{{PRIVATE_STORAGE_DENY_RULES}}": _render_private_storage_deny_rules(request),
         "{{LOGIN_ENVIRONMENT_CLAUSE}}": _render_login_environment_clause(request),
     }
@@ -87,23 +88,32 @@ def _render_file_write_root_clauses(request: BrokerToSandboxCommandRequest) -> s
     )
 
 
-def _render_action_plan_deny_clauses(
-    request: BrokerToSandboxCommandRequest,
+def _render_action_plan_deny(
+    request: BrokerToSandboxCommandRequest, operation: str
 ) -> str:
-    return _render_clause_block(
-        (
-            _render_literal_clause(request.action_plan_path),
-            _render_subpath_clause(request.action_plan_path),
-        )
+    # An empty filter list would deny the operation everywhere, so a request
+    # without an Action plan renders no statement at all.
+    if request.action_storage is None:
+        return ""
+    plan_path = request.action_storage.plan_path
+    clauses = _render_clause_block(
+        (_render_literal_clause(plan_path), _render_subpath_clause(plan_path))
     )
+    return f"(deny {operation}\n{clauses}\n)"
 
 
 def _render_private_storage_deny_rules(request: BrokerToSandboxCommandRequest) -> str:
     private_roots = _render_clause_block(
         _render_subpath_clause(path) for path in request.private_storage_roots
     )
-    workspace = _render_subpath_clause(request.action_workspace_root)
-    results = _render_subpath_clause(request.published_results_root)
+    storage = request.action_storage
+    if storage is None:
+        return (
+            f"(deny file-read* (require-any\n{private_roots}\n))\n"
+            f"(deny file-write* (require-any\n{private_roots}\n))"
+        )
+    workspace = _render_subpath_clause(storage.workspace_root)
+    results = _render_subpath_clause(storage.published_results_root)
     # Exceptions remove this deny only; the ordinary read/write roots still apply.
     return (
         f"(deny file-read* (require-all (require-any\n{private_roots}\n) "

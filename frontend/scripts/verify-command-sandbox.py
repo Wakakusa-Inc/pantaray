@@ -13,6 +13,7 @@ from contextlib import closing, suppress
 from pathlib import Path
 
 from pantaray_agents.local_runtime.tooling.sandbox.command_sandbox_protocol import (
+    ActionSandboxStorage,
     BrokerToSandboxCommandRequest,
     SandboxCommandCompletion,
     SandboxOutputChunk,
@@ -57,16 +58,14 @@ print('sandbox ok')
 """
     return BrokerToSandboxCommandRequest(
         request_id=f"packaged-probe-{enabled}",
-        action_id="packaged-probe-action",
-        execution_session_id="packaged-probe-session",
-        tool_invocation_id=f"packaged-probe-invocation-{enabled}",
-        manifest_id="packaged-probe-manifest",
         real_read_roots=[str(workspace), str(temporary)],
         real_write_roots=[str(workspace), str(temporary)],
-        action_plan_path=str(workspace / "plan.md"),
         private_storage_roots=[str(private)],
-        action_workspace_root=str(workspace),
-        published_results_root=str(workspace / "results"),
+        action_storage=ActionSandboxStorage(
+            plan_path=str(workspace / "plan.md"),
+            workspace_root=str(workspace),
+            published_results_root=str(workspace / "results"),
+        ),
         app_runtime_root=str(Path(sys.prefix).resolve()),
         cwd=str(workspace),
         argv=[
