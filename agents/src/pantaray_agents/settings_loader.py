@@ -20,8 +20,7 @@ def _settings_from_module(module: ModuleType) -> AppConfig:
 def register_active_settings_module(module_name: str) -> None:
     """起動時に有効な設定モジュールを登録する。
 
-    ローカルランタイム以外は受け付けない。Cloud は別配布物として
-    自分の設定モジュールを直接読むため、ここを経由しない。
+    ローカルランタイム以外は受け付けない。
     """
 
     global _active_settings_module_name

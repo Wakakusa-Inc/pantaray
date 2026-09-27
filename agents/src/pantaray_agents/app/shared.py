@@ -86,8 +86,8 @@ def create_base_app(
         title=title,
         description=description,
         version=APP_VERSION,
-        contact={"name": "Pantaray", "url": "https://example.com"},
-        license_info={"name": "Proprietary"},
+        contact={"name": "Pantaray", "email": "kento.shimizu.25@gmail.com"},
+        license_info={"name": "Apache-2.0", "identifier": "Apache-2.0"},
         lifespan=lifespan,
     )
 
