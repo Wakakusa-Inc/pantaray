@@ -246,10 +246,8 @@ test('packaged runtime keeps helper stdio detached', async () => {
   assert.equal(spawnCalls[0].options.stdio, 'ignore');
   assert.equal(spawnCalls[0].options.env.PYTHONDONTWRITEBYTECODE, '1');
   assert.equal(spawnCalls[0].options.env.PYTHONPATH, process.env.PYTHONPATH);
-  assert.equal(
-    spawnCalls[0].options.env.PYTHONPYCACHEPREFIX,
-    '/tmp/user/local-backend-python-cache'
-  );
+  // A cache prefix would make Python ignore the bytecode shipped in the bundle.
+  assert.equal(spawnCalls[0].options.env.PYTHONPYCACHEPREFIX, undefined);
   assert.deepStrictEqual(spawnCalls[0].args.slice(-2), ['--port', '0']);
 });
 

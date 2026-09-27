@@ -32,8 +32,22 @@ const PIP_INSTALL_ARGS = ['-m', 'pip', 'install'];
 const PIP_INSTALL_WHEEL_ARGS = [...PIP_INSTALL_ARGS, '--no-index', '--no-deps'];
 const CURL_DOWNLOAD_ARGS = ['-fL', '--retry', '3', '--retry-delay', '1'];
 const POSIX_PERMISSION_MASK = 0o777;
-const PYTHON_BYTECODE_FILE_EXTENSION = '.pyc';
-const PYTHON_BYTECODE_CACHE_DIRNAME = '__pycache__';
+// The helper imports thousands of modules at every start and runs with
+// PYTHONDONTWRITEBYTECODE inside a signed, read-only bundle, so bytecode has to
+// ship. unchecked-hash bytecode never compares against source mtimes, which
+// staging and packaging copies do not preserve. -f rewrites the timestamp-based
+// files that pip and the verification step leave behind.
+const COMPILE_BYTECODE_ARGS = [
+  '-I',
+  '-m',
+  'compileall',
+  '-q',
+  '-f',
+  '-j',
+  '0',
+  '--invalidation-mode',
+  'unchecked-hash',
+];
 const UV_EXPORT_ARGS = [
   '--quiet',
   'export',
@@ -345,56 +359,8 @@ function assertNoRuntimeSymlinks(runtimeRoot) {
   }
 }
 
-function prunePythonBytecode(runtimeRoot) {
-  const pending = [runtimeRoot];
-  let removedFileCount = 0;
-  let removedDirectoryCount = 0;
-
-  while (pending.length > 0) {
-    const currentDir = pending.pop();
-    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
-      const entryPath = path.join(currentDir, entry.name);
-      if (entry.isSymbolicLink()) {
-        throw new Error(`Cannot prune bytecode through helper runtime symlink: ${entryPath}`);
-      }
-      if (entry.isDirectory()) {
-        if (entry.name === PYTHON_BYTECODE_CACHE_DIRNAME) {
-          removedFileCount += countFiles(entryPath);
-          fs.rmSync(entryPath, { recursive: true, force: true });
-          removedDirectoryCount += 1;
-          continue;
-        }
-        pending.push(entryPath);
-        continue;
-      }
-      if (entry.isFile() && entry.name.endsWith(PYTHON_BYTECODE_FILE_EXTENSION)) {
-        fs.rmSync(entryPath, { force: true });
-        removedFileCount += 1;
-      }
-    }
-  }
-
-  return { removedFileCount, removedDirectoryCount };
-}
-
-function countFiles(rootPath) {
-  const pending = [rootPath];
-  let fileCount = 0;
-  while (pending.length > 0) {
-    const currentDir = pending.pop();
-    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
-      const entryPath = path.join(currentDir, entry.name);
-      if (entry.isSymbolicLink()) {
-        throw new Error(`Cannot count bytecode through helper runtime symlink: ${entryPath}`);
-      }
-      if (entry.isDirectory()) {
-        pending.push(entryPath);
-      } else if (entry.isFile()) {
-        fileCount += 1;
-      }
-    }
-  }
-  return fileCount;
+function compilePythonBytecode(runtimePython, runtimeRoot) {
+  execRequired(runtimePython, [...COMPILE_BYTECODE_ARGS, runtimeRoot]);
 }
 
 function exportLockedRequirements(outputPath) {
@@ -523,16 +489,10 @@ function prepareLocalBackendHelperRuntime() {
   buildAndInstallAgentsPackage(paths.helperRuntimeExecutable);
   verifyInstalledLocalRuntimeMigrations(paths.helperRuntimeExecutable);
   fs.rmSync(requirementsPath, { force: true });
-  const bytecodePruneResult = prunePythonBytecode(paths.helperRuntimeRoot);
+  compilePythonBytecode(paths.helperRuntimeExecutable, paths.helperRuntimeRoot);
   writeHelperRuntimeManifest(paths.helperRuntimeManifestPath);
   writeAppRuntimeManifest(paths.appRuntimeManifestPath, paths.helperRuntimeExecutable);
-  process.stdout.write(
-    [
-      `Prepared local backend helper runtime: ${paths.helperRuntimeRoot}`,
-      `removed_pyc=${bytecodePruneResult.removedFileCount}`,
-      `removed_pycache_dirs=${bytecodePruneResult.removedDirectoryCount}`,
-    ].join(' ') + '\n'
-  );
+  process.stdout.write(`Prepared local backend helper runtime: ${paths.helperRuntimeRoot}\n`);
 }
 
 if (require.main === module) {
@@ -563,7 +523,7 @@ module.exports = {
   assertNoRuntimeSymlinks,
   copyExtractedRuntime,
   findRuntimeSymlinkPaths,
-  prunePythonBytecode,
+  compilePythonBytecode,
   prepareLocalBackendHelperRuntime,
   VERIFY_MIGRATIONS_INLINE_SCRIPT,
   PYTHON_RUNTIME_EXECUTABLE_RELATIVE_PATH,
