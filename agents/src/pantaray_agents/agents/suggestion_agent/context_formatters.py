@@ -16,6 +16,9 @@ NO_ACTIVITY_DESCRIPTIONS_TEXT = "(no activity descriptions available)"
 NO_ACTIVITY_SUMMARY_1H_TEXT = "(no 1h summary available)"
 NO_RECENT_ANSWERS_TEXT = "(no recent answers)"
 RECENT_SUGGESTION_REPLY_MAX_CHARS = 2_000
+# Stored Action outputs were 947 chars or fewer in 34 of 36 runs, and the head
+# carries the conclusion; five entries then add at most 5,000 chars.
+RECENT_SUGGESTION_ACTION_RESULT_MAX_CHARS = 1_000
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +51,14 @@ def format_activity_summary(rows: list[ActivitySummaryRow] | None) -> str:
     return f"[{period}] {summary}"
 
 
+def _bounded(text: str, max_chars: int, marker: str) -> str:
+    if len(text) <= max_chars:
+        return text
+    return f"{text[:max_chars]}\n[{marker} truncated]"
+
+
 def format_recent_suggestions(rows: list[SuggestionHistoryEntry] | None) -> str:
-    """直近の提案と記録された反応・返信を整形する。"""
+    """直近の提案と記録された反応・返信・Action の状態と結果を整形する。"""
     if not rows:
         return NO_RECENT_ANSWERS_TEXT
 
@@ -59,10 +68,15 @@ def format_recent_suggestions(rows: list[SuggestionHistoryEntry] | None) -> str:
         lines.append(f"- [{created_at}] answer: {row.answer}")
         lines.append(f"  User reaction: {row.user_reaction or 'not recorded'}")
         if row.user_reply is not None:
-            reply = row.user_reply[:RECENT_SUGGESTION_REPLY_MAX_CHARS]
-            if len(row.user_reply) > RECENT_SUGGESTION_REPLY_MAX_CHARS:
-                reply += "\n[reply truncated]"
+            reply = _bounded(row.user_reply, RECENT_SUGGESTION_REPLY_MAX_CHARS, "reply")
             lines.append(f"  User reply: {reply}")
+        if row.action_status is not None:
+            lines.append(f"  Action status: {row.action_status}")
+        if row.action_result is not None:
+            result = _bounded(
+                row.action_result, RECENT_SUGGESTION_ACTION_RESULT_MAX_CHARS, "result"
+            )
+            lines.append(f"  Latest Action result: {result}")
     return "\n".join(lines)
 
 
@@ -88,5 +102,7 @@ def normalize_recent_suggestion_entry(
             "thinking": thinking,
             "user_reaction": row.get("user_reaction"),
             "user_reply": row.get("user_reply"),
+            "action_status": row.get("action_status"),
+            "action_result": row.get("action_result"),
         }
     )

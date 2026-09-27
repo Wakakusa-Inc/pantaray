@@ -4,6 +4,8 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pantaray_agents.schema.action_conversation import ActionStatus
+
 from .action_message import ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS
 from .base import AgentRequest, AgentResponse, JSONValue
 
@@ -145,7 +147,7 @@ class SuggestionStructuredOutput(BaseModel):
 
 
 class SuggestionHistoryEntry(BaseModel):
-    """提案本文と、取得できたユーザー反応・最初の返信。"""
+    """提案本文と、取得できたユーザー反応・返信・対応する Action の状態と結果。"""
 
     answer: str = Field(description="提案内容（LLMが返した最終提案テキスト）")
     created_at: str = Field(description="提案作成時刻（ISO 8601形式）")
@@ -157,7 +159,16 @@ class SuggestionHistoryEntry(BaseModel):
         default=None, description="承認・却下。未反応やmessage_onlyの場合はnull"
     )
     user_reply: str | None = Field(
-        default=None, description="提案に対する最初のユーザーメッセージ"
+        default=None,
+        description=(
+            "提案に対するユーザー自身の言葉。承認時は補足だけで、承認のみなら null"
+        ),
+    )
+    action_status: ActionStatus | None = Field(
+        default=None, description="対応する Action の現在の状態。Action がなければ null"
+    )
+    action_result: str | None = Field(
+        default=None, description="対応する Action の最後に成功したターンの最終出力"
     )
 
 

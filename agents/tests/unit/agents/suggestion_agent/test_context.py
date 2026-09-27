@@ -710,6 +710,8 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
                     "created_at": "2026-09-10T00:00:00Z",
                     "user_reaction": "rejected",
                     "user_reply": "The review is complete.",
+                    "action_status": "success",
+                    "action_result": "Review finished; no findings remain.",
                 }
             ]
         )
@@ -727,10 +729,15 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
     assert "grow sustainably" in prompt
     assert "User reaction: rejected" in prompt
     assert "The review is complete." in prompt
+    assert "Action status: success" in prompt
+    assert "Latest Action result: Review finished; no findings remain." in prompt
 
 
-def test_reply_preview_is_bounded_and_missing_reaction_is_not_rejection() -> None:
+def test_reply_and_result_previews_are_bounded_and_missing_reaction_is_not_rejection() -> (
+    None
+):
     from pantaray_agents.agents.suggestion_agent.context_formatters import (
+        RECENT_SUGGESTION_ACTION_RESULT_MAX_CHARS,
         RECENT_SUGGESTION_REPLY_MAX_CHARS,
     )
 
@@ -739,6 +746,7 @@ def test_reply_preview_is_bounded_and_missing_reaction_is_not_rejection() -> Non
             "answer": "A suggestion",
             "created_at": "2026-09-10T00:00:00Z",
             "user_reply": "x" * (RECENT_SUGGESTION_REPLY_MAX_CHARS + 100),
+            "action_result": "y" * (RECENT_SUGGESTION_ACTION_RESULT_MAX_CHARS + 100),
         }
     )
     assert entry is not None
@@ -746,6 +754,8 @@ def test_reply_preview_is_bounded_and_missing_reaction_is_not_rejection() -> Non
     assert "User reaction: not recorded" in rendered
     assert "[reply truncated]" in rendered
     assert "x" * (RECENT_SUGGESTION_REPLY_MAX_CHARS + 1) not in rendered
+    assert "[result truncated]" in rendered
+    assert "y" * (RECENT_SUGGESTION_ACTION_RESULT_MAX_CHARS + 1) not in rendered
 
 
 @pytest.mark.usefixtures("tokyo_local_zone")
