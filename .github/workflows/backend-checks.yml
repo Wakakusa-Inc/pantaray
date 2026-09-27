@@ -1,0 +1,101 @@
+name: Backend checks (reusable)
+
+on:
+  workflow_call:
+
+permissions: {}
+
+# デスクトップに同梱する配布物（pantaray-agents / pantaray-llm）だけを入れた環境で
+# 検査する。Cloud 専用の配布物が入らないまま緑になること自体が検査対象。
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # uvのインストール
+      - name: Install uv
+        working-directory: agents
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      # 依存関係のインストール（pantaray-cloud は入れない）
+      - name: Install the project
+        working-directory: agents
+        run: uv sync --all-extras --dev
+
+      # 同梱ランタイムに Cloud 専用の配布物が入っていないこと。
+      # 入ってしまうと以降の検査が「Cloud 抜きで緑」を確かめられなくなる。
+      - name: Assert cloud-only distributions are absent
+        working-directory: agents
+        run: >-
+          uv run --no-sync python -c
+          "import importlib.util as u, sys;
+          found = [n for n in ('pantaray_cloud', 'supabase', 'boto3') if u.find_spec(n)];
+          sys.exit(f'cloud-only distributions leaked into the OSS env: {found}' if found else 0)"
+
+      # 静的解析（PEP8/未使用など）
+      - name: Run ruff (lint)
+        working-directory: agents
+        run: uv run --no-sync ruff check .
+
+      # フォーマット（差分が出たらfail）
+      - name: Run ruff (format check)
+        working-directory: agents
+        run: uv run --no-sync ruff format --check .
+
+      # 型チェック
+      - name: Run mypy
+        working-directory: agents
+        run: uv run --no-sync mypy
+
+  unit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        working-directory: agents
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install the project
+        working-directory: agents
+        run: uv sync --all-extras --dev
+
+      - name: Assert cloud-only distributions are absent
+        working-directory: agents
+        run: >-
+          uv run --no-sync python -c
+          "import importlib.util as u, sys;
+          found = [n for n in ('pantaray_cloud', 'supabase', 'boto3') if u.find_spec(n)];
+          sys.exit(f'cloud-only distributions leaked into the OSS env: {found}' if found else 0)"
+
+      # tests/integration/local_runtime は macOS の seatbelt と実 toolchain が要るので
+      # ubuntu では回せない。E2E (desktop) の macOS ジョブが回す。
+      - name: Run pytest (unit, ws, integration)
+        working-directory: agents
+        run: >-
+          uv run --no-sync pytest -q -n auto --dist loadfile
+          tests/unit tests/ws tests/integration
+          --ignore=tests/integration/local_runtime

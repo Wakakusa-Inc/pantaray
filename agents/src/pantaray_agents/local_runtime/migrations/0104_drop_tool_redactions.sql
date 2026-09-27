@@ -1,0 +1,11 @@
+-- Drop the never-written tool_redactions table.
+--
+-- 0004 created it with a foreign key to tool_outputs. 0037 renamed tool_outputs
+-- to tool_outputs_legacy_v37 and then dropped it; SQLite rewrites foreign-key
+-- references on ALTER TABLE ... RENAME TO, so tool_redactions has referenced a
+-- table that no longer exists ever since. A single row would make the startup
+-- PRAGMA foreign_key_check fail and block the local runtime.
+--
+-- Nothing has ever inserted, selected, updated or deleted a tool_redactions row,
+-- so the table is always empty and dropping it loses no data.
+DROP TABLE IF EXISTS tool_redactions;

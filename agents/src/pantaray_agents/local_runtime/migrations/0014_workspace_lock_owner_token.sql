@@ -1,0 +1,1 @@
+-- Workspace lock resources now persist lock_id as durable owner proof.

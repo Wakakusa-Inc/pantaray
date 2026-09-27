@@ -1,0 +1,3 @@
+-- Handled by apply_public_event_projection_alignment_migration() in Python.
+-- This migration normalizes agent_process_events and agent_suggestion_history
+-- to the documented canonical schema for existing databases.

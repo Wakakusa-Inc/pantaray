@@ -1,0 +1,190 @@
+{
+  "name": "pantaray",
+  "version": "0.0.0",
+  "packageManager": "pnpm@11.20.0",
+  "description": "Pantaray Application",
+  "author": "Pantaray Team",
+  "license": "Apache-2.0",
+  "main": "electron/main.js",
+  "build": {
+    "appId": "com.pantaray.app",
+    "productName": "Pantaray",
+    "asar": true,
+    "compression": "normal",
+    "electronLanguages": [
+      "en",
+      "ja"
+    ],
+    "afterPack": "scripts/apply-electron-fuses.js",
+    "afterSign": "scripts/notarize.js",
+    "publish": {
+      "provider": "github",
+      "owner": "Wakakusa-Inc",
+      "repo": "pantaray",
+      "releaseType": "release"
+    },
+    "protocols": [
+      {
+        "name": "Pantaray",
+        "schemes": [
+          "pantaray"
+        ]
+      }
+    ],
+    "mac": {
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "sign": "scripts/sign-macos-app.js",
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "CFBundleDevelopmentRegion": "en",
+        "NSAppleEventsUsageDescription": "Pantaray needs Automation permission to access active window or browser information.",
+        "NSScreenCaptureUsageDescription": "Pantaray captures your screen only when you ask an Action to look at it."
+      },
+      "icon": "build/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities"
+    },
+    "files": [
+      "dist/**/*",
+      "shared/**/*",
+      "assets/icons/Pantaray_icon.png",
+      "assets/icons/Pantaray_tray_*.png",
+      "electron/*.js",
+      "electron/dist/**/*",
+      "electron/resources/**/*",
+      "electron/runtime_config.json",
+      "!electron/src/**",
+      "!electron/native/**",
+      "!electron/tsconfig.json",
+      "!electron/runtime_config.example.json",
+      "!**/*.map",
+      "!**/*.md",
+      "!**/test/**",
+      "!**/tests/**",
+      "!**/__tests__/**",
+      "electron/zanei_release.json"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/resources/local_backend_runtime.bundle.json",
+        "to": "local_backend_runtime.bundle.json"
+      },
+      {
+        "from": ".generated/local_backend_helper",
+        "to": "local_backend_helper"
+      },
+      {
+        "from": "electron/resources/ja.lproj",
+        "to": "ja.lproj"
+      },
+      {
+        "from": "electron/resources/en.lproj",
+        "to": "en.lproj"
+      },
+      {
+        "from": ".generated/local_embedding_model",
+        "to": "local_embedding_model"
+      },
+      {
+        "from": ".generated/zanei/Zanei.app/Contents/MacOS/zanei",
+        "to": "zanei/bin/zanei"
+      },
+      {
+        "from": ".generated/zanei/THIRD_PARTY_NOTICES.md",
+        "to": "zanei/THIRD_PARTY_NOTICES.md"
+      }
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    }
+  },
+  "scripts": {
+    "dev": "node ./node_modules/vite/bin/vite.js",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "build:web": "node ./node_modules/vite/bin/vite.js build",
+    "build:electron": "node ./node_modules/typescript/bin/tsc -p electron/tsconfig.json",
+    "build:preload": "pnpm exec esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=electron/dist/preload.js --external:electron",
+    "verify:packaged-python-sandbox": "node scripts/verify-packaged-python-sandbox.js",
+    "test:node": "node ./node_modules/typescript/bin/tsc -p electron/tsconfig.json && node --test ./tests/*.test.js",
+    "test:vitest": "node ./node_modules/vitest/vitest.mjs run",
+    "typecheck": "node ./node_modules/typescript/bin/tsc --noEmit",
+    "test": "pnpm run test:node && pnpm run test:vitest",
+    "test:e2e": "pnpm run build:preload && node ./node_modules/typescript/bin/tsc -p electron/tsconfig.json && node ./node_modules/@playwright/test/cli.js test",
+    "lint": "eslint --config eslint.config.mjs . --ext ts,tsx --report-unused-disable-directives",
+    "format": "prettier --write ./**/*.{ts,tsx,css,md,json}",
+    "preview": "node ./node_modules/vite/bin/vite.js preview",
+    "electron:dev": "pnpm run stage:zanei && pnpm run stage:embedding-model && pnpm run build:preload && node ./node_modules/typescript/bin/tsc -p electron/tsconfig.json && NODE_ENV=development node scripts/run-electron-dev.js",
+    "electron:build": "pnpm run stage:zanei && pnpm run stage:embedding-model && NODE_ENV=production VITE_BASE=./ node ./node_modules/vite/bin/vite.js build && PANTARAY_DESKTOP_BUILD_ENV=production node scripts/generate-electron-runtime-config.js && PANTARAY_DESKTOP_BUILD_ENV=production node scripts/prepare-local-backend-runtime-bundle.js && node scripts/prepare-local-backend-helper-runtime.js && node scripts/stage-local-backend-helper.js && pnpm run build:preload && node ./node_modules/typescript/bin/tsc -p electron/tsconfig.json && APP_VERSION=$(node scripts/get-desktop-version.js) && PATH=./scripts:$PATH electron-builder --publish never --config.extraMetadata.version=$APP_VERSION ${PANTARAY_UPDATE_GITHUB_OWNER:+--config.publish.owner=$PANTARAY_UPDATE_GITHUB_OWNER} ${PANTARAY_UPDATE_GITHUB_REPO:+--config.publish.repo=$PANTARAY_UPDATE_GITHUB_REPO}",
+    "electron:build:signed": "node scripts/require-macos-signing-env.js && pnpm run electron:build",
+    "electron:stop": "pkill -f electron || true",
+    "generate-icon": "scripts/generate-icons.sh",
+    "stage:embedding-model": "node scripts/stage-embedding-model.js",
+    "stage:zanei": "node scripts/stage-zanei-runtime.js"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@llm-ui/markdown": "^0.13.3",
+    "@llm-ui/react": "^0.13.3",
+    "@supabase/supabase-js": "2.110.5",
+    "dotenv": "^16.4.7",
+    "electron-updater": "^6.8.9",
+    "html2canvas": "^1.4.1",
+    "lucide-react": "^0.562.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^7.18.2",
+    "remark-gfm": "^4.0.1",
+    "styled-components": "^6.1.17",
+    "ws": "^8.21.1",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@electron/fuses": "^1.8.0",
+    "@eslint/js": "^9.39.2",
+    "@playwright/test": "1.62.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.2.1",
+    "baseline-browser-mapping": "2.10.13",
+    "electron": "^41.10.6",
+    "electron-builder": "^26.15.3",
+    "esbuild": "0.25.10",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "globals": "^16.5.0",
+    "happy-dom": "^20.10.6",
+    "jsdom": "^27.4.0",
+    "prettier": "^3.7.4",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.64.0",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.10"
+  }
+}

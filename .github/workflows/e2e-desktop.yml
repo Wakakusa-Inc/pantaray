@@ -1,0 +1,142 @@
+name: E2E (desktop)
+# デスクトップに影響する PR は merge 前に検証する。無関係な PR では macOS runner を使わない。
+# workflow-level paths を使うと必須チェックが Pending のままになるため、job で判定する。
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: read
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - name: Detect desktop changes
+        id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" --jq '.[].filename' > "$RUNNER_TEMP/pr-files.txt"
+          if grep -Eq '^(frontend/|agents/src/|agents/packages/pantaray-llm/|agents/pyproject\.toml$|agents/uv\.lock$|agents/\.python-version$|agents/scripts/dev/isolated_env/|agents/tests/integration/local_runtime/|agents/\.env\.local\.backend\.example$|\.github/workflows/e2e-desktop\.yml$)' "$RUNNER_TEMP/pr-files.txt"; then
+            echo 'relevant=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'relevant=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e:
+    needs: detect
+    if: always() && (github.event_name == 'workflow_dispatch' || needs.detect.result != 'success' || needs.detect.outputs.relevant == 'true')
+    # broker sandbox が /usr/bin/sandbox-exec（seatbelt）前提のため macOS runner 必須。
+    # macos-latest の OS 移行で seatbelt/Electron の挙動が黙って変わらないよう major を固定する。
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # ハーネス内の `uv run` も含め、CI では uv.lock の書き換えを禁止しつつ、
+      # pyproject.toml と lock の不整合は fail-fast で検出する（--frozen は stale lock を黙認する）。
+      UV_LOCKED: "1"
+      # runner プリインストールの python.org Framework 版 3.12 は sqlite3 が拡張ロード
+      # 無効ビルド（Connection.enable_load_extension が存在しない）で、local backend 必須の
+      # sqlite-vec をロードできず起動に失敗する（run 33885135354 で実測）。uv sync / uv run に
+      # 拡張ロード有効な uv-managed CPython だけを使わせる（未取得なら uv sync が自動取得）。
+      UV_PYTHON_PREFERENCE: "only-managed"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: "11.20.0"
+
+      - name: Get pnpm store directory
+        working-directory: frontend
+        run: echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for renderer tests
+        working-directory: frontend
+        run: pnpm exec playwright install chromium --only-shell
+
+      # The desktop app executes the pinned Zanei recorder at startup
+      # (frontend/.generated/zanei); electron:dev and electron:build stage it
+      # themselves, the E2E entry point does not.
+      - name: Stage the Zanei runtime
+        working-directory: frontend
+        run: pnpm run stage:zanei
+
+      - name: Install uv
+        working-directory: agents
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache uv
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          # uv の既定キャッシュは macOS でも $XDG_CACHE_HOME/uv → ~/.cache/uv（`uv cache dir` で実測）。
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('agents/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      # E2E の local backend は LLM/web tools を stub（LLM_PROXY_URL）経由で使う。
+      # openai / tavily は pantaray-llm の基本依存として同期されるが、E2E では呼ばれない。
+      # dev extra は下の seatbelt スイート（pytest）用。
+      - name: Install the backend (agents)
+        working-directory: agents
+        run: uv sync --extra dev
+
+      # command sandbox は /usr/bin/sandbox-exec と実 toolchain を使うため ubuntu の
+      # backend-checks では回せない。ここが唯一の実行場所なので、高価な Playwright の
+      # 前に置いて先に落とす。toolchain が無い runner では各テストが自分で skip する。
+      - name: Run pytest (command sandbox, macOS only)
+        working-directory: agents
+        run: uv run pytest -q tests/integration/local_runtime
+
+      - name: Run Electron E2E
+        working-directory: frontend
+        run: pnpm run test:e2e
+
+      # 失敗時のみ: Playwright trace/screenshot と、ハーネスが失敗テストで保持する
+      # workDir（/tmp/pantaray-e2e-*）の各プロセスログ（electron/vite/stub — stub 値のみで秘密情報なし）。
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: e2e-desktop-failure-artifacts
+          path: |
+            frontend/test-results/
+            /tmp/pantaray-e2e-*/*.log
+          if-no-files-found: ignore
+          retention-days: 7

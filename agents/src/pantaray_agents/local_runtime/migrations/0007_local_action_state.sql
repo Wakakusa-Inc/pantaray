@@ -1,0 +1,3 @@
+-- Handled by apply_local_action_state_migration() in Python.
+-- This migration normalizes legacy agent_suggestions, agent_actions, and
+-- agent_action_steps tables to the current local action-state schema.

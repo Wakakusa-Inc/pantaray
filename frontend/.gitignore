@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/*
+!build/icon.icns
+!build/entitlements.mac.plist
+out/
+
+# Development
+*.local
+.eslintcache
+
+# OS files
+.DS_Store
+
+# Electron packaged runtime config (generated at build time)
+electron/runtime_config.json
+electron/resources/local_backend_runtime.bundle.json
+.generated/
+.cache/local_backend_helper/
+.cache/local_embedding_model/
+
+# Playwright E2E outputs
+test-results/
+vitest-pid.txt

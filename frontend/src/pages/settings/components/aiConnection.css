@@ -1,0 +1,228 @@
+.ai-connection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+/* ラベル列と操作列。囲まずに、列の揃いだけで関係を示す。 */
+.ai-row {
+  align-items: baseline;
+  display: grid;
+  gap: var(--space-xs) var(--space-lg);
+  grid-template-columns: 116px minmax(0, 1fr);
+}
+
+/* 群の見出し。囲みの代わりに、字面と余白で段を作る。 */
+.ai-group {
+  color: var(--text-secondary);
+  font-size: var(--text-heading-size);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--ui-label-tracking);
+  margin: var(--space-sm) 0 0;
+}
+
+.ai-group-note {
+  max-width: 62ch;
+}
+
+.ai-rule {
+  background: var(--border-color);
+  height: 1px;
+  margin: var(--space-sm) 0;
+}
+
+.ai-row-label {
+  color: var(--text-secondary);
+  font-size: var(--text-meta-size);
+  line-height: 2.1;
+}
+
+.ai-row-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ai-route {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  line-height: 2.1;
+  margin: 0;
+  min-width: 0;
+}
+
+.ai-dot {
+  align-self: center;
+  border-radius: 50%;
+  flex: none;
+  height: 7px;
+  width: 7px;
+}
+
+.ai-dot--cloud {
+  background: #7dabdc;
+}
+
+.ai-dot--direct {
+  background: #7fc9a2;
+}
+
+.ai-dot--unconfigured {
+  background: var(--text-muted);
+}
+
+.ai-route-name {
+  color: var(--text-primary);
+  font-size: var(--text-body-size);
+  font-weight: var(--weight-semibold);
+}
+
+.ai-route-detail {
+  color: var(--text-secondary);
+  font-size: var(--text-meta-size);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ai-segmented {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 9px;
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  width: fit-content;
+}
+
+.ai-segment {
+  background: transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-ui-size-sm);
+  font-weight: var(--weight-semibold);
+  padding: 6px 12px;
+  position: relative;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+  white-space: nowrap;
+}
+
+/* 見た目はラベルが持ち、操作と読み上げは素の radio が持つ。 */
+.ai-segment-input {
+  height: 100%;
+  left: 0;
+  margin: 0;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.ai-segment:hover:not(.ai-segment--selected) {
+  color: var(--text-primary);
+}
+
+.ai-segment:focus-within {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.ai-segment:has(.ai-segment-input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ai-segment--selected {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.ai-inline {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.ai-inline .settings-action-button,
+.ai-inline .settings-text-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.ai-value {
+  color: var(--text-primary);
+  font-size: var(--text-body-size);
+  overflow-wrap: anywhere;
+}
+
+/* 読ませる情報なので AA を満たす色を使う（--text-muted は placeholder 専用）。 */
+.ai-note {
+  color: var(--text-secondary);
+  font-size: var(--text-meta-size);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.ai-note--control {
+  max-width: 52ch;
+}
+
+/* 入力欄は既存の history-filter 系統を使う（設計システム 3.2: 4 系統目を作らない）。
+   この画面では値が短いので幅だけ絞る。 */
+.ai-row-control .history-filter-input,
+.ai-row-control .history-filter-select {
+  max-width: 360px;
+}
+
+.ai-secret-mask {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.ai-check {
+  font-size: var(--text-meta-size);
+}
+
+.ai-check--failed {
+  color: var(--danger-color);
+}
+
+/* 幅の狭いウィンドウではラベルを上に積む。 */
+@media (max-width: 720px) {
+  .ai-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .ai-row-label {
+    line-height: 1.6;
+  }
+}
+
+.ai-connection button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-segment {
+    transition: none;
+  }
+}
+
+.ai-controls {
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}

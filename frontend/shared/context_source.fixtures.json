@@ -1,0 +1,88 @@
+{
+  "transitions": {
+    "suspend": {
+      "kind": "suspend",
+      "request_id": "19e7df36-adcd-463b-bae1-6ed6ecf340d1",
+      "expected_epoch": "524417a5-2505-4777-966a-aa1606acacb1",
+      "reason": "policy_change",
+      "policy_revision": "policy-1"
+    },
+    "activate": {
+      "kind": "activate",
+      "request_id": "93c69f9b-0908-4d75-a1a9-c0e73c64bd9e",
+      "issued_epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+      "recorder_binding": {
+        "store_id": "fixture-store",
+        "protocol_version": 1
+      },
+      "capture_paused": false
+    },
+    "set_capture_paused": {
+      "kind": "set_capture_paused",
+      "request_id": "b0d0a3c6-6f0f-4a05-9a4c-1a0c5f6b1f21",
+      "expected_epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+      "paused": true
+    }
+  },
+  "results": {
+    "stopped": {
+      "kind": "applied",
+      "state": {
+        "kind": "stopped",
+        "epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+        "policy_revision": "policy-1",
+        "reason": "policy_change"
+      }
+    },
+    "starting": {
+      "kind": "applied",
+      "state": {
+        "kind": "starting",
+        "epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+        "policy_revision": "policy-1"
+      }
+    },
+    "ready": {
+      "kind": "applied",
+      "state": {
+        "kind": "ready",
+        "binding": {
+          "user_id": "fixture-user",
+          "epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+          "policy_revision": "policy-1",
+          "store_id": "fixture-store",
+          "protocol_version": 1
+        },
+        "capture_paused": false
+      }
+    },
+    "blocked": {
+      "kind": "blocked",
+      "state": {
+        "kind": "blocked",
+        "epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+        "policy_revision": "policy-1",
+        "reason": "permission_required"
+      }
+    },
+    "conflict": {
+      "kind": "conflict",
+      "current_epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+      "reason": "stale_epoch"
+    },
+    "paused": {
+      "kind": "applied",
+      "state": {
+        "kind": "ready",
+        "binding": {
+          "user_id": "fixture-user",
+          "epoch": "6a553bae-1f9e-489b-9e5f-a38a2c40b01a",
+          "policy_revision": "policy-1",
+          "store_id": "fixture-store",
+          "protocol_version": 1
+        },
+        "capture_paused": true
+      }
+    }
+  }
+}

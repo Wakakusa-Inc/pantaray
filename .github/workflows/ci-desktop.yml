@@ -1,0 +1,59 @@
+name: CI (desktop)
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "frontend/electron/**"
+      - "frontend/scripts/**"
+      - "frontend/tests/**"
+      - "frontend/package.json"
+      - "frontend/pnpm-lock.yaml"
+      - "frontend/shared/**"
+      - ".github/workflows/ci-desktop.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  desktop:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: "11.20.0"
+
+      - name: Get pnpm store directory
+        working-directory: frontend
+        run: echo "PNPM_STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ env.PNPM_STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      # Electron(main) 側の型チェック・テストのみ（配布ビルド/署名/ノータライズは release workflow で実施）
+      - name: Test (electron/node)
+        working-directory: frontend
+        run: pnpm run test:node

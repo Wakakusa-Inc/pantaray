@@ -1,0 +1,369 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import cast
+
+from pantaray_agents.schema.read_access import READ_ACCESS_SCOPE_FULL_ACCESS
+
+from ...runtime.runtime_env import read_local_runtime_artifact_root
+from ..action_plan_document import (
+    ACTION_PLAN_FILENAME,
+    ActionPlanDocumentError,
+    action_plan_has_external_hardlinks,
+)
+from ..action_session_temp_paths import resolve_action_storage_paths
+from ..models import BrokerNetworkPolicy
+from ..repository.command_network_settings import load_command_network_enabled
+from ..sandbox.runtime_policy import resolve_runtime_budget
+from .action_subagent_broker_authority import (
+    authorize_direct_workspace_writes,
+    resolve_command_workspace_write_roots,
+)
+from .broker_common import (
+    BrokerContext,
+    BrokerPolicyError,
+    ensure_tool_authorization,
+)
+from .broker_protocol import (
+    BashToolArgs,
+    BrokerExecutableSourceKind,
+    BrokerExecutionKind,
+    RunPythonToolArgs,
+    ValidatedCommandRequest,
+)
+from .command_approval_summaries import (
+    build_bash_summary,
+    build_run_python_summary,
+)
+from .command_runtime import build_command_env
+from .outside_workspace import OutsideWorkspaceCwd
+from .tool_path_policy import (
+    ACTION_PLAN_PATH_PRIVATE,
+    ExecSandboxRoots,
+    resolve_exec_sandbox_roots,
+    resolve_exec_tool_cwd,
+)
+
+EXEC_CWD_RETARGETED = "EXEC_CWD_RETARGETED"
+
+
+@dataclass(frozen=True, slots=True)
+class _CommandCwd:
+    path: Path
+    # PATH lookups for project tools (.venv/bin, node_modules/.bin) stay under it.
+    execution_root: Path
+    # Set when the cwd is a folder outside the workspace; running there needs
+    # the user's approval of this exact tool call.
+    outside_workspace_folder: Path | None
+
+
+def _resolve_command_cwd(*, context: BrokerContext, raw_cwd: str | None) -> _CommandCwd:
+    resolved = resolve_exec_tool_cwd(context=context, raw_cwd=raw_cwd)
+    if isinstance(resolved, OutsideWorkspaceCwd):
+        return _CommandCwd(
+            path=resolved.path,
+            execution_root=resolved.path,
+            outside_workspace_folder=resolved.path,
+        )
+    return _CommandCwd(
+        path=resolved.path,
+        execution_root=resolved.process_scope_root,
+        outside_workspace_folder=None,
+    )
+
+
+def _command_network_policy(context: BrokerContext) -> BrokerNetworkPolicy:
+    enabled = load_command_network_enabled(
+        db_path=context.db_path,
+        busy_timeout_ms=context.busy_timeout_ms,
+        user_id=context.execution_session.user_id,
+    )
+    return "allow" if enabled else "deny"
+
+
+def _resolve_command_sandbox_roots(
+    *,
+    context: BrokerContext,
+    action_temp_dir: Path,
+    outside_workspace_folder: Path | None,
+) -> ExecSandboxRoots:
+    try:
+        linked_plan = action_plan_has_external_hardlinks(
+            scratch_root=context.scratch_root_path
+        )
+    except ActionPlanDocumentError as exc:
+        raise BrokerPolicyError(
+            "The app-managed Action plan identity could not be verified",
+            code=ACTION_PLAN_PATH_PRIVATE,
+        ) from exc
+    if linked_plan:
+        raise BrokerPolicyError(
+            "The app-managed Action plan has external hard links",
+            code=ACTION_PLAN_PATH_PRIVATE,
+        )
+    candidates = resolve_exec_sandbox_roots(
+        context=context,
+        action_temp_dir=action_temp_dir,
+    )
+    write_roots = resolve_command_workspace_write_roots(
+        context=context,
+        candidate_roots=candidates.write_roots,
+    )
+    if outside_workspace_folder is None:
+        return ExecSandboxRoots(
+            read_roots=candidates.read_roots, write_roots=write_roots
+        )
+    # Denied outright rather than dropped from the roots, so an approved
+    # command never runs without the folder it was approved for.
+    authorize_direct_workspace_writes(
+        context=context, resolved_paths=(outside_workspace_folder,)
+    )
+    return ExecSandboxRoots(
+        read_roots=(*candidates.read_roots, outside_workspace_folder),
+        write_roots=(*write_roots, outside_workspace_folder),
+    )
+
+
+def verify_command_cwd_unchanged(
+    *, context: BrokerContext, request: ValidatedCommandRequest
+) -> None:
+    """Re-resolve an approved outside-workspace cwd right before launch."""
+
+    if "outside_workspace" not in request.command_summary_json:
+        return
+    resolved = resolve_exec_tool_cwd(context=context, raw_cwd=request.cwd)
+    # The approved summary names request.cwd as the folder being opened.
+    if not (
+        isinstance(resolved, OutsideWorkspaceCwd) and resolved.path == Path(request.cwd)
+    ):
+        raise BrokerPolicyError(
+            "command cwd changed after approval",
+            code=EXEC_CWD_RETARGETED,
+        )
+
+
+def build_validated_command_request(
+    *,
+    context: BrokerContext,
+    args: BashToolArgs,
+    tool_invocation_id: str | None,
+    tool_request_id: str,
+    requested_at: str,
+    preflight_only: bool,
+) -> ValidatedCommandRequest:
+    if not preflight_only and (
+        tool_invocation_id is None or not tool_invocation_id.strip()
+    ):
+        raise BrokerPolicyError("tool_invocation_id is required for bash")
+    command = args.command
+    if not command.strip():
+        raise BrokerPolicyError("bash.command must be a non-empty string")
+    if "\x00" in command:
+        raise BrokerPolicyError("bash.command must not contain NUL characters")
+    raw_cwd = args.cwd
+    action_temp_dir = context.execution_session.action_temp_dir
+    app_runtime_python = context.execution_session.app_runtime_python
+    if action_temp_dir is None or app_runtime_python is None:
+        raise BrokerPolicyError(
+            "execution session is missing action_temp_dir or app_runtime_python"
+        )
+    resolved_action_temp_dir = Path(action_temp_dir).resolve()
+    resolved_app_runtime_python = Path(app_runtime_python).resolve()
+    resolved_cwd = _resolve_command_cwd(context=context, raw_cwd=raw_cwd)
+    command_cwd = resolved_cwd.path
+    resolved_executable = Path("/bin/bash")
+    execution_kind: BrokerExecutionKind = "workspace_command"
+    executable_source_kind: BrokerExecutableSourceKind = "trusted_system_executable"
+    resolved_argv = [str(resolved_executable), "--noprofile", "--norc", "-c", command]
+    use_login_environment = args.use_login_environment
+    # The read-access setting already lets the read tool see the whole disk;
+    # only a login-environment command extends that reach to processes.
+    full_disk_read = (
+        use_login_environment
+        and context.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
+    )
+    env = build_command_env(
+        command_cwd=command_cwd,
+        execution_kind=execution_kind,
+        workspace_root=resolved_cwd.execution_root,
+        resolved_executable=resolved_executable,
+        use_login_environment=use_login_environment,
+        full_disk_read=full_disk_read,
+    )
+    runtime_budget = resolve_runtime_budget(
+        sandbox_profile="workspace_process_exec",
+    )
+    sandbox_roots = _resolve_command_sandbox_roots(
+        context=context,
+        action_temp_dir=resolved_action_temp_dir,
+        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+    )
+    command_summary_json = build_bash_summary(
+        command=command,
+        cwd_relative_path=str(command_cwd),
+        timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
+        use_login_environment=use_login_environment,
+        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+    )
+    approval_session_id, approval_source = ensure_tool_authorization(
+        context=context,
+        tool_invocation_id=tool_invocation_id,
+        tool_request_id=tool_request_id,
+        command_summary=command_summary_json,
+        requested_at=requested_at,
+        require_user_prompt=resolved_cwd.outside_workspace_folder is not None,
+    )
+    storage = resolve_action_storage_paths(
+        db_path=context.db_path,
+        user_id=context.execution_session.user_id,
+        action_id=cast(str, context.execution_session.action_id),
+    )
+    return ValidatedCommandRequest(
+        tool_invocation_id=tool_invocation_id,
+        manifest_id=context.manifest_id,
+        execution_session_id=context.execution_session.execution_session_id,
+        action_id=context.execution_session.action_id or "unknown",
+        approval_session_id=approval_session_id,
+        approval_source=approval_source,
+        action_plan_path=str(context.scratch_root_path / ACTION_PLAN_FILENAME),
+        private_storage_roots=[
+            str(storage.storage_base),
+            str(read_local_runtime_artifact_root().resolve()),
+        ],
+        action_workspace_root=str(storage.workspace),
+        published_results_root=str(storage.tool_results),
+        app_runtime_python=str(resolved_app_runtime_python),
+        cwd=str(command_cwd),
+        command_summary_json=command_summary_json,
+        argv=resolved_argv,
+        resolved_executable_path=str(resolved_executable),
+        execution_kind=execution_kind,
+        executable_source_kind=executable_source_kind,
+        env=env,
+        timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
+        stdout_max_bytes=runtime_budget.sandbox_launch.stdout_max_bytes,
+        stderr_max_bytes=runtime_budget.sandbox_launch.stderr_max_bytes,
+        temp_storage_limit_bytes=runtime_budget.sandbox_launch.temp_storage_limit_bytes,
+        child_count_limit=runtime_budget.broker_local.child_count_limit,
+        open_file_lease_limit=runtime_budget.broker_local.open_file_lease_limit,
+        network_policy=_command_network_policy(context),
+        use_login_environment=use_login_environment,
+        # The usual roots stay listed: their ancestor metadata grants let tools
+        # such as git stat the parents of a workspace inside private storage.
+        real_read_roots=[
+            *(["/"] if full_disk_read else []),
+            *(str(path) for path in sandbox_roots.read_roots),
+        ],
+        real_write_roots=[str(path) for path in sandbox_roots.write_roots],
+        tool_request_id=tool_request_id,
+        requested_at=requested_at,
+        preflight_only=preflight_only,
+    )
+
+
+def build_validated_python_request(
+    *,
+    context: BrokerContext,
+    args: RunPythonToolArgs,
+    tool_invocation_id: str | None,
+    tool_request_id: str,
+    requested_at: str,
+    preflight_only: bool,
+) -> ValidatedCommandRequest:
+    if not preflight_only and (
+        tool_invocation_id is None or not tool_invocation_id.strip()
+    ):
+        raise BrokerPolicyError("tool_invocation_id is required for run_python")
+    if not args.code.strip():
+        raise BrokerPolicyError("run_python.code must be a non-empty string")
+    action_temp_dir = context.execution_session.action_temp_dir
+    app_runtime_python = context.execution_session.app_runtime_python
+    if action_temp_dir is None or app_runtime_python is None:
+        raise BrokerPolicyError(
+            "execution session is missing action_temp_dir or app_runtime_python"
+        )
+    resolved_action_temp_dir = Path(action_temp_dir).resolve()
+    resolved_app_runtime_python = Path(app_runtime_python).resolve()
+    resolved_cwd = _resolve_command_cwd(context=context, raw_cwd=args.cwd)
+    command_cwd = resolved_cwd.path
+    runtime_budget = resolve_runtime_budget(
+        sandbox_profile="agent_generated_python",
+    )
+    sandbox_roots = _resolve_command_sandbox_roots(
+        context=context,
+        action_temp_dir=resolved_action_temp_dir,
+        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+    )
+    command_summary_json = build_run_python_summary(
+        cwd_relative_path=str(command_cwd),
+        code=args.code,
+        args_count=len(args.args),
+        timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
+        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+    )
+    approval_session_id, approval_source = ensure_tool_authorization(
+        context=context,
+        tool_invocation_id=tool_invocation_id,
+        tool_request_id=tool_request_id,
+        command_summary=command_summary_json,
+        requested_at=requested_at,
+        require_user_prompt=resolved_cwd.outside_workspace_folder is not None,
+    )
+    storage = resolve_action_storage_paths(
+        db_path=context.db_path,
+        user_id=context.execution_session.user_id,
+        action_id=cast(str, context.execution_session.action_id),
+    )
+    return ValidatedCommandRequest(
+        tool_invocation_id=tool_invocation_id,
+        manifest_id=context.manifest_id,
+        execution_session_id=context.execution_session.execution_session_id,
+        action_id=context.execution_session.action_id or "unknown",
+        approval_session_id=approval_session_id,
+        approval_source=approval_source,
+        action_plan_path=str(context.scratch_root_path / ACTION_PLAN_FILENAME),
+        private_storage_roots=[
+            str(storage.storage_base),
+            str(read_local_runtime_artifact_root().resolve()),
+        ],
+        action_workspace_root=str(storage.workspace),
+        published_results_root=str(storage.tool_results),
+        app_runtime_python=str(resolved_app_runtime_python),
+        cwd=str(command_cwd),
+        command_summary_json=command_summary_json,
+        argv=[str(resolved_app_runtime_python), *args.args],
+        resolved_executable_path=str(resolved_app_runtime_python),
+        execution_kind="agent_generated",
+        executable_source_kind="app_runtime_python",
+        env=build_command_env(
+            command_cwd=command_cwd,
+            execution_kind="agent_generated",
+            workspace_root=resolved_cwd.execution_root,
+            resolved_executable=resolved_app_runtime_python,
+            use_login_environment=False,
+            full_disk_read=False,
+        ),
+        timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
+        stdout_max_bytes=runtime_budget.sandbox_launch.stdout_max_bytes,
+        stderr_max_bytes=runtime_budget.sandbox_launch.stderr_max_bytes,
+        temp_storage_limit_bytes=runtime_budget.sandbox_launch.temp_storage_limit_bytes,
+        child_count_limit=runtime_budget.broker_local.child_count_limit,
+        open_file_lease_limit=runtime_budget.broker_local.open_file_lease_limit,
+        network_policy=_command_network_policy(context),
+        use_login_environment=False,
+        generated_python_code=args.code,
+        real_read_roots=[str(path) for path in sandbox_roots.read_roots],
+        real_write_roots=[str(path) for path in sandbox_roots.write_roots],
+        tool_request_id=tool_request_id,
+        requested_at=requested_at,
+        preflight_only=preflight_only,
+    )
+
+
+__all__ = [
+    "EXEC_CWD_RETARGETED",
+    "build_validated_command_request",
+    "build_validated_python_request",
+    "verify_command_cwd_unchanged",
+]

@@ -1,0 +1,2 @@
+-- Socket resources are not part of the current local runtime cleanup scope.
+-- Reintroduce them only when a canonical socket transport is explicitly designed.

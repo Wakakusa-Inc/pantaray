@@ -1,0 +1,29 @@
+minimumReleaseAge: 20160
+minimumReleaseAgeIgnoreMissingTime: false
+minimumReleaseAgeStrict: true
+
+# Reviewed security releases that have not completed the 14-day waiting period.
+minimumReleaseAgeExclude:
+  - fast-uri@3.1.6
+  - qs@6.16.0
+
+overrides:
+  'fast-uri@>=3.0.0 <3.1.6': ^3.1.6
+  'qs@<6.16.0': ^6.16.0
+  '@xmldom/xmldom@>=0.7.0 <0.8.15': ^0.8.15
+  'brace-expansion@>=4.0.0 <5.0.9': ^5.0.9
+  'browserslist@<4.28.7': ^4.28.8
+  'undici@<6.28.0': ^6.28.0
+  'js-yaml@>=4.0.0 <4.3.1': ^4.3.1
+  'tar@<=7.5.20': ^7.5.21
+  # gaxios 6 only uses uuid.v4(); uuid 11 retains the CommonJS API.
+  'gaxios@6>uuid': ^11.1.1
+  # Pub/Sub 5 only uses W3CTraceContextPropagator, retained in core 2.
+  '@google-cloud/pubsub@5>@opentelemetry/core': ^2.8.0
+
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+  protobufjs: true
+  re2: true

@@ -1,0 +1,53 @@
+{
+  "action": {
+    "action_id": "action-v2-integration",
+    "suggestion_id": null,
+    "approved_suggestion": null,
+    "status": "success",
+    "latest_run_id": "run-v2-integration",
+    "resumable": false
+  },
+  "runs": [
+    {
+      "run_id": "run-v2-integration",
+      "status": "success",
+      "started_at": "2026-09-01T01:00:00.000000Z",
+      "completed_at": "2026-09-01T01:01:00.000000Z",
+      "completion_event_id": "event-v2-integration",
+      "entries": [
+        {
+          "step_kind": "tool",
+          "step_id": "step-tool-visible",
+          "step_number": 2,
+          "label": "Inspect repository",
+          "status": "success",
+          "outcome": "completed",
+          "subject": "src/",
+          "output_preview": "src/app.py, src/main.py",
+          "output_available": true,
+          "images": []
+        },
+        {
+          "step_kind": "user",
+          "step_id": "step-user-request",
+          "step_number": 1,
+          "message_id": "message-user-request",
+          "accepted_sequence": 1,
+          "content": "Please inspect the repository",
+          "images": [
+            {
+              "kind": "image",
+              "storage_path": "/private/captures/secret-window.png"
+            }
+          ],
+          "status": "adopted",
+          "approved_suggestion": null
+        }
+      ],
+      "final_output": "Canonical final answer",
+      "error": null
+    }
+  ],
+  "unadopted_messages": [],
+  "next_cursor": null
+}

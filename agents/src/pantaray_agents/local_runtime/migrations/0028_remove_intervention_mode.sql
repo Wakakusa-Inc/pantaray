@@ -1,0 +1,1 @@
+-- Handled by apply_remove_intervention_mode_migration() in Python.

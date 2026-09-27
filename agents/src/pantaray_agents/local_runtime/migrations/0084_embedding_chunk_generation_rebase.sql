@@ -1,0 +1,1 @@
+-- The migration runner rebases scoped embedding generations transactionally.

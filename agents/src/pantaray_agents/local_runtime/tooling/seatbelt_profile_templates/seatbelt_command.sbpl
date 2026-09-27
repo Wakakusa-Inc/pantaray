@@ -1,0 +1,32 @@
+(version 1)
+(import "system.sb")
+(allow process-exec process-fork)
+(allow signal (target same-sandbox))
+(allow file-map-executable)
+(deny file-read*)
+(allow file-read*
+{{SYSTEM_RUNTIME_READ_ROOTS}}
+{{RUNTIME_READ_ROOT_CLAUSES}}
+{{FILE_READ_ROOT_CLAUSES}}
+    (literal "/dev/null")
+    (literal "/dev/random")
+    (literal "/dev/urandom")
+    (subpath "/dev/fd")
+)
+(allow file-read-metadata
+{{PATH_ANCESTOR_CLAUSES}}
+)
+(deny file-read*
+{{ACTION_PLAN_DENY_CLAUSES}}
+)
+(deny file-write*)
+(allow file-write*
+{{FILE_WRITE_ROOT_CLAUSES}}
+    (literal "/dev/null")
+)
+(deny file-write*
+{{ACTION_PLAN_DENY_CLAUSES}}
+)
+{{PRIVATE_STORAGE_DENY_RULES}}
+{{NETWORK_CLAUSE}}
+{{LOGIN_ENVIRONMENT_CLAUSE}}

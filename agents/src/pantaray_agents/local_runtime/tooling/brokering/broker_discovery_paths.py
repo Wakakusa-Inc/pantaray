@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal
+
+from .manifest_paths import ResolvedManifestPath
+from .workspace_descriptor_access import scan_workspace_entries
+
+type DiscoveryTruncationReason = Literal[
+    "limit",
+    "scan_budget",
+    "timeout",
+    "output_bytes",
+    "line_length",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class DiscoveryPath:
+    path: Path
+    kind: Literal["file", "directory"]
+
+
+@dataclass(frozen=True, slots=True)
+class BoundedDiscoveryPaths:
+    selected: list[DiscoveryPath]
+    truncation_reason: DiscoveryTruncationReason | None
+
+
+def list_discovery_paths(
+    *,
+    base: ResolvedManifestPath,
+    max_depth: int | None,
+    limit: int,
+    scan_limit: int,
+    include_path: Callable[[Path], bool] | None = None,
+) -> BoundedDiscoveryPaths:
+    result = scan_workspace_entries(
+        root_path=base.root.canonical_real_path,
+        base_path=base.root_relative_path,
+        max_depth=max_depth,
+        limit=limit,
+        scan_limit=scan_limit,
+        include_path=include_path,
+    )
+    return BoundedDiscoveryPaths(
+        selected=[
+            DiscoveryPath(
+                path=base.root.canonical_real_path.joinpath(
+                    *entry.root_relative_path.split("/")
+                ),
+                kind=entry.kind,
+            )
+            for entry in result.entries
+        ],
+        truncation_reason=result.truncation_reason,
+    )
+
+
+def entry_for_discovery_path(path: DiscoveryPath) -> dict[str, object]:
+    return {
+        "path": str(path.path),
+        "kind": path.kind,
+        "name": path.path.name,
+    }
+
+
+def discovery_child_path(
+    *,
+    base: ResolvedManifestPath,
+    child: Path,
+    kind: Literal["file", "directory"],
+) -> DiscoveryPath:
+    del base
+    return DiscoveryPath(path=child, kind=kind)
+
+
+def is_safe_discovery_path(*, base: ResolvedManifestPath, path: Path) -> bool:
+    if path.is_symlink():
+        return False
+    try:
+        path.resolve(strict=True).relative_to(base.root.canonical_real_path)
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def safe_is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except OSError:
+        return False

@@ -1,0 +1,1257 @@
+/* ------------------------------
+ * Brand Wordmark Font（Pantaray ロゴ専用フォント）
+ * - ロゴの再現性を担保するため、OS依存のsystem fontではなく同梱フォントを使用する
+ * - 本文/UIは従来どおり `--font-sans`（システムフォント）を使用する
+ * ------------------------------ */
+@font-face {
+  font-family: 'PantarayWordmark';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./assets/fonts/pantaray-wordmark/PantarayWordmark-600.woff2') format('woff2');
+}
+
+:root {
+  /* 静かなブルーグレー（霧のような空気感 - ポップアップの淡い世界との接続） */
+  --app-background: linear-gradient(180deg, #1a1e24 0%, #161a20 100%);
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(215, 225, 235, 0.78); /* わずかに冷たい白 */
+  --text-muted: rgba(200, 210, 220, 0.45);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-hover: rgba(255, 255, 255, 0.15);
+  --surface-bg: rgba(255, 255, 255, 0.05);
+  --surface-bg-hover: rgba(255, 255, 255, 0.08);
+  /* エラー文言の色（バッジの danger と同じ色相に揃える） */
+  --danger-color: #fecaca;
+
+  /* ---- Focus ring (SSOT) ----
+   * アプリ本体のキーボードフォーカスはこの1系統だけを使う。
+   * Overlay は青を使わず白の outline を使うため、ここは参照しない（DESIGN.md §3.1）。
+   * box-shadow 形（--focus-ring）を既定とし、リングを要素の外側に離したい場合だけ
+   * outline 形（--focus-ring-width / --focus-ring-color）を使う。 */
+  --focus-ring-color: rgba(125, 171, 220, 0.75);
+  --focus-ring-width: 2px;
+  --focus-ring: 0 0 0 var(--focus-ring-width) var(--focus-ring-color);
+
+  /* ---- Typography tokens (SSOT) ---- */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, system-ui, 'SF Pro Text', 'SF Pro Display', 'Segoe UI',
+    'Segoe UI Variable', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo',
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+
+  /* ロゴ用（ワードマーク） */
+  --font-brand: 'PantarayWordmark', var(--font-sans);
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* 本文（README: 14px / line-height 1.55–1.6 / tracking 0–0.01em） */
+  --text-body-size: 14px;
+  --text-body-leading: 1.6;
+  --text-body-tracking: 0em;
+  --text-body-weight: var(--weight-regular);
+
+  /* 補助UI/メタ */
+  --text-ui-size-sm: 12px;
+  --text-meta-tracking: 0.01em;
+
+  /* 見出し（DESIGN.md §3: h2=16px, h3=14px semibold で階層を作る） */
+  --text-heading-size-lg: 16px; /* セクション見出し (h2) */
+  --text-heading-size: 14px; /* サブ見出し (h3) — 本文と同サイズ、太さで区別 */
+  --text-heading-leading: 1.3;
+  --text-heading-weight: var(--weight-semibold);
+  --text-meta-size: 12px; /* 補助情報（日時・メタ）— 11px は使わない */
+
+  /* ラベル（英語UI向けの大文字+tracking。日本語では無効化する） */
+  --ui-label-tracking: 0.02em;
+  --ui-label-transform: uppercase;
+
+  /* ---- Spacing scale (DESIGN.md §5: 7段階, 各ステップ約1.5–2倍) ---- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+}
+
+/* 言語別の微調整（UiLanguageContext が <html lang> を更新） */
+html:lang(ja) {
+  --text-body-tracking: 0em;
+  --text-meta-tracking: 0em;
+  --ui-label-tracking: 0em;
+  --ui-label-transform: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  font-weight: var(--text-body-weight);
+  line-height: var(--text-body-leading);
+  letter-spacing: var(--text-body-tracking);
+  font-synthesis: none; /* 偽bold/偽italicで字面が揺れるのを抑える */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--app-background);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+body::-webkit-scrollbar {
+  width: 7px;
+}
+
+body::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Electron overlay window specific styles */
+body.overlay-window {
+  background: transparent !important;
+  overflow: hidden;
+  color: #ffffff;
+}
+
+body.overlay-window #root {
+  background: transparent !important;
+}
+
+/* ---- ShareCard capture mode (main-rendered screenshot) ---- */
+html.sharecard-mode,
+body.overlay-window.sharecard-mode {
+  /* stageが背景を担うので、bodyは透明に。html/bodyはBrowserWindow全体を埋める */
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  overflow: hidden !important;
+}
+
+body.overlay-window.sharecard-mode #root {
+  width: 100%;
+  height: 100%;
+  background: transparent !important;
+}
+
+body.overlay-window.sharecard-mode * {
+  /* キャプチャ時の揺れ/途中状態を避ける */
+  animation: none !important;
+  transition: none !important;
+}
+
+/* ヘッダーボタン類も含めて撮影する（非表示にしない） */
+
+body.overlay-window.sharecard-mode [data-sharecard-scroll='true'] {
+  max-height: none !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+body.overlay-window.sharecard-mode [data-sharecard-root='true'] {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+
+  /* AgentOverlayを少し明るく、水色寄りに調整（共有時の映え意識） */
+  /* 重要: 内部のdivが背景を持っている場合に見えなくなるため、内部も透明化する */
+  background: linear-gradient(
+    145deg,
+    rgba(40, 55, 75, 0.98) 0%,
+    rgba(15, 23, 42, 0.98) 100%
+  ) !important;
+
+  /* 共有カードでは影を強化しつつ、内側に水色の光を足す */
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.15),
+    /* 輪郭 */ inset 0 0 40px rgba(56, 189, 248, 0.15),
+    /* 内側の青い光（水色っぽさを強化） */ 0 30px 60px -12px rgba(0, 0, 0, 0.7),
+    /* 濃く深い落ち影 */ 0 50px 100px -20px rgba(15, 23, 42, 0.5) /* 広がる環境影 */ !important;
+  position: relative;
+  z-index: 1; /* ノイズより上に */
+}
+
+/* 内部のコンポーネント背景を透明にして、親のグラデーションを見せる */
+body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
+  background: transparent !important;
+}
+
+.sharecard-stage {
+  --sharecard-card-width-px: 460px;
+  --sharecard-card-margin-px: 32px;
+  /*
+   * ShareCardは「通常のOverlay（横幅 460px）」と同じ折り返し/縦横比で描画する。
+   * stage は BrowserWindow 全体を埋め、card(460px)は中央配置。
+   */
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  /* 余白はflexboxの中央配置で自動確保するため、paddingは0 */
+  padding: 0;
+  position: relative;
+
+  /* Flexboxで上下左右中央配置 */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  /* 背景: ダークチタンのような重厚さと、Pantarayの知的な青い光 */
+  background-color: #64748b; /* ベースを少し暗く(Slate-500) */
+  background-image:
+    /* 1. 鋭い光の筋（太さを1.5倍に、控えめに） */
+    linear-gradient(
+      125deg,
+      transparent 35%,
+      rgba(255, 255, 255, 0.15) 48%,
+      rgba(255, 255, 255, 0) 60%
+    ),
+    /* 2. Pantaray Blueの環境光（知性の表現） */
+    radial-gradient(circle at 90% 90%, rgba(56, 189, 248, 0.2) 0%, transparent 60%),
+    /* 3. 深い影（ビネット）で中央のカードに視線を集める */
+    radial-gradient(circle at 50% 50%, transparent 30%, rgba(15, 23, 42, 0.6) 100%),
+    /* 4. ベースグラデーション（金属の質感・赤みなし） */
+    linear-gradient(160deg, #9ca3af 0%, #4b5563 100%);
+
+  /* 光の筋を背景に溶け込ませる */
+  background-blend-mode: overlay, normal, normal, normal;
+}
+
+.sharecard-stage::after {
+  /* 5. 極薄のノイズ（デジタルな密度感・空気感） */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.5'/%3E%3C/svg%3E");
+  opacity: 0.15; /* 邪魔にならないごく薄いレベル */
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  z-index: 0;
+}
+
+.sharecard-card {
+  /* 通常Overlayの横幅（通知ウィンドウ幅: 460px）と揃える */
+  width: calc(100% - var(--sharecard-card-margin-px) * 2);
+  max-width: var(--sharecard-card-width-px);
+  margin: var(--sharecard-card-margin-px);
+  position: relative;
+  z-index: 1;
+}
+
+/* スクショ時のみ、AgentOverlayを少し明るく水色寄りにする（元のAgentOverlayは変えない） */
+.sharecard-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px; /* AgentOverlayの角丸に合わせる */
+  /* 控えめな水色ガラス風オーバーレイ */
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.1) 0%, rgba(125, 211, 252, 0.06) 100%);
+  pointer-events: none;
+  z-index: 2; /* 内容の上に被せる */
+}
+
+/* ドラッグ専用の透明ヘッダー領域 */
+.app-drag-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  -webkit-app-region: drag;
+  z-index: 1001;
+}
+
+/* Auth page container */
+.auth-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  -webkit-app-region: no-drag;
+  background: var(--app-background);
+}
+
+.auth-form {
+  width: 400px;
+  max-width: 90%;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  /* Settings（dashboard/app-header）と同じ “mist” の世界観に寄せる */
+  background: rgba(26, 30, 36, 0.95);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+}
+
+/* Login / Signup: カード高さを揃える（表示内容の差による“背のび”を抑える）
+ * - 高さを固定し、溢れた場合はカード内でスクロールさせる
+ * - 他の認証画面には影響させないため、明示クラスで適用する
+ */
+.auth-form--fixed-height {
+  /* Login / Signup は同じ高さに固定（内容が増えた場合はカード内でスクロール） */
+  height: min(420px, calc(100vh - 80px));
+  overflow-y: auto;
+}
+
+.auth-footer {
+  width: 100%;
+  text-align: center;
+  /* 下側の空白が目立たないよう、フッターをカード下部に寄せる */
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.auth-footer > p + p {
+  margin-top: 12px;
+}
+
+.auth-form > p,
+.auth-form > h1,
+.auth-form > h2 {
+  text-align: center;
+  width: 100%;
+}
+
+/* Auth: form 内に出すメッセージ（成功/エラー等）も中央寄せにする。
+ * - `Login.tsx` では <form> 内に <p class="... text-center ..."> を描画するが、
+ *   Tailwind が無効/未生成でも UI が崩れないよう、CSS で意図を固定する。
+ */
+.auth-form form p {
+  text-align: center;
+  width: 100%;
+}
+
+/* Auth: 成功/エラーメッセージの表示領域を固定し、表示/非表示でレイアウトがガタつかないようにする。
+ * - 2行分を予約（1行で足りるなら 1.6em 程度に調整）
+ * - 空表示時は aria-hidden="true" + visibility:hidden でスクリーンリーダー/視覚双方に不要なノイズを出さない
+ */
+.auth-message {
+  width: 100%;
+  text-align: center;
+  line-height: 1.6;
+  /* 1行分を予約（2行に増える場合のみ下に伸びる） */
+  min-height: 1.6em;
+  /* form 外（Electronの説明ブロック等）では適度に余白を付ける */
+  margin-top: 12px;
+  word-break: break-word;
+}
+
+.auth-form form .auth-message {
+  /* form の gap と二重に効かないようにする */
+  margin-top: 0;
+}
+
+.auth-message--empty {
+  visibility: hidden;
+}
+
+.auth-message--success {
+  color: #bbf7d0;
+}
+
+.auth-message--error {
+  color: var(--danger-color);
+}
+
+.auth-form form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-form form > div {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-bottom: 0;
+}
+
+.auth-input {
+  width: 100% !important;
+  padding: 0.75rem 1rem !important;
+  /* Settingsのボタン（dashboard-button）と揃える */
+  border-radius: 10px !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: white !important;
+  transition: all 0.2s !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+  -webkit-app-region: no-drag;
+}
+
+.auth-input:focus {
+  outline: none !important;
+  border-color: var(--border-color-hover) !important;
+  background-color: var(--surface-bg-hover) !important;
+}
+
+.auth-input::placeholder {
+  color: var(--text-muted);
+}
+
+.auth-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-button {
+  width: 100% !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  padding: 0.75rem 1rem !important;
+  background: transparent !important;
+  color: var(--text-secondary) !important;
+  border-radius: 10px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s !important;
+  border: 1px solid var(--border-color) !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  margin-top: 0 !important;
+  -webkit-app-region: no-drag;
+}
+
+.auth-button:hover:not(:disabled) {
+  background: var(--surface-bg-hover) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color-hover) !important;
+}
+
+.auth-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.auth-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
+
+.auth-link {
+  color: var(--text-secondary) !important;
+  text-decoration: none !important;
+  transition: color 0.2s !important;
+  -webkit-app-region: no-drag;
+}
+
+.auth-link:hover {
+  color: var(--text-primary) !important;
+  text-decoration: none !important;
+}
+
+/* アクセシビリティ: キーボード操作時はフォーカスが分かるようにする */
+.auth-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+/* App shell and header */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* 起動時（認証状態の解決待ち）の全画面ローディング */
+.app-boot-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-body-size);
+  color: var(--text-secondary);
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: var(--space-xl) var(--space-3xl);
+  background: rgba(26, 30, 36, 0.9); /* ベース色に合わせた半透明 */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+
+.app-header::before,
+.app-header::after,
+.app-header-inner::before,
+.app-header-inner::after {
+  display: none;
+}
+
+.app-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2xl);
+}
+
+/* ユーザーボタンと同幅のスペーサーで nav を正確に中央に配置 */
+.app-header-spacer {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+/* ------------------------------
+ * Wordmark（ロゴ文字）共通スタイル
+ * ------------------------------ */
+.brand-wordmark {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  line-height: 1.1;
+  /* 小さめサイズでも字面が崩れにくいようにする */
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  display: flex;
+  align-items: center;
+  gap: 0.44em;
+}
+
+/* シンボルは文字の 2.22em 幅で、大文字の高さの中央にそろえる。形はロゴの素材そのもの、色は文字と同じ */
+.brand-wordmark-symbol {
+  width: 2.22em;
+  aspect-ratio: 200 / 81.27;
+  translate: 0 -0.08em;
+  background-color: currentColor;
+  mask: url('../assets/icons/Pantaray_symbol_small.svg') center / contain no-repeat;
+}
+
+.brand-wordmark--auth {
+  /* Auth画面では“機能名（Login/Signup等）が主役”なので、ワードマークは控えめに */
+  font-size: 16px;
+  color: rgba(215, 225, 235, 0.7);
+  justify-content: center;
+  margin: 0 0 var(--space-sm);
+}
+
+.app-header-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+  justify-content: center;
+}
+
+.app-nav-link {
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: inherit;
+  appearance: none;
+  -webkit-app-region: no-drag;
+}
+
+.app-nav-link:hover {
+  background: var(--surface-bg-hover);
+  color: var(--text-primary);
+}
+
+.app-nav-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.app-nav-link--active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.app-header-user {
+  position: relative;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.app-user-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--surface-bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.app-user-button:hover {
+  background: var(--surface-bg-hover);
+  border-color: var(--border-color-hover);
+}
+
+.app-user-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  /* 右上ユーザーメニューは可読性優先で、ほぼ透過しない（背景を見せない） */
+  background: rgb(26, 30, 36);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  z-index: 1000;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-user-dropdown-email {
+  padding: 12px 12px;
+  font-size: var(--text-meta-size);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  word-break: break-all;
+}
+
+.app-user-dropdown-item {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.app-user-dropdown-item:hover {
+  background: var(--surface-bg-hover);
+  color: var(--text-primary);
+}
+
+/* App main content */
+.app-main {
+  flex: 1;
+  padding: var(--space-2xl) var(--space-3xl) var(--space-3xl);
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.app-surface {
+  width: 100%;
+  max-width: 1200px;
+  flex: 1;
+  min-height: 0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Dashboard styles */
+.dashboard-container {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+  scrollbar-width: none; /* Firefox */
+}
+.dashboard-container::-webkit-scrollbar {
+  display: none; /* Chrome / Electron */
+}
+
+.dashboard-section {
+  padding: var(--space-xl) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dashboard-section-title {
+  font-size: var(--text-heading-size-lg);
+  font-weight: var(--text-heading-weight);
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.dashboard-section-description {
+  font-size: var(--text-meta-size);
+  color: var(--text-secondary);
+  margin: 0 0 16px 0;
+}
+
+.dashboard-subsection {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.dashboard-subsection-title {
+  font-size: var(--text-heading-size);
+  font-weight: var(--text-heading-weight);
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.dashboard-subsection-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 12px 0;
+}
+
+.dashboard-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dashboard-button {
+  padding: 12px 24px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.dashboard-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.dashboard-button:hover:not(:disabled) {
+  background: var(--surface-bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-color-hover);
+}
+
+.dashboard-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.history-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.history-header {
+  padding: var(--space-md) var(--space-lg) var(--space-md) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+/* ---- History Filter Bar ---- */
+.history-filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-filter-row {
+  align-items: end;
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: minmax(280px, 520px) 180px 1fr max-content;
+}
+
+.history-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.history-filter-field--search {
+  min-width: 0;
+}
+
+.history-filter-field--status {
+  min-width: 0;
+}
+
+.history-filter-label {
+  font-size: var(--text-meta-size);
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: var(--ui-label-tracking);
+  text-transform: var(--ui-label-transform);
+}
+
+.history-filter-input,
+.history-filter-select {
+  box-sizing: border-box;
+  height: 34px;
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: var(--text-meta-size);
+  font-weight: 400;
+  transition: all 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.history-filter-input::placeholder {
+  color: var(--text-muted);
+}
+
+.history-filter-input:focus,
+.history-filter-select:focus {
+  outline: none;
+  border-color: var(--border-color-hover);
+  background: var(--surface-bg-hover);
+}
+
+.history-filter-input:disabled,
+.history-filter-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* セレクトボックスの矢印（ダークテーマ対応） */
+.history-filter-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+#history-status-filter {
+  width: 100%;
+}
+
+.history-filter-button {
+  align-items: center;
+  box-sizing: border-box;
+  display: inline-flex;
+  grid-column: 4;
+  height: 34px;
+  justify-content: center;
+  padding: var(--space-xs) var(--space-md);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: var(--text-meta-size);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.history-filter-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.history-filter-button:hover:not(:disabled) {
+  background: var(--surface-bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-color-hover);
+}
+
+.history-filter-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.history-filter-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.history-filter-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--text-meta-size);
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.history-filter-link:hover:not(:disabled) {
+  color: var(--text-secondary);
+}
+
+.history-filter-link:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.history-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-meta-size);
+  color: var(--text-muted);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  border: none;
+}
+
+.history-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #34c759;
+  animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  flex: 1;
+  padding-bottom: 116px;
+  padding-top: var(--space-xl);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.history-capture-panel {
+  background: rgba(29, 33, 39, 0.94);
+  border: 1px solid rgba(125, 171, 220, 0.24);
+  border-radius: 8px;
+  bottom: var(--space-lg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  position: fixed;
+  right: var(--space-xl);
+  width: min(280px, calc(100% - 24px));
+  z-index: 5;
+}
+
+.history-capture-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.history-capture-copy {
+  min-width: 0;
+}
+
+.history-capture-title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.history-capture-status {
+  color: var(--text-muted);
+  font-size: var(--text-meta-size);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.history-capture-empty,
+.history-capture-error {
+  color: var(--text-muted);
+  font-size: var(--text-meta-size);
+  line-height: 1.45;
+}
+
+.history-capture-error {
+  color: var(--danger-color);
+}
+
+.history-capture-settings-link {
+  align-items: center;
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  color: #bcd3ec;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: var(--text-meta-size);
+  font-weight: 700;
+  gap: 6px;
+  padding: 0;
+}
+
+.history-capture-settings-link:hover {
+  color: var(--text-primary);
+}
+
+.history-capture-settings-link:focus-visible {
+  border-radius: 4px;
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.history-list::-webkit-scrollbar {
+  width: 6px;
+}
+.history-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.history-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+.history-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.history-item {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  transition: background 0.15s ease;
+}
+
+.history-item:hover {
+  background: var(--surface-bg-hover);
+  box-shadow: none;
+}
+
+/* Settings は行全体クリックではないため、ホバー背景は無効化する */
+.dashboard-container .history-item:hover {
+  background: transparent;
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-item-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  /* Hover/クリック領域に余白を持たせ、要素が端まで詰まる“窮屈さ”を軽減 */
+  padding: var(--space-md) var(--space-lg);
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  /* Settings でも使うため、過度な固定高さは持たせない */
+  min-height: 0;
+}
+
+.history-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+@media (min-width: 768px) {
+  .history-item-body {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+  }
+}
+
+.history-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.history-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--text-meta-size);
+  letter-spacing: var(--text-meta-tracking);
+  color: var(--text-muted);
+}
+
+.history-item-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+@media (max-width: 767px) {
+  .history-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .history-filter-button {
+    grid-column: auto;
+  }
+
+  .history-item-status {
+    align-items: flex-start;
+  }
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: var(--text-meta-size);
+  font-weight: 500;
+  border: none;
+}
+
+.badge--success {
+  background: rgba(134, 239, 172, 0.15);
+  color: #bbf7d0;
+}
+
+.badge--warning {
+  background: rgba(253, 216, 53, 0.15);
+  color: #fef08a;
+}
+
+.badge--danger {
+  background: rgba(252, 165, 165, 0.15);
+  color: #fecaca;
+}
+
+.badge--info {
+  background: rgba(125, 211, 252, 0.15);
+  color: #bae6fd;
+}
+
+.badge--neutral {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.history-loading,
+.history-empty {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.history-error {
+  border-radius: 0;
+  border: none;
+  border-left: 3px solid #f87171;
+  background: rgba(239, 68, 68, 0.1);
+  padding: var(--space-lg) var(--space-xl);
+  font-size: var(--text-body-size);
+  color: #f87171;
+}

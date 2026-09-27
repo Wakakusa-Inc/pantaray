@@ -1,0 +1,310 @@
+.recording-filter-dialog {
+  background: #20252d;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-primary);
+  max-width: min(720px, calc(100vw - 32px));
+  padding: 18px;
+  width: 100%;
+}
+
+.recording-filter-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.recording-filter-dialog h3 {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+
+.recording-filter-dialog-description {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
+.recording-filter-columns {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 620px) {
+  .recording-filter-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.recording-filter-column {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px;
+}
+
+.recording-filter-mode {
+  appearance: none;
+  /* Inline chevron: `appearance: none` removes the native one. */
+  background:
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239aa4b2' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      no-repeat right 10px center,
+    rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 26px 7px 9px;
+  width: 100%;
+}
+
+.recording-filter-mode:focus-visible,
+.recording-filter-host-input:focus-visible,
+.recording-filter-search:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Fixed height with internal scrolling keeps the dialog the same size as lists grow. */
+.recording-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  height: 208px;
+  list-style: none;
+  margin: 10px 0 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.recording-filter-row {
+  align-items: center;
+  border-radius: 6px;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 6px;
+}
+
+.recording-filter-row:hover {
+  background: var(--surface-bg-hover);
+}
+
+.recording-filter-row-icon {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  flex: 0 0 auto;
+  height: 18px;
+  width: 18px;
+}
+
+img.recording-filter-row-icon,
+svg.recording-filter-row-icon {
+  background: transparent;
+}
+
+.recording-filter-row-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.recording-filter-row-name {
+  display: block;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-filter-empty {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 6px;
+}
+
+.recording-filter-remove {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  height: 22px;
+  justify-content: center;
+  padding: 0;
+  width: 22px;
+}
+
+.recording-filter-remove:hover {
+  color: var(--text-primary);
+}
+
+.recording-filter-remove:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.recording-filter-add {
+  margin-top: 8px;
+  position: relative;
+}
+
+.recording-filter-host-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.recording-filter-host-input,
+.recording-filter-search {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: var(--text-primary);
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 12px;
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+.recording-filter-popover {
+  background: #262c35;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  bottom: calc(100% + 6px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  left: 0;
+  padding: 8px;
+  position: absolute;
+  right: 0;
+  z-index: 10;
+}
+
+.recording-filter-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.recording-filter-picker-option {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  gap: 8px;
+  min-width: 0;
+  padding: 5px 6px;
+  text-align: left;
+  width: 100%;
+}
+
+.recording-filter-picker-option:hover {
+  background: var(--surface-bg-hover);
+}
+
+.recording-filter-picker-option:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.recording-filter-note {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 14px 0 0;
+}
+
+.recording-filter-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.recording-filter-summary {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+}
+
+.recording-filter-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.recording-filter-summary-row dt {
+  color: var(--text-muted);
+  font-weight: 700;
+  margin: 0;
+}
+
+.recording-filter-summary-row dd {
+  color: var(--text-primary);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.recording-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recording-filter-chip {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  display: flex;
+  gap: 5px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 9px 2px 4px;
+  white-space: nowrap;
+}
+
+.recording-filter-chip-icon {
+  border-radius: 4px;
+  flex: 0 0 auto;
+  height: 16px;
+  width: 16px;
+}
+
+/* Only the missing-icon stand-in needs a shape of its own. */
+span.recording-filter-chip-icon {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.recording-filter-chip-more {
+  color: var(--text-muted);
+  padding-left: 9px;
+}

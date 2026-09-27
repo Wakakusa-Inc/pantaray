@@ -1,0 +1,44 @@
+.workspace-project-card-header {
+  grid-template-columns: max-content minmax(120px, 1fr) minmax(0, auto) max-content max-content;
+}
+
+.workspace-project-drag-handle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: grab;
+  display: inline-flex;
+  justify-content: center;
+  padding: 3px 0;
+  touch-action: none;
+}
+
+.workspace-project-drag-handle:active {
+  cursor: grabbing;
+}
+
+.workspace-project-drag-handle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.workspace-project-card.is-dragging {
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  opacity: 0.82;
+  z-index: 3;
+}
+
+@media (max-width: 760px) {
+  .workspace-project-card-header {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+  }
+
+  .workspace-project-delete {
+    grid-column: 3;
+  }
+
+  .workspace-project-folder-count {
+    grid-column: 2;
+  }
+}
