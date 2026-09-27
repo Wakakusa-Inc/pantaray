@@ -1,16 +1,16 @@
 """Computer activity recorded after the Insight a Suggestion run decides on.
 
-The reads belong to ``insight_agent.zanei_tools.ZaneiTools``. This session only
-opens one per run, starting at the stream cursor the short Insight committed, so
-the run sees what happened after the observations in its prompt. It reads that
-cursor and never writes it: the position stays owned by the short Insight.
+The reads belong to ``insight_agent.zanei_tools.ZaneiTools``. This session opens
+one per run at the cursor the triggering short Insight committed, so the run sees
+what happened after the observations in its prompt even when later Insights have
+moved the shared cursor. It never writes a cursor. The Suggestion job owns the
+read permit: it runs the whole agent under ``SourceGate.track`` and publishes
+under ``SourceGate.guard``, so revocation is handled there, not per read.
 """
 
 from __future__ import annotations
 
-import asyncio
 from dataclasses import dataclass
-from pathlib import Path
 
 from pantaray_agents.agents.artifact_react import (
     ReactToolCall,
@@ -26,27 +26,33 @@ from pantaray_agents.agents.insight_agent.zanei_tools import (
     PAGE_TOOL,
     ZaneiTools,
 )
-from pantaray_agents.local_runtime.context import store
 from pantaray_agents.local_runtime.context.source_gate import (
-    SourceGate,
+    ActiveSource,
     SourceInvalidated,
 )
 from pantaray_agents.local_runtime.context.source_reader import SourceReader
-from pantaray_agents.local_runtime.memory_catalog.connection import (
-    open_memory_catalog_connection,
-)
 
 RECORDING_UNAVAILABLE_STATUS = "recording_unavailable"
 ZANEI_READ_FAILED_ERROR_CODE = "ZANEI_READ_FAILED"
+LATEST_NOT_REACHED_NOTE = (
+    "The page budget ran out before the newest activity. The unread activity is "
+    "unknown: it does not show that anything is unchanged or resolved."
+)
+
+
+@dataclass(frozen=True, slots=True)
+class InsightActivityStart:
+    """The live read permit and the cursor the triggering Insight committed."""
+
+    source: ActiveSource
+    cursor: str
 
 
 @dataclass(slots=True)
 class SuggestionZaneiSession:
-    user_id: str
-    gate: SourceGate
     reader: SourceReader
-    db_path: Path
-    busy_timeout_ms: int
+    # None when recording is not readable or the Insight predates stored cursors.
+    start: InsightActivityStart | None
     tools: ZaneiTools | None = None
 
     def definitions(self) -> tuple[ReactToolDefinition, ...]:
@@ -62,8 +68,8 @@ class SuggestionZaneiSession:
                     "because the newest events come last. No events with "
                     "has_more false means nothing was recorded since. A run may "
                     f"read at most {MAX_TIMELINE_PAGES_PER_RUN} pages, and fewer "
-                    "when they are large; once a result reports "
-                    "page_budget_spent, decide with what you read."
+                    "when they are large; reached_latest false means the newest "
+                    "activity was left unread."
                 ),
                 request_schema=PAGE_REQUEST_SCHEMA,
                 response_schema={"type": "object"},
@@ -84,7 +90,14 @@ class SuggestionZaneiSession:
         )
 
     async def _timeline(self, call: ReactToolCall, step: int) -> ReactToolResult:
-        return await self._read(call, step, timeline=True)
+        result = await self._read(call, step, timeline=True)
+        output = result.output
+        if isinstance(output, dict) and output.get("page_budget_spent"):
+            # Replace the short Insight's "the next run resumes" note: no later
+            # Suggestion run continues from here.
+            output["reached_latest"] = False
+            output["note"] = LATEST_NOT_REACHED_NOTE
+        return result
 
     async def _query(self, call: ReactToolCall, step: int) -> ReactToolResult:
         return await self._read(call, step, timeline=False)
@@ -92,29 +105,30 @@ class SuggestionZaneiSession:
     async def _read(
         self, call: ReactToolCall, step: int, *, timeline: bool
     ) -> ReactToolResult:
+        if self.start is None:
+            return ReactToolResult(
+                tool_name=call.tool_name,
+                status="success",
+                output={
+                    "status": RECORDING_UNAVAILABLE_STATUS,
+                    "message": "Activity after this Insight cannot be read in this run.",
+                },
+            )
         # One session per run, so the page budget and cursor span every call.
         if self.tools is None:
-            self.tools = await self._open()
-            if self.tools is None:
-                return _unavailable(call)
-        tools = self.tools
+            self.tools = ZaneiTools(
+                reader=self.reader,
+                source=self.start.source,
+                cursor=self.start.cursor,
+                upper_bound=None,
+            )
         try:
             if timeline:
-                return await tools.timeline(call, step)
-            return await tools.query(call, step)
-        except asyncio.CancelledError:
-            # `SourceGate.revoke` drops the permit before it cancels the
-            # in-flight read. A permit that still matches means the run itself
-            # was cancelled, which must propagate.
-            if self.gate.current(self.user_id) == tools.source:
-                raise
-            task = asyncio.current_task()
-            assert task is not None  # A coroutine driven by asyncio.run runs in a Task.
-            task.uncancel()
-            return _unavailable(call)
+                return await self.tools.timeline(call, step)
+            return await self.tools.query(call, step)
         except SourceInvalidated:
-            # Revoked between two calls; the reader rejects the stale permit.
-            return _unavailable(call)
+            # A revoked permit belongs to the job that holds it.
+            raise
         except RuntimeError as exc:
             # ZaneiTools raises this for a reader transport or protocol failure.
             # The run decides without this evidence instead of failing.
@@ -124,35 +138,9 @@ class SuggestionZaneiSession:
                 message=str(exc),
             )
 
-    async def _open(self) -> ZaneiTools | None:
-        async with self.gate.turn():
-            source = self.gate.current(self.user_id)
-        if source is None:
-            return None
-        with open_memory_catalog_connection(
-            db_path=self.db_path, busy_timeout_ms=self.busy_timeout_ms
-        ) as connection:
-            cursor = store.get_cursor(connection, source.binding)
-        return ZaneiTools(
-            reader=self.reader,
-            source=source,
-            cursor=cursor,
-            upper_bound=None,
-        )
 
-
-def _unavailable(call: ReactToolCall) -> ReactToolResult:
-    return ReactToolResult(
-        tool_name=call.tool_name,
-        status="success",
-        output={
-            "status": RECORDING_UNAVAILABLE_STATUS,
-            "message": (
-                "Computer activity recording is not available, so activity after "
-                "the Insight cannot be checked."
-            ),
-        },
-    )
-
-
-__all__ = ["RECORDING_UNAVAILABLE_STATUS", "SuggestionZaneiSession"]
+__all__ = [
+    "InsightActivityStart",
+    "RECORDING_UNAVAILABLE_STATUS",
+    "SuggestionZaneiSession",
+]

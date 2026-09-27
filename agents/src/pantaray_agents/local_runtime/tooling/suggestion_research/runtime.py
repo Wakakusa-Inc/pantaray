@@ -18,7 +18,7 @@ from pantaray_agents.local_runtime.tooling.react_tools import (
 )
 
 from .snapshot import SuggestionResearchSnapshot
-from .zanei import SuggestionZaneiSession
+from .zanei import InsightActivityStart, SuggestionZaneiSession
 
 MEMORY_SEARCH_CONTENT_MAX_CHARS = 500
 MEMORY_SEARCH_MAX_RESULTS = 8
@@ -32,6 +32,7 @@ class LocalSuggestionResearchTools:
     db_path: Path
     busy_timeout_ms: int
     snapshot: SuggestionResearchSnapshot
+    activity_start: InsightActivityStart | None
 
     def build_tool_definitions(
         self,
@@ -40,7 +41,6 @@ class LocalSuggestionResearchTools:
         run_id: str,
     ) -> tuple[ReactToolDefinition, ...]:
         memory_context = MemoryContextSession(user_id=user_id, run_id=run_id)
-        gate = context_source_control.gate
         memory_tools = MemoryRetrievalSession(
             db_path=self.db_path,
             busy_timeout_ms=self.busy_timeout_ms,
@@ -72,11 +72,8 @@ class LocalSuggestionResearchTools:
             ).definitions(),
             *WebResearchToolSession(user_id=user_id).definitions(),
             *SuggestionZaneiSession(
-                user_id=user_id,
-                gate=gate,
-                reader=SourceReader(gate),
-                db_path=self.db_path,
-                busy_timeout_ms=self.busy_timeout_ms,
+                reader=SourceReader(context_source_control.gate),
+                start=self.activity_start,
             ).definitions(),
         )
 

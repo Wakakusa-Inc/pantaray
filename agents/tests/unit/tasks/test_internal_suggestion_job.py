@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +14,7 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
 )
 from pantaray_agents.local_runtime.agent_state import LocalSuggestionRepository
 from pantaray_agents.local_runtime.context import store
+from pantaray_agents.local_runtime.context.source_gate import SourceGate
 from pantaray_agents.local_runtime.memory_catalog.connection import (
     open_memory_catalog_connection,
 )
@@ -121,6 +123,7 @@ def _stub_workspace_context(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda **_kwargs: ReconsideredInsight(
             short_term_insight="# Insight\nFixing the parser.",
             reconsideration_reason="The user switched goals.",
+            source_cursor=None,
         ),
     )
     monkeypatch.setattr(
@@ -1081,3 +1084,112 @@ async def test_a_suggestion_answered_on_a_replaced_route_is_never_published(
     )
     assert stored.data is not None
     assert stored.data["status"] == "processing"
+
+
+def _readable_insight_job(
+    monkeypatch: pytest.MonkeyPatch, *, process
+) -> tuple[SimpleNamespace, AsyncMock, SourceGate]:
+    """A job whose Insight committed a cursor while recording is readable."""
+    gate = SourceGate()
+    gate.activate(
+        SourceBinding(
+            user_id="user-1",
+            epoch=UUID(int=1),
+            policy_revision="policy-1",
+            store_id="store-1",
+            protocol_version=1,
+        )
+    )
+    monkeypatch.setattr(
+        "pantaray_agents.tasks.internal_jobs.suggestion.context_source_control",
+        SimpleNamespace(gate=gate),
+    )
+    monkeypatch.setattr(
+        "pantaray_agents.tasks.internal_jobs.suggestion.read_reconsidered_insight",
+        lambda **_kwargs: ReconsideredInsight(
+            short_term_insight="# Insight\nFixing the parser.",
+            reconsideration_reason="The user switched goals.",
+            source_cursor="insight-cursor",
+        ),
+    )
+    repository = SimpleNamespace(
+        get_suggestion=AsyncMock(
+            return_value=RepositoryResult(
+                data={
+                    "user_id": "user-1",
+                    "suggestion_id": "suggestion-1",
+                    "status": "processing",
+                }
+            )
+        ),
+        save_suggestion=AsyncMock(return_value=SimpleNamespace(error=None)),
+        cancel_suggestion_if_processing=AsyncMock(
+            return_value=SimpleNamespace(error=None)
+        ),
+        finalize_suggestion_start_error_if_processing=AsyncMock(
+            return_value=SimpleNamespace(error=None)
+        ),
+    )
+    agent = SimpleNamespace(
+        build_persistence_payload=lambda _response: {
+            "prompt_name": "suggestion",
+            "prompt_version": "1.0",
+            "prompt_text": "prompt",
+            "response_text": "answer",
+            "request_images_count": 0,
+            "used_images_count": 0,
+        },
+        process=process,
+    )
+    get_agent = AsyncMock(return_value=agent)
+    monkeypatch.setattr(
+        "pantaray_agents.tasks.internal_jobs.suggestion.deps.get_suggestion_agent",
+        get_agent,
+    )
+    monkeypatch.setattr(
+        "pantaray_agents.tasks.internal_jobs.suggestion.deps.get_suggestion_repository",
+        AsyncMock(return_value=repository),
+    )
+    return repository, get_agent, gate
+
+
+@pytest.mark.asyncio
+async def test_the_run_reads_activity_from_the_cursor_its_insight_committed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository, get_agent, gate = _readable_insight_job(
+        monkeypatch, process=AsyncMock(return_value=SimpleNamespace(status="success"))
+    )
+
+    await _run_suggestion_job(_payload())
+
+    start = get_agent.await_args.kwargs["activity_start"]
+    assert start.cursor == "insight-cursor"
+    assert start.source == gate.current("user-1")
+    repository.save_suggestion.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("revoked", ["during_the_run", "before_publishing"])
+async def test_a_revoked_activity_permit_publishes_nothing(
+    monkeypatch: pytest.MonkeyPatch, revoked: str
+) -> None:
+    repository, get_agent, gate = _readable_insight_job(monkeypatch, process=None)
+    finished = []
+
+    async def _process(_request: object) -> SimpleNamespace:
+        gate.revoke("user-1")
+        if revoked == "during_the_run":
+            # The next model call or step write is where the revocation lands.
+            await asyncio.sleep(1)
+        finished.append(True)
+        return SimpleNamespace(status="success")
+
+    get_agent.return_value.process = _process
+
+    await _run_suggestion_job(_payload())
+
+    assert finished == ([] if revoked == "during_the_run" else [True])
+    repository.save_suggestion.assert_not_awaited()
+    repository.cancel_suggestion_if_processing.assert_awaited_once()
+    repository.finalize_suggestion_start_error_if_processing.assert_not_awaited()

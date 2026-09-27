@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from typing import Literal, Protocol
 
 from pantaray_agents.agents.artifact_react import (
@@ -49,6 +50,22 @@ SUGGESTION_TOOL_IDS: tuple[str, ...] = (
     "zanei_query",
 )
 
+# Raw computer activity reaches the model within this run only. Like the short
+# Insight, which stores no step at all, the run steps keep what was read (counts,
+# range, cursor state) and never the screen text itself.
+ACTIVITY_TOOL_IDS = frozenset({"zanei_timeline", "zanei_query"})
+_STORED_ACTIVITY_KEYS = (
+    "status",
+    "error_code",
+    "has_more",
+    "reached_latest",
+    "page_budget_spent",
+    "gap",
+    "next_start",
+    "redacted",
+    "source_truncated",
+)
+
 type SuggestionStepRecorder = Callable[[ReactLoopStep], Awaitable[None]]
 type SuggestionThoughtDiscarder = Callable[[], str | None]
 
@@ -74,6 +91,28 @@ class SuggestionOutputParser(Protocol):
         raw_text: str,
         parsed_output: SuggestionStructuredOutput | None,
     ) -> SuggestionExtraction: ...
+
+
+def _stored_activity_output(output: JSONValue) -> dict[str, JSONValue]:
+    if not isinstance(output, dict):
+        return {}
+    stored = {key: output[key] for key in _STORED_ACTIVITY_KEYS if key in output}
+    events = output.get("events")
+    if isinstance(events, list):
+        stored["event_count"] = len(events)
+        # Rows are [event_id, observed_at, context_index].
+        if events and isinstance(events[0], list) and isinstance(events[-1], list):
+            stored["first_observed_at"] = events[0][1]
+            stored["last_observed_at"] = events[-1][1]
+    text = output.get("text")
+    if isinstance(text, str):
+        stored["text_characters"] = len(text)
+    return stored
+
+
+def _transcript_json(output: JSONValue) -> str:
+    # The serialization build_prompt_with_transcript embeds each result with.
+    return json.dumps(output, ensure_ascii=False)
 
 
 def _terminal_tool() -> LlmToolDefinition:
@@ -159,7 +198,21 @@ async def run_suggestion_react(
             stage="suggestion",
         )
 
+    # (raw, stored) transcript entries, applied to any prompt a step records.
+    activity_replacements: list[tuple[str, str]] = []
+
     async def persist_step(step: ReactLoopStep) -> None:
+        if step.tool_name in ACTIVITY_TOOL_IDS and step.tool_output is not None:
+            stored = _stored_activity_output(step.tool_output)
+            activity_replacements.append(
+                (_transcript_json(step.tool_output), _transcript_json(stored))
+            )
+            step = replace(step, tool_output=stored)
+        elif step.prompt_text is not None and activity_replacements:
+            prompt = step.prompt_text
+            for raw, stored_text in activity_replacements:
+                prompt = prompt.replace(raw, stored_text)
+            step = replace(step, prompt_text=prompt)
         await record_step(step)
 
     async def project_tool_result(result: ReactToolResult) -> ReactToolResult:
@@ -221,6 +274,7 @@ async def run_suggestion_react(
 
 
 __all__ = [
+    "ACTIVITY_TOOL_IDS",
     "SUBMIT_SUGGESTION_TOOL_NAME",
     "SUGGESTION_TOOL_IDS",
     "SUGGESTION_MAX_LLM_TURNS",

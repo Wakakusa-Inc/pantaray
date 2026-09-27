@@ -200,6 +200,7 @@ async def test_search_result_can_be_read_without_other_users_evidence(
             roots=(),
             stable_memory=SuggestionStableMemoryContext("", False, False),
         ),
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="search")
     tools = {definition.name: definition for definition in definitions}
     searched = await tools["memory_search"].execute(

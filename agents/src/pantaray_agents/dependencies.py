@@ -28,6 +28,7 @@ from pantaray_agents.local_runtime.suggestion_state.repository import (
     LocalSuggestionStateRepository,
 )
 from pantaray_agents.local_runtime.tooling.suggestion_research import (
+    InsightActivityStart,
     LocalSuggestionResearchTools,
     SuggestionResearchSnapshot,
 )
@@ -212,7 +213,9 @@ async def get_user_settings_repository() -> UserSettingsRepositoryPort:
 
 
 async def get_suggestion_agent(
-    *, research_snapshot: SuggestionResearchSnapshot
+    *,
+    research_snapshot: SuggestionResearchSnapshot,
+    activity_start: InsightActivityStart | None,
 ) -> SuggestionAgent:
     repo = await get_suggestion_repository()
     llm = get_llm_client()
@@ -230,6 +233,7 @@ async def get_suggestion_agent(
             db_path=db_path,
             busy_timeout_ms=busy_timeout_ms,
             snapshot=research_snapshot,
+            activity_start=activity_start,
         )
     agent = SuggestionAgent(
         config=agent_config,

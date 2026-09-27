@@ -40,6 +40,9 @@ class ReconsideredInsight:
 
     short_term_insight: str
     reconsideration_reason: str
+    # The context-read cursor committed with this Insight; None for a row
+    # written before the cursor was stored.
+    source_cursor: str | None
 
 
 def _derived_id(kind: str, *, insight_id: str) -> str:
@@ -123,7 +126,7 @@ def read_reconsidered_insight(
     ) as connection:
         row = connection.execute(
             """
-            SELECT short_term_insight_data, reconsideration_reason
+            SELECT short_term_insight_data, reconsideration_reason, source_cursor
             FROM agent_insights
             WHERE user_id = ? AND insight_id = ?
             """,
@@ -131,7 +134,7 @@ def read_reconsidered_insight(
         ).fetchone()
     if row is None:
         raise MissingReconsideredInsight(f"short Insight not found: {insight_id}")
-    insight, reason = row[0], row[1]
+    insight, reason, cursor = row[0], row[1], row[2]
     if not insight:
         raise MissingReconsideredInsight(f"short Insight is empty: {insight_id}")
     return ReconsideredInsight(
@@ -141,6 +144,7 @@ def read_reconsidered_insight(
             if reason
             else "Periodic review of pending work and long-term direction after Memory updated."
         ),
+        source_cursor=None if cursor is None else str(cursor),
     )
 
 

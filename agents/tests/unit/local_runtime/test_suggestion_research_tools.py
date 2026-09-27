@@ -931,6 +931,7 @@ def test_suggestion_research_tool_set_is_read_only(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     )
 
     definitions = runtime.build_tool_definitions(
@@ -973,6 +974,7 @@ def test_suggestion_research_tool_build_uses_preloaded_snapshot(
         db_path=tmp_path / "unavailable.db",
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=snapshot,
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
 
     assert {definition.name for definition in definitions} >= {
@@ -1048,6 +1050,7 @@ async def test_suggestion_memory_search_keeps_prior_handles_available(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     registry = ReactToolRegistry(definitions)
 
@@ -1119,6 +1122,7 @@ async def test_suggestion_memory_search_uses_snapshot_revision(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=snapshot,
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     search_tool = next(
         definition for definition in definitions if definition.name == "memory_search"
@@ -1192,6 +1196,7 @@ async def test_suggestion_memory_search_content_can_be_read_to_completion(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     registry = ReactToolRegistry(definitions)
 
@@ -1265,6 +1270,7 @@ async def test_suggestion_web_search_returns_shared_client_response(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     tools = {definition.name: definition for definition in definitions}
 
@@ -1330,6 +1336,7 @@ async def test_suggestion_web_search_pages_structured_results_from_one_snapshot(
             db_path=db_path,
             busy_timeout_ms=BUSY_TIMEOUT_MS,
             snapshot=_snapshot(db_path=db_path),
+            activity_start=None,
         ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     )
 
@@ -1400,6 +1407,7 @@ async def test_suggestion_web_extract_pages_content_from_one_snapshot(
             db_path=db_path,
             busy_timeout_ms=BUSY_TIMEOUT_MS,
             snapshot=_snapshot(db_path=db_path),
+            activity_start=None,
         ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     )
     common_args = {
