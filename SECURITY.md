@@ -14,12 +14,10 @@ contain your own activity. A minimal reproduction is enough.
 
 ## In scope
 
-- A stored credential — a provider API key, a Tavily key, a ChatGPT token, a Pantaray session, or
-  the local API token — reaching disk in plaintext, a log file, a prompt, an error message, or the
-  renderer
-- A request going somewhere other than the route in **Settings → AI connection**: your keys used
-  while signed in to Pantaray Cloud, a Pantaray session used for a direct request, or a request
-  sent to a provider you did not configure
+- A stored credential — a provider API key, a Tavily key, a ChatGPT token, or the local API
+  token — reaching disk in plaintext, a log file, a prompt, an error message, or the renderer
+- A request going somewhere other than the route in **Settings → AI connection**, such as a
+  request sent to a provider you did not configure
 - The local HTTP or WebSocket API answering a request that carries no valid per-process token, or
   returning one owner's history, memory, or artifacts to another
 - The recorder capturing from an app or website that the recording filters exclude, or from an app
