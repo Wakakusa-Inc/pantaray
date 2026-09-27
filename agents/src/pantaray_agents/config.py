@@ -1,9 +1,4 @@
-"""Local runtime configuration exports.
-
-This module is intentionally local-only. Cloud entrypoints must import
-`pantaray_cloud.config` directly so cloud startup cannot accidentally pull
-local runtime requirements.
-"""
+"""Local runtime configuration exports."""
 
 from pantaray_agents.config_local_runtime import (  # noqa: F401
     ALLOWED_HOSTS,

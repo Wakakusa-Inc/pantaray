@@ -48,6 +48,11 @@ WEB_TARGET = TargetSpec(
         ),
         CommandSpec(label="Lint", cwd=Path("frontend"), command="pnpm run lint"),
         CommandSpec(
+            label="Typecheck (renderer and tests)",
+            cwd=Path("frontend"),
+            command="pnpm run typecheck",
+        ),
+        CommandSpec(
             label="Test (web)",
             cwd=Path("frontend"),
             command="pnpm run test:vitest",

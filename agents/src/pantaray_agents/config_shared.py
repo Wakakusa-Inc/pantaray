@@ -46,8 +46,8 @@ def split_csv_env(name: str) -> list[str]:
 def require_mock_mode_allowed(*, use_mocks: bool, environment: str) -> None:
     """production と packaged desktop build では mock モードを禁止する。
 
-    mock モードは token を検証せず固定の利用者として通すため、配布物で有効になると
-    認証が完全に無効化される。packaged bundle は USE_MOCKS を自由に指定できるので、
+    mock モードは repository と client を mock に差し替える。配布物は本物の経路で
+    動かなければならず、packaged bundle は USE_MOCKS を自由に指定できるので、
     設定境界で閉じる。
     """
 
