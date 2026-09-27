@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { test } = require('node:test');
 
 const {
@@ -22,7 +23,7 @@ const {
   buildHelperRuntimePaths,
   copyExtractedRuntime,
   findRuntimeSymlinkPaths,
-  prunePythonBytecode,
+  compilePythonBytecode,
 } = require('../scripts/prepare-local-backend-helper-runtime.js');
 
 function makeTempDir(prefix) {
@@ -170,45 +171,42 @@ test('copyExtractedRuntime rejects symlink loops explicitly', () => {
   );
 });
 
-test('prunePythonBytecode removes pyc files and pycache directories', () => {
+// PEP 552: the flags word after the magic number. 0b01 is hash-based bytecode
+// whose source hash the import system does not check.
+const UNCHECKED_HASH_PYC_FLAGS = 0b01;
+
+function readPycFlags(pycPath) {
+  return fs.readFileSync(pycPath).readUInt32LE(4);
+}
+
+test('compilePythonBytecode ships unchecked-hash bytecode for every module', () => {
   const runtimeRoot = path.join(makeTempDir('helper-runtime-bytecode-'), 'python');
-  const pycacheDir = path.join(
-    runtimeRoot,
-    'lib',
-    'python3.12',
-    'site-packages',
-    'pkg',
-    '__pycache__'
+  const packageDir = path.join(runtimeRoot, 'lib', 'python3', 'site-packages', 'pkg');
+  const installedModule = path.join(packageDir, 'installed.py');
+  const freshModule = path.join(packageDir, 'fresh.py');
+  fs.mkdirSync(packageDir, { recursive: true });
+  fs.writeFileSync(installedModule, 'VALUE = 1\n', 'utf8');
+  fs.writeFileSync(freshModule, 'VALUE = 2\n', 'utf8');
+  // pip leaves timestamp-based bytecode behind for what it installs.
+  execFileSync('python3', ['-I', '-m', 'py_compile', installedModule]);
+
+  compilePythonBytecode('python3', runtimeRoot);
+
+  const pycacheDir = path.join(packageDir, '__pycache__');
+  const pycNames = fs.readdirSync(pycacheDir).sort();
+  assert.deepEqual(
+    pycNames.map((name) => name.split('.')[0]),
+    ['fresh', 'installed']
   );
-  const loosePyc = path.join(runtimeRoot, 'lib', 'python3.12', 'loose.pyc');
-  const sourceFile = path.join(runtimeRoot, 'lib', 'python3.12', 'module.py');
-
-  fs.mkdirSync(pycacheDir, { recursive: true });
-  fs.writeFileSync(path.join(pycacheDir, 'module.cpython-312.pyc'), 'bytecode', 'utf8');
-  fs.writeFileSync(loosePyc, 'bytecode', 'utf8');
-  fs.writeFileSync(sourceFile, 'source', 'utf8');
-
-  const result = prunePythonBytecode(runtimeRoot);
-
-  assert.deepEqual(result, {
-    removedFileCount: 2,
-    removedDirectoryCount: 1,
-  });
-  assert.equal(fs.existsSync(pycacheDir), false);
-  assert.equal(fs.existsSync(loosePyc), false);
-  assert.equal(fs.readFileSync(sourceFile, 'utf8'), 'source');
+  for (const name of pycNames) {
+    assert.equal(readPycFlags(path.join(pycacheDir, name)), UNCHECKED_HASH_PYC_FLAGS, name);
+  }
 });
 
-test('prunePythonBytecode rejects pycache symlinks', () => {
+test('compilePythonBytecode fails the build when a module does not compile', () => {
   const runtimeRoot = path.join(makeTempDir('helper-runtime-bytecode-'), 'python');
-  const targetDir = path.join(runtimeRoot, 'target');
-  const symlinkPath = path.join(runtimeRoot, '__pycache__');
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  fs.writeFileSync(path.join(runtimeRoot, 'broken.py'), 'def broken(:\n', 'utf8');
 
-  fs.mkdirSync(targetDir, { recursive: true });
-  fs.symlinkSync('target', symlinkPath);
-
-  assert.throws(
-    () => prunePythonBytecode(runtimeRoot),
-    /Cannot prune bytecode through helper runtime symlink/
-  );
+  assert.throws(() => compilePythonBytecode('python3', runtimeRoot));
 });
