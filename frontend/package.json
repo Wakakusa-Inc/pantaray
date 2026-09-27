@@ -19,7 +19,7 @@
     "afterSign": "scripts/notarize.js",
     "publish": {
       "provider": "github",
-      "owner": "Wakakusa-Inc",
+      "owner": "wakakusa-labs",
       "repo": "pantaray",
       "releaseType": "release"
     },
