@@ -17,19 +17,18 @@ Pantaray takes it on and sees it through. You can also ask it for anything, any 
 - **It thinks ahead.** From what you are working on, it proposes the work that matters before you ask.
 - **It finishes the job.** Approve a proposal, or ask for something yourself, and Pantaray carries it
   through to the result.
-- **You choose the AI.** A Pantaray account, your own OpenAI, Anthropic, or Fireworks AI key, or your
-  ChatGPT account.
+- **You choose the AI.** Your own OpenAI, Anthropic, or Fireworks AI key, or your ChatGPT account.
 
 ## Install
 
-Pantaray runs on macOS with Apple silicon. Download the latest `.dmg` from the
-[releases page](https://github.com/Wakakusa-Inc/pantaray/releases/latest) and drag Pantaray into
-your Applications folder. Builds are signed and notarized, and the app keeps itself up to date.
+Pantaray runs on macOS with Apple silicon. Download
+[Pantaray.dmg](https://github.com/Wakakusa-Inc/pantaray/releases/latest/download/Pantaray.dmg) and
+drag Pantaray into your Applications folder. Builds are signed and notarized, and the app keeps itself up to date.
 
 ## Getting started
 
-1. Open **Settings → AI connection** and choose how to connect: a Pantaray account, your own API
-   key, or your ChatGPT account.
+1. Open **Settings → AI connection** and choose how to connect: your own API key or your ChatGPT
+   account.
 2. Press **Start recording** and allow the macOS permissions Pantaray asks for.
 3. Proposals arrive as you work. To ask for something yourself, press the **New conversation**
    shortcut from any app.
@@ -41,10 +40,6 @@ and what you type. The recording is an encrypted file on this Mac and is deleted
 Password managers, and sign-in and payment pages, are never recorded. Only what a proposal or a
 request needs is sent to the AI you chose; the recording file itself never leaves this Mac.
 Pantaray has no analytics and no usage tracking.
-
-## Documentation
-
-[Pantaray help center](https://help.pantaray.app)
 
 ## Bug reports
 
