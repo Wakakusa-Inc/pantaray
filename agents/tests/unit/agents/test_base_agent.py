@@ -111,8 +111,8 @@ def test_create_error(dummy_agent: DummyAgent):  # pylint: disable=redefined-out
 # --- __init__ のテスト ---
 
 
-def test_init_missing_env_project(mocker):
-    """環境変数 LLM_PROXY_URL がない場合にエラーになること。"""
+def test_init_without_llm_proxy_url(mocker):
+    """LLM_PROXY_URL が無くても（アカウントログイン無効時）エージェントを作れること。"""
     mocker.patch.dict(os.environ, {}, clear=True)
 
     class PlainAgent(BaseAgent[AgentResponse]):
@@ -152,8 +152,7 @@ def test_init_missing_env_project(mocker):
         ) -> AgentResponse:
             raise NotImplementedError
 
-    with pytest.raises(RuntimeError, match="LLM_PROXY_URL"):
-        _ = PlainAgent(config={})
+    assert PlainAgent(config={}).client is not None
 
 
 # --- process のエラーハンドリングテスト ---

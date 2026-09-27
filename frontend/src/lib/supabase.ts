@@ -1,7 +1,7 @@
 // 単一のSupabaseクライアントを再利用
-import { supabase, supabaseAuthStorageKey } from '../config/supabase';
+import { getSupabase, getSupabaseAuthStorageKey } from '../config/supabase';
 import { getWebAppOrigin } from '../config/webAppUrl';
-export { supabase, supabaseAuthStorageKey };
+export { getSupabase, getSupabaseAuthStorageKey };
 
 /**
  * Supabase Auth の確認メールから遷移させるURLを返す。
@@ -38,7 +38,7 @@ export const checkSupabaseConnection = async () => {
     // NOTE:
     // - DB直アクセス（PostgREST）を原則禁止するため、存在するか不明な公開テーブルを叩かない。
     // - Auth のみで疎通確認する（未ログイン時でも API 自体が到達可能なら OK を返せる）。
-    const { error } = await supabase.auth.getUser();
+    const { error } = await getSupabase().auth.getUser();
     return !error;
   } catch (error) {
     console.error('Supabase connection check failed:', error);
@@ -52,7 +52,7 @@ export const getSession = async () => {
     const {
       data: { user },
       error,
-    } = await supabase.auth.getUser();
+    } = await getSupabase().auth.getUser();
     if (error) throw error;
     return { user, error: null };
   } catch (error) {
@@ -64,7 +64,7 @@ export const getSession = async () => {
 // ログアウト
 export const signOut = async () => {
   try {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await getSupabase().auth.signOut();
     if (error) throw error;
     return { error: null };
   } catch (error) {

@@ -31,13 +31,9 @@ HELPER_READY_TIMEOUT_SECONDS = 90.0
 HELPER_READY_POLL_SECONDS = 0.2
 HELPER_TERMINATION_TIMEOUT_SECONDS = 15.0
 CONTROL_REQUEST_TIMEOUT_SECONDS = 30.0
-# The runtime routes every provider call through the control socket, so these URLs
-# are only here to satisfy the cloud-boundary env check and must never resolve.
-UNUSED_PROXY_URLS = {
-    "LLM_PROXY_URL": "https://unused.invalid/v1/llm/proxy",
-    "WEB_TOOLS_PROXY_URL": "https://unused.invalid/v1/web/proxy",
-}
 PROVIDER_SECRET_ENVS = ("GEMINI_API_KEY", "OPENAI_API_KEY", "TAVILY_API_KEY")
+# The helper runs without a Pantaray account, so it gets no Cloud route.
+CLOUD_PROXY_URL_ENVS = ("LLM_PROXY_URL", "WEB_TOOLS_PROXY_URL")
 
 
 class HelperStartError(RuntimeError):
@@ -85,7 +81,7 @@ def build_helper_env(
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in PROVIDER_SECRET_ENVS
+        if key not in PROVIDER_SECRET_ENVS and key not in CLOUD_PROXY_URL_ENVS
     }
     env.update(
         {
@@ -108,7 +104,6 @@ def build_helper_env(
                     str(agents_root / "packages" / "pantaray-llm" / "src"),
                 )
             ),
-            **UNUSED_PROXY_URLS,
         }
     )
     return env

@@ -38,12 +38,12 @@ const getSessionMock = vi.fn(async (..._args: unknown[]) => ({
 
 vi.mock('../lib/supabase', () => {
   return {
-    supabase: {
+    getSupabase: () => ({
       auth: {
         getSession: (...args: unknown[]) => getSessionMock(...args),
         signOut: vi.fn(async () => ({ error: null })),
       },
-    },
+    }),
   };
 });
 

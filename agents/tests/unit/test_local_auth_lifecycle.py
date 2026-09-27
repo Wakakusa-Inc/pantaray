@@ -134,7 +134,7 @@ def test_local_mock_mode_does_not_bypass_local_api_token_authentication(
         assert client.get("/api/agent/history").status_code == 401
 
 
-def test_local_app_starts_without_supabase_configuration(
+def test_local_app_starts_without_supabase_or_cloud_configuration(
     monkeypatch: pytest.MonkeyPatch,
     local_app_module: ModuleType,
 ) -> None:
@@ -143,6 +143,8 @@ def test_local_app_starts_without_supabase_configuration(
         "SUPABASE_PUBLISHABLE_KEY",
         "SUPABASE_JWT_AUD",
         "SUPABASE_JWT_ISS",
+        "LLM_PROXY_URL",
+        "WEB_TOOLS_PROXY_URL",
     ):
         monkeypatch.delenv(name)
     with TestClient(local_app_module.create_local_app()) as client:

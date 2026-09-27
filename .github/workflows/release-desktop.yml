@@ -112,22 +112,6 @@ jobs:
             --os="$PNPM_RELEASE_OS" \
             --reporter=append-only
 
-      - name: Stage desktop release environment files
-        # The hosted runner has no runner-owned inputs, so the two release env
-        # files come from environment secrets and are staged the same way.
-        env:
-          DESKTOP_RELEASE_FRONTEND_ENV: ${{ secrets.DESKTOP_RELEASE_FRONTEND_ENV }}
-          DESKTOP_RELEASE_BACKEND_ENV: ${{ secrets.DESKTOP_RELEASE_BACKEND_ENV }}
-        run: |
-          set -euo pipefail
-          umask 077
-          source_dir="$HOME/.config/pantaray/desktop-release"
-          mkdir -p "$source_dir/frontend" "$source_dir/agents"
-          printf '%s\n' "$DESKTOP_RELEASE_FRONTEND_ENV" > "$source_dir/frontend/.env.production"
-          printf '%s\n' "$DESKTOP_RELEASE_BACKEND_ENV" > "$source_dir/agents/.env.local.backend.production"
-          node frontend/scripts/stage-desktop-release-env.js
-          rm -rf "$source_dir"
-
       - name: Icon policy (lucide-only)
         working-directory: frontend
         run: node scripts/check-icon-policy.js
@@ -366,10 +350,6 @@ jobs:
           if [ -f "$KEYCHAIN_PATH" ]; then
             security delete-keychain "$KEYCHAIN_PATH" || rm -f "$KEYCHAIN_PATH"
           fi
-
-      - name: Cleanup desktop release environment files
-        if: always()
-        run: rm -f frontend/.env.production agents/.env.local.backend.production
 
       - name: Upload artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

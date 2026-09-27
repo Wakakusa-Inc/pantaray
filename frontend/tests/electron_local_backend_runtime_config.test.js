@@ -36,8 +36,6 @@ function createBundleConfig() {
     LOCAL_BACKEND_HELPER_EXECUTABLE: '<local_backend_helper_executable>',
     LOCAL_EMBEDDING_MODEL_DIR: '<local_embedding_model_dir>',
     LOG_FILE_PATH: '<log_file_path>',
-    LLM_PROXY_URL: 'https://llm.example.test',
-    WEB_TOOLS_PROXY_URL: 'https://search.example.test',
   };
 }
 
@@ -247,6 +245,7 @@ test('materializeLocalBackendRuntimeConfig は bundle を userData 配下へ配�
     resourcesPath,
     userDataDir,
     logsDir: path.join(root, 'logs'),
+    accountLoginEnabled: false,
   });
   const writtenPath = path.join(userDataDir, LOCAL_BACKEND_RUNTIME_CONFIG_FILENAME);
   assert.equal(result.configPath, writtenPath);
@@ -274,6 +273,7 @@ test('materializeLocalBackendRuntimeConfig は bundle を userData 配下へ配�
         resourcesPath,
         userDataDir,
         logsDir: path.join(root, 'logs'),
+        accountLoginEnabled: false,
       }),
     /does not match pinned release/
   );
@@ -296,6 +296,7 @@ test('materializeLocalBackendRuntimeConfig は bundle の未知の鍵を拒否�
         resourcesPath,
         userDataDir: path.join(root, 'user-data'),
         logsDir: path.join(root, 'logs'),
+        accountLoginEnabled: false,
       }),
     /unknown=OPENAI_API_KEY/
   );
@@ -328,6 +329,7 @@ test('materializeLocalBackendRuntimeConfig は manifest と helper executable �
         resourcesPath,
         userDataDir,
         logsDir: path.join(root, 'logs'),
+        accountLoginEnabled: false,
       }),
     /hash does not match the signed runtime manifest/
   );
@@ -366,8 +368,6 @@ test('materializeDevelopmentLocalBackendRuntimeConfig は source env から mach
         'ALLOWED_ORIGINS=http://localhost:3001',
         'ALLOWED_HOSTS=localhost,127.0.0.1',
         'LOCAL_DB_BUSY_TIMEOUT_MS=5000',
-        'LLM_PROXY_URL=http://127.0.0.1:8005/v1/llm/proxy',
-        'WEB_TOOLS_PROXY_URL=http://127.0.0.1:8005/v1/web-search/proxy',
         '',
       ].join('\n'),
       'utf8'
@@ -380,13 +380,12 @@ test('materializeDevelopmentLocalBackendRuntimeConfig は source env から mach
       ALLOWED_ORIGINS: 'http://localhost:3001',
       ALLOWED_HOSTS: 'localhost,127.0.0.1',
       LOCAL_DB_BUSY_TIMEOUT_MS: '5000',
-      LLM_PROXY_URL: 'http://127.0.0.1:8005/v1/llm/proxy',
-      WEB_TOOLS_PROXY_URL: 'http://127.0.0.1:8005/v1/web-search/proxy',
     });
     const result = materializeDevelopmentLocalBackendRuntimeConfig({
       agentsRoot: root,
       userDataDir,
       logsDir: path.join(root, 'logs'),
+      accountLoginEnabled: false,
     });
     assert.equal(result.sourceEnvPath, path.join(root, '.env.local.backend.local'));
     assert.equal(result.configPath, path.join(userDataDir, LOCAL_BACKEND_RUNTIME_CONFIG_FILENAME));

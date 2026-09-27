@@ -11,7 +11,7 @@ vi.mock('../../electron/src/auth/accountLoginFeature', () => ({
 }));
 
 const webAuth = vi.hoisted(() => ({ getSession: vi.fn(), onAuthStateChange: vi.fn() }));
-vi.mock('../lib/supabase', () => ({ supabase: { auth: webAuth } }));
+vi.mock('../lib/supabase', () => ({ getSupabase: () => ({ auth: webAuth }) }));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

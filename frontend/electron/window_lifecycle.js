@@ -6,6 +6,7 @@ const { buildFrontendDevHashUrl, buildFrontendDevOrigin } = require('./dev_front
 const { loadRuntimeConfig } = require('./runtime_config');
 const { buildUiLanguageAdditionalArguments } = require('./ui_language_bootstrap');
 const { buildContentSecurityPolicy } = require('./content_security_policy');
+const { PANTARAY_ACCOUNT_LOGIN_ENABLED } = require('./dist/auth/accountLoginFeature');
 
 const BROWSER_WINDOW_EINTR_RETRY_LIMIT = 8;
 const WINDOW_STARTUP_STEP_EINTR_RETRY_LIMIT = 8;
@@ -104,11 +105,18 @@ function setupWindowEventListeners(win) {
         const isDev = isDevRuntime();
         let apiOrigin = null;
         if (!isDev) {
-          // prod は許可先を固定（VITE_API_HOST相当 + Supabase のみ）
-          const cfg = loadRuntimeConfig({ isPackaged: app.isPackaged });
+          // prod は許可先を固定（VITE_API_HOST相当 + アカウントログインが有効なら Supabase）
+          const cfg = loadRuntimeConfig({
+            isPackaged: app.isPackaged,
+            accountLoginEnabled: PANTARAY_ACCOUNT_LOGIN_ENABLED,
+          });
           apiOrigin = cfg && cfg.api_host_origin ? String(cfg.api_host_origin) : null;
         }
-        const csp = buildContentSecurityPolicy({ isDev, apiOrigin });
+        const csp = buildContentSecurityPolicy({
+          isDev,
+          apiOrigin,
+          accountLoginEnabled: PANTARAY_ACCOUNT_LOGIN_ENABLED,
+        });
         callback({
           responseHeaders: {
             ...details.responseHeaders,

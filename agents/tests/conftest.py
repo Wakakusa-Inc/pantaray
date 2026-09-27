@@ -66,7 +66,7 @@ _TEST_ENV_DEFAULTS: dict[str, str] = {
     "LOCAL_SCHEDULER_TICK_SECONDS": "5",
     "LOCAL_ACTIVITY_WINDOW_MINUTES": "60",
     # ローカルランタイムはこれらを読まない。
-    # `test_local_auth_lifecycle.py::test_local_app_starts_without_supabase_configuration`
+    # `test_local_auth_lifecycle.py::test_local_app_starts_without_supabase_or_cloud_configuration`
     # が「設定があっても無くても起動する」側を確かめるために消すので、baseline に置く。
     "SUPABASE_JWT_AUD": "test",
     "SUPABASE_JWT_ISS": "https://test.example.com/auth/v1",

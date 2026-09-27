@@ -5,13 +5,15 @@ import { createRequire } from 'module';
 
 import dotenv from 'dotenv';
 
+import { PANTARAY_ACCOUNT_LOGIN_ENABLED } from '../auth/accountLoginFeature';
 import { defaultUiLanguage } from '../ui/uiLanguage';
 import { getStartupDialogCopy } from '../ui/mainProcessCopy';
 
+// The account fields are present exactly when PANTARAY_ACCOUNT_LOGIN_ENABLED is true.
 export type DesktopRuntimeConfig = {
-  web_app_origin: string;
-  supabase_url: string;
-  supabase_publishable_key: string;
+  web_app_origin?: string;
+  supabase_url?: string;
+  supabase_publishable_key?: string;
   backend_url: string;
   api_host_origin: string;
 };
@@ -41,11 +43,13 @@ type LocalBackendRuntimeModule = {
     resourcesPath: string;
     userDataDir: string;
     logsDir: string;
+    accountLoginEnabled: boolean;
   }) => MaterializedRuntime;
   materializeDevelopmentLocalBackendRuntimeConfig: (params: {
     agentsRoot: string;
     userDataDir: string;
     logsDir: string;
+    accountLoginEnabled: boolean;
   }) => MaterializedRuntime;
   resolveLoopbackBinding: (backendUrl: string) => {
     appPort: number;
@@ -90,15 +94,25 @@ function loadConfig(params: {
   logger: LoggerLike | null;
 }): DesktopRuntimeConfig | null {
   const { loadRuntimeConfig } = loadNodeModule('../../runtime_config') as {
-    loadRuntimeConfig: (input: { isPackaged: boolean }) => DesktopRuntimeConfig;
+    loadRuntimeConfig: (input: {
+      isPackaged: boolean;
+      accountLoginEnabled: boolean;
+    }) => DesktopRuntimeConfig;
   };
   try {
-    const config = loadRuntimeConfig({ isPackaged: params.app.isPackaged });
+    const config = loadRuntimeConfig({
+      isPackaged: params.app.isPackaged,
+      accountLoginEnabled: PANTARAY_ACCOUNT_LOGIN_ENABLED,
+    });
     params.logger?.info?.('RUNTIME_CONFIG_LOADED', {
       ok: true,
       is_packaged: Boolean(params.app.isPackaged),
-      web_app_origin: summarizeUrl(params.logger, config.web_app_origin),
-      supabase_url: summarizeUrl(params.logger, config.supabase_url),
+      ...(config.web_app_origin && config.supabase_url
+        ? {
+            web_app_origin: summarizeUrl(params.logger, config.web_app_origin),
+            supabase_url: summarizeUrl(params.logger, config.supabase_url),
+          }
+        : {}),
       backend_url: summarizeUrl(params.logger, config.backend_url),
     });
     return config;
@@ -139,6 +153,7 @@ export function createDesktopRuntime(params: {
     const shared = {
       userDataDir: params.app.getPath('userData'),
       logsDir: params.app.getPath('logs'),
+      accountLoginEnabled: PANTARAY_ACCOUNT_LOGIN_ENABLED,
     };
     const materialized = params.app.isPackaged
       ? runtimeModule.materializeLocalBackendRuntimeConfig({

@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { PANTARAY_ACCOUNT_LOGIN_ENABLED } from '../../electron/src/auth/accountLoginFeature';
 import {
   getPasswordRecoveryRedirectKind,
@@ -119,57 +119,63 @@ function validateConfig() {
   }
 }
 
-// 開発環境でも設定を検証
-validateConfig();
-
-export const supabaseAuthStorageKey = resolveSupabaseAuthStorageKey(supabaseUrl);
-
 // Electron: 旧バージョンで localStorage に保存されていた Supabase セッションを除去する
 cleanupLegacySupabaseLocalStorage();
 
-// Supabaseクライアントの設定
-const supabaseOptions = {
-  auth: {
-    autoRefreshToken: !isElectron && PANTARAY_ACCOUNT_LOGIN_ENABLED,
-    // Electron: セッション永続は main が行う（renderer は localStorage に保存しない）
-    persistSession: !isElectron && PANTARAY_ACCOUNT_LOGIN_ENABLED,
-    // Electron: deep link は main が処理するため、URL からの検出も不要
-    detectSessionInUrl:
-      !isElectron &&
-      PANTARAY_ACCOUNT_LOGIN_ENABLED &&
-      initialPasswordRecoveryRedirectKind !== 'code',
-    storageKey: supabaseAuthStorageKey,
-    storage:
-      isElectron || !PANTARAY_ACCOUNT_LOGIN_ENABLED ? createInMemoryStorage() : getWebStorage(),
-  },
-  global: {
-    headers: { 'x-application-name': 'pantaray-frontend' },
-  },
-};
+type AccountSupabase = { client: SupabaseClient; authStorageKey: string };
 
-export const supabase = createClient(supabaseUrl, supabaseKey, supabaseOptions);
+function createAccountSupabase(): AccountSupabase {
+  // 開発環境でも設定を検証
+  validateConfig();
+  const authStorageKey = resolveSupabaseAuthStorageKey(supabaseUrl);
+  const client = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: !isElectron,
+      // Electron: セッション永続は main が行う（renderer は localStorage に保存しない）
+      persistSession: !isElectron,
+      // Electron: deep link は main が処理するため、URL からの検出も不要
+      detectSessionInUrl: !isElectron && initialPasswordRecoveryRedirectKind !== 'code',
+      storageKey: authStorageKey,
+      storage: isElectron ? createInMemoryStorage() : getWebStorage(),
+    },
+    global: {
+      headers: { 'x-application-name': 'pantaray-frontend' },
+    },
+  });
 
-if (!isElectron) {
-  if (initialPasswordRecoveryRedirectKind) {
-    markPasswordRecoveryRedirectPending(
-      getBrowserSessionStorage(),
-      initialPasswordRecoveryRedirectKind
-    );
+  if (!isElectron) {
+    if (initialPasswordRecoveryRedirectKind) {
+      markPasswordRecoveryRedirectPending(
+        getBrowserSessionStorage(),
+        initialPasswordRecoveryRedirectKind
+      );
+    }
+
+    client.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        markPasswordRecoverySessionVerified(getBrowserSessionStorage());
+      }
+    });
   }
 
-  supabase.auth.onAuthStateChange((event) => {
-    const storage = getBrowserSessionStorage();
-    if (event === 'PASSWORD_RECOVERY') {
-      markPasswordRecoverySessionVerified(storage);
-      return;
-    }
-  });
+  // 開発環境では認証状態の変更をログ出力
+  if (isDev && !isElectron) {
+    client.auth.onAuthStateChange((event, session) => {
+      // センシティブ情報（token等）を避けて最小限の情報のみ出す
+      console.log('Auth state changed:', { event, userId: session?.user?.id || null });
+    });
+  }
+  return { client, authStorageKey };
 }
 
-// 開発環境では認証状態の変更をログ出力
-if (isDev && !isElectron) {
-  supabase.auth.onAuthStateChange((event, session) => {
-    // センシティブ情報（token等）を避けて最小限の情報のみ出す
-    console.log('Auth state changed:', { event, userId: session?.user?.id || null });
-  });
+// Only Pantaray account login talks to Supabase, so with it off no Supabase setting is
+// read or required.
+const accountSupabase = PANTARAY_ACCOUNT_LOGIN_ENABLED ? createAccountSupabase() : null;
+
+function requireAccountSupabase(): AccountSupabase {
+  if (!accountSupabase) throw new Error('Pantaray account login is disabled.');
+  return accountSupabase;
 }
+
+export const getSupabase = (): SupabaseClient => requireAccountSupabase().client;
+export const getSupabaseAuthStorageKey = (): string => requireAccountSupabase().authStorageKey;

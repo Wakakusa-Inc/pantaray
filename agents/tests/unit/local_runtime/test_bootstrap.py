@@ -81,9 +81,10 @@ def _set_minimum_local_runtime_env(
     monkeypatch.setenv(LOCAL_DB_BUSY_TIMEOUT_MS_ENV, "1000")
     monkeypatch.setenv(LOCAL_ARTIFACT_ROOT_ENV, str(db_path.parent / "artifacts"))
     monkeypatch.setenv(HELPER_INSTANCE_ID_ENV, "helper-test-instance")
-    monkeypatch.setenv(LLM_PROXY_URL_ENV, "https://llm-proxy.example.com")
     monkeypatch.setenv(MAIN_PROCESS_PID_ENV, "99999")
-    monkeypatch.setenv(WEB_TOOLS_PROXY_URL_ENV, "https://search-proxy.example.com")
+    # No Cloud proxy URLs: Electron omits them while account login is disabled.
+    monkeypatch.delenv(LLM_PROXY_URL_ENV, raising=False)
+    monkeypatch.delenv(WEB_TOOLS_PROXY_URL_ENV, raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
 

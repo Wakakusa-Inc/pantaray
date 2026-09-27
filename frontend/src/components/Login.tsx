@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 import { useI18n } from '@/context/useI18n';
 import { BrandWordmark } from '@/components/BrandWordmark';
 import { buildDesktopBrowserAuthUrl } from '@/lib/desktopBrowserAuthUrl';
@@ -109,7 +109,7 @@ const Login: React.FC = () => {
 
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await getSupabase().auth.getSession();
       if (!session) {
         return;
       }
@@ -133,7 +133,7 @@ const Login: React.FC = () => {
     try {
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await getSupabase().auth.getSession();
       const returnResult = await completeDesktopAuthReturn(
         getDesktopAuthReturnParams(location.search || ''),
         session
@@ -209,7 +209,7 @@ const Login: React.FC = () => {
         try {
           const {
             data: { session },
-          } = await supabase.auth.getSession();
+          } = await getSupabase().auth.getSession();
           const desktopReturnParams = getDesktopAuthReturnParams(location.search || '');
           const returnResult = await completeDesktopAuthReturn(desktopReturnParams, session);
           if (!returnResult.ok) {
@@ -245,7 +245,7 @@ const Login: React.FC = () => {
   const handleBrowserSignOut = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await getSupabase().auth.signOut();
       if (error) {
         throw error;
       }

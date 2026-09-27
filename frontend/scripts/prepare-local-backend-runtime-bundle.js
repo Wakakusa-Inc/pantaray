@@ -6,6 +6,7 @@ const {
   RUNTIME_MATERIALIZED_KEYS,
   buildLocalBackendRuntimeBundle,
 } = require('../electron/local_backend_runtime_bundle.js');
+const { PANTARAY_ACCOUNT_LOGIN_ENABLED } = require('../electron/src/auth/accountLoginFeature.ts');
 
 const TARGET_PATH = path.resolve(
   __dirname,
@@ -45,6 +46,7 @@ function readLocalBackendEnv(envPath) {
 function main() {
   const sourceEnvPath = requireLocalBackendEnvPath();
   const bundle = buildLocalBackendRuntimeBundle(readLocalBackendEnv(sourceEnvPath), {
+    accountLoginEnabled: PANTARAY_ACCOUNT_LOGIN_ENABLED,
     releaseBuild: isProductionDesktopBuild(),
   });
   fs.mkdirSync(path.dirname(TARGET_PATH), { recursive: true });

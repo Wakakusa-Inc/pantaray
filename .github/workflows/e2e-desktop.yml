@@ -110,7 +110,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-
 
-      # E2E の local backend は LLM/web tools を stub（LLM_PROXY_URL）経由で使う。
       # openai / tavily は pantaray-llm の基本依存として同期されるが、E2E では呼ばれない。
       # dev extra は下の seatbelt スイート（pytest）用。
       - name: Install the backend (agents)

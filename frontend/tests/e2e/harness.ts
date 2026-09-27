@@ -24,11 +24,8 @@ const SUPABASE_STUB_PATH = path.join(
   'isolated_env',
   'supabase_stub.py'
 );
-const LLM_STUB_PATH = path.join(AGENTS_ROOT, 'scripts', 'dev', 'isolated_env', 'llm_stub.py');
 const BACKEND_ENV_EXAMPLE_PATH = path.join(AGENTS_ROOT, '.env.local.backend.example');
 const STUB_PUBLISHABLE_KEY = 'sb_publishable_e2e_stub';
-// 到達しない前提の loopback ダミー（discard port）。実 proxy の URL は決して書かない。
-const UNREACHABLE_LOOPBACK_URL = 'http://127.0.0.1:9';
 // electron/src/main.ts: LOCAL_BACKEND_ARTIFACT_ROOT_DIRNAME under userData.
 const LOCAL_BACKEND_ARTIFACT_ROOT_DIRNAME = 'local-backend-artifacts';
 // electron/local_backend_runtime_config.js: PYTHON_LOG_FILENAME in app.getPath('logs').
@@ -36,15 +33,6 @@ const LOCAL_BACKEND_LOG_FILENAME = 'pantaray-local-backend.log';
 const SERVER_READY_TIMEOUT_MS = 60_000;
 const SERVER_POLL_INTERVAL_MS = 250;
 const CONTROL_SOCKET_STATUS_OPERATION = 'status';
-
-export type LlmStubScript = 'simple' | 'stall' | 'approval';
-
-export type LaunchElectronE2EOptions = {
-  // 指定すると決定的 LLM stub（agents/scripts/dev/isolated_env/llm_stub.py）を
-  // 起動し、local backend の LLM_PROXY_URL をそこへ向ける。
-  // 未指定なら従来どおり到達しない loopback ダミーのまま（LLM 呼び出しなし前提）。
-  llmStubScript?: LlmStubScript;
-};
 
 export type ControlSocketStatus = {
   ok: boolean;
@@ -134,10 +122,7 @@ function renderBackendEnvFile(params: {
   return `${lines.join('\n')}\n`;
 }
 
-function buildBackendEnvValues(params: {
-  rendererOrigins: string[];
-  llmProxyUrl: string;
-}): Record<string, string> {
+function buildBackendEnvValues(params: { rendererOrigins: string[] }): Record<string, string> {
   return {
     NODE_ENV: 'development',
     USE_MOCKS: 'false',
@@ -145,8 +130,6 @@ function buildBackendEnvValues(params: {
     ALLOWED_ORIGINS: params.rendererOrigins.join(','),
     ALLOWED_HOSTS: 'localhost,127.0.0.1',
     LOCAL_DB_BUSY_TIMEOUT_MS: '5000',
-    LLM_PROXY_URL: params.llmProxyUrl,
-    WEB_TOOLS_PROXY_URL: UNREACHABLE_LOOPBACK_URL,
   };
 }
 
@@ -229,7 +212,7 @@ async function findMainWindow(app: ElectronApplication, viteOrigin: string): Pro
   throw new Error(`Main window did not load ${viteOrigin}. Windows: ${JSON.stringify(urls)}`);
 }
 
-export async function launchElectronE2E(options: LaunchElectronE2EOptions = {}): Promise<{
+export async function launchElectronE2E(): Promise<{
   harness: ElectronE2EHarness;
   stop: (options: { keepArtifacts: boolean }) => Promise<void>;
 }> {
@@ -248,15 +231,11 @@ export async function launchElectronE2E(options: LaunchElectronE2EOptions = {}):
   const stubPort = await allocFreePort();
   const vitePort = await allocFreePort();
   const backendNominalPort = await allocFreePort();
-  const llmStubPort = options.llmStubScript === undefined ? null : await allocFreePort();
   const stubOrigin = `http://127.0.0.1:${stubPort}`;
   const viteOrigin = `http://localhost:${vitePort}`;
   const backendNominalUrl = `http://127.0.0.1:${backendNominalPort}`;
-  const llmProxyUrl =
-    llmStubPort === null ? UNREACHABLE_LOOPBACK_URL : `http://127.0.0.1:${llmStubPort}`;
 
   let stubProcess: ChildProcess | null = null;
-  let llmStubProcess: ChildProcess | null = null;
   let viteProcess: ChildProcess | null = null;
   let app: ElectronApplication | null = null;
   let backendLogPath: string | null = null;
@@ -283,7 +262,6 @@ export async function launchElectronE2E(options: LaunchElectronE2EOptions = {}):
       app = null;
     }
     killProcessGroup(viteProcess);
-    killProcessGroup(llmStubProcess);
     killProcessGroup(stubProcess);
     if (options.keepArtifacts) {
       // local backend の構造化ログは LOG_FILE_PATH（app.getPath('logs')）にしか
@@ -312,32 +290,12 @@ export async function launchElectronE2E(options: LaunchElectronE2EOptions = {}):
     });
     await waitForHttpOk(`${stubOrigin}/health`, 'supabase stub');
 
-    if (options.llmStubScript !== undefined && llmStubPort !== null) {
-      llmStubProcess = spawnDetached({
-        command: 'uv',
-        args: [
-          'run',
-          'python',
-          LLM_STUB_PATH,
-          '--port',
-          String(llmStubPort),
-          '--script',
-          options.llmStubScript,
-        ],
-        cwd: AGENTS_ROOT,
-        env: process.env,
-        logPath: path.join(workDir, 'llm-stub.log'),
-      });
-      await waitForHttpOk(`${llmProxyUrl}/health`, 'llm stub');
-    }
-
     fs.writeFileSync(
       backendEnvPath,
       renderBackendEnvFile({
         exampleText: fs.readFileSync(BACKEND_ENV_EXAMPLE_PATH, 'utf8'),
         values: buildBackendEnvValues({
           rendererOrigins: [viteOrigin, `http://127.0.0.1:${vitePort}`],
-          llmProxyUrl,
         }),
       }),
       { mode: 0o600 }

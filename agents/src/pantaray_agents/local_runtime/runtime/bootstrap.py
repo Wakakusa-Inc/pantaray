@@ -71,31 +71,20 @@ class LocalRuntimeBootstrapConfig:
     app_runtime_python: Path
 
 
-def _read_required_env(name: str) -> str:
-    value = os.getenv(name)
-    if value is None or not value.strip():
-        raise MigrationError(f"Missing required environment variable: {name}")
-    return value
-
-
 def is_local_runtime_enabled() -> bool:
     return True
 
 
 def _validate_cloud_boundary_env() -> None:
-    try:
-        parse_network_url(
-            _read_required_env(LLM_PROXY_URL_ENV),
-            env_name=LLM_PROXY_URL_ENV,
-            allow_path=True,
-        )
-        parse_network_url(
-            _read_required_env(WEB_TOOLS_PROXY_URL_ENV),
-            env_name=WEB_TOOLS_PROXY_URL_ENV,
-            allow_path=True,
-        )
-    except ValueError as exc:
-        raise MigrationError(str(exc)) from exc
+    # Absent while Pantaray account login is disabled: there is no Cloud route then.
+    for name in (LLM_PROXY_URL_ENV, WEB_TOOLS_PROXY_URL_ENV):
+        value = os.getenv(name)
+        if value is None or not value.strip():
+            continue
+        try:
+            parse_network_url(value, env_name=name, allow_path=True)
+        except ValueError as exc:
+            raise MigrationError(str(exc)) from exc
     leaked_secrets = [env for env in FORBIDDEN_PROVIDER_SECRET_ENVS if os.getenv(env)]
     if leaked_secrets:
         names = ", ".join(leaked_secrets)

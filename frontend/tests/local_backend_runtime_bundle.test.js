@@ -12,11 +12,14 @@ const {
   requireLocalBackendEnvPath,
 } = require('../scripts/prepare-local-backend-runtime-bundle.js');
 const {
-  LOCAL_BACKEND_BUNDLE_KEYS,
   RUNTIME_MATERIALIZED_KEYS,
   assertLocalBackendRuntimeBundleKeys,
   buildLocalBackendRuntimeBundle,
+  localBackendBundleKeys,
 } = require('../electron/local_backend_runtime_bundle.js');
+
+const DISABLED = { accountLoginEnabled: false };
+const ENABLED = { accountLoginEnabled: true };
 
 function collectPlaceholderPaths(value, keyPath = []) {
   if (typeof value === 'string' && /^<.+>$/.test(value)) {
@@ -43,17 +46,17 @@ function createPackagedLocalBackendEnv() {
     ALLOWED_ORIGINS: 'app://.',
     ALLOWED_HOSTS: '127.0.0.1,localhost',
     LOCAL_DB_BUSY_TIMEOUT_MS: '5000',
-    LLM_PROXY_URL: 'https://llm.example.test',
-    WEB_TOOLS_PROXY_URL: 'https://search.example.test',
   };
 }
 
-test('buildLocalBackendRuntimeBundle は local backend env から値を解決する', () => {
-  const bundle = buildLocalBackendRuntimeBundle({
-    ...createPackagedLocalBackendEnv(),
-  });
+const CLOUD_PROXY_ENV = {
+  LLM_PROXY_URL: 'https://llm.example.test',
+  WEB_TOOLS_PROXY_URL: 'https://search.example.test',
+};
 
-  assert.equal(bundle.LLM_PROXY_URL, 'https://llm.example.test');
+test('buildLocalBackendRuntimeBundle は local backend env から値を解決する', () => {
+  const bundle = buildLocalBackendRuntimeBundle(createPackagedLocalBackendEnv(), DISABLED);
+
   assert.equal(bundle.LOCAL_DB_BUSY_TIMEOUT_MS, 5000);
   assert.equal(bundle.USE_MOCKS, false);
   assert.equal(bundle.LOCAL_APP_RUNTIME_MANIFEST_PATH, '<local_app_runtime_manifest_path>');
@@ -62,7 +65,7 @@ test('buildLocalBackendRuntimeBundle は local backend env から値を解決す
 test('buildLocalBackendRuntimeBundle は releaseBuild で NODE_ENV/LOG_LEVEL を強制する', () => {
   const bundle = buildLocalBackendRuntimeBundle(
     { ...createPackagedLocalBackendEnv(), NODE_ENV: 'development', LOG_LEVEL: 'INFO' },
-    { releaseBuild: true }
+    { ...DISABLED, releaseBuild: true }
   );
 
   assert.equal(bundle.NODE_ENV, 'production');
@@ -70,11 +73,10 @@ test('buildLocalBackendRuntimeBundle は releaseBuild で NODE_ENV/LOG_LEVEL を
 });
 
 test('buildLocalBackendRuntimeBundle は releaseBuild 無しでは env の値を維持する', () => {
-  const bundle = buildLocalBackendRuntimeBundle({
-    ...createPackagedLocalBackendEnv(),
-    NODE_ENV: 'development',
-    LOG_LEVEL: 'INFO',
-  });
+  const bundle = buildLocalBackendRuntimeBundle(
+    { ...createPackagedLocalBackendEnv(), NODE_ENV: 'development', LOG_LEVEL: 'INFO' },
+    DISABLED
+  );
 
   assert.equal(bundle.NODE_ENV, 'development');
   assert.equal(bundle.LOG_LEVEL, 'INFO');
@@ -85,7 +87,7 @@ test('buildLocalBackendRuntimeBundle は releaseBuild 時 強制対象が未指�
   delete env.LOG_LEVEL;
   delete env.NODE_ENV;
 
-  const bundle = buildLocalBackendRuntimeBundle(env, { releaseBuild: true });
+  const bundle = buildLocalBackendRuntimeBundle(env, { ...DISABLED, releaseBuild: true });
 
   assert.equal(bundle.NODE_ENV, 'production');
   assert.equal(bundle.LOG_LEVEL, 'ERROR');
@@ -95,10 +97,10 @@ test('buildLocalBackendRuntimeBundle は不正な NODE_ENV を拒否する', () 
   for (const nodeEnv of ['dproduction', 'prodction', 'prod', 'Production', 'PRODUCTION']) {
     assert.throws(
       () =>
-        buildLocalBackendRuntimeBundle({
-          ...createPackagedLocalBackendEnv(),
-          NODE_ENV: nodeEnv,
-        }),
+        buildLocalBackendRuntimeBundle(
+          { ...createPackagedLocalBackendEnv(), NODE_ENV: nodeEnv },
+          DISABLED
+        ),
       new RegExp(`Invalid NODE_ENV: ${nodeEnv}`),
       `NODE_ENV=${nodeEnv} must fail bundle generation`
     );
@@ -107,30 +109,50 @@ test('buildLocalBackendRuntimeBundle は不正な NODE_ENV を拒否する', () 
 
 test('buildLocalBackendRuntimeBundle は正しい NODE_ENV をそのまま採用する', () => {
   for (const nodeEnv of ['development', 'production', 'test']) {
-    const bundle = buildLocalBackendRuntimeBundle({
-      ...createPackagedLocalBackendEnv(),
-      NODE_ENV: nodeEnv,
-    });
+    const bundle = buildLocalBackendRuntimeBundle(
+      { ...createPackagedLocalBackendEnv(), NODE_ENV: nodeEnv },
+      DISABLED
+    );
 
     assert.equal(bundle.NODE_ENV, nodeEnv);
   }
 });
 
 test('buildLocalBackendRuntimeBundle は required env が欠けると失敗する', () => {
-  assert.throws(() => buildLocalBackendRuntimeBundle({}), /Missing local backend env key/);
+  assert.throws(() => buildLocalBackendRuntimeBundle({}, DISABLED), /Missing local backend env key/);
+});
+
+test('buildLocalBackendRuntimeBundle は account login 有効時だけ Cloud proxy URL を要求し同梱する', () => {
+  const disabled = buildLocalBackendRuntimeBundle(
+    { ...createPackagedLocalBackendEnv(), ...CLOUD_PROXY_ENV },
+    DISABLED
+  );
+  assert.equal('LLM_PROXY_URL' in disabled, false);
+  assert.equal('WEB_TOOLS_PROXY_URL' in disabled, false);
+
+  assert.throws(
+    () => buildLocalBackendRuntimeBundle(createPackagedLocalBackendEnv(), ENABLED),
+    /Missing local backend env key: LLM_PROXY_URL/
+  );
+  const enabled = buildLocalBackendRuntimeBundle(
+    { ...createPackagedLocalBackendEnv(), ...CLOUD_PROXY_ENV },
+    ENABLED
+  );
+  assert.equal(enabled.LLM_PROXY_URL, 'https://llm.example.test');
+  assert.equal(enabled.WEB_TOOLS_PROXY_URL, 'https://search.example.test');
 });
 
 test('buildLocalBackendRuntimeBundle は runtime 専用 placeholder だけを残す', () => {
-  const bundle = buildLocalBackendRuntimeBundle({
-    ...createPackagedLocalBackendEnv(),
-  });
+  const bundle = buildLocalBackendRuntimeBundle(
+    { ...createPackagedLocalBackendEnv(), ...CLOUD_PROXY_ENV },
+    ENABLED
+  );
 
   const placeholderPaths = collectPlaceholderPaths(bundle);
   assert.deepEqual(
     placeholderPaths.sort(),
     [...RUNTIME_MATERIALIZED_KEYS].sort().map((key) => key)
   );
-  assert.equal(bundle.LLM_PROXY_URL, 'https://llm.example.test');
 });
 
 test('resolveLocalBackendEnvPath は build mode ごとの env file を選ぶ', () => {
@@ -202,29 +224,35 @@ test('readLocalBackendEnv は env file を key-value mapping として読む', (
 });
 
 test('buildLocalBackendRuntimeBundle の鍵集合は allowlist と一致する', () => {
-  const bundle = buildLocalBackendRuntimeBundle(createPackagedLocalBackendEnv());
+  const env = { ...createPackagedLocalBackendEnv(), ...CLOUD_PROXY_ENV };
+  for (const options of [DISABLED, ENABLED]) {
+    const expected = [...localBackendBundleKeys(options.accountLoginEnabled)].sort();
+    const bundle = buildLocalBackendRuntimeBundle(env, options);
+    assert.deepEqual(Object.keys(bundle).sort(), expected);
+    assert.doesNotThrow(() => assertLocalBackendRuntimeBundleKeys(bundle, options));
 
-  assert.deepEqual(Object.keys(bundle).sort(), [...LOCAL_BACKEND_BUNDLE_KEYS].sort());
-  assert.doesNotThrow(() => assertLocalBackendRuntimeBundleKeys(bundle));
-
-  // 配布ビルドが実際に通る経路（NODE_ENV / LOG_LEVEL を差し替える）でも鍵集合は変わらない。
-  const released = buildLocalBackendRuntimeBundle(createPackagedLocalBackendEnv(), {
-    releaseBuild: true,
-  });
-  assert.deepEqual(Object.keys(released).sort(), [...LOCAL_BACKEND_BUNDLE_KEYS].sort());
+    // 配布ビルドが実際に通る経路（NODE_ENV / LOG_LEVEL を差し替える）でも鍵集合は変わらない。
+    const released = buildLocalBackendRuntimeBundle(env, { ...options, releaseBuild: true });
+    assert.deepEqual(Object.keys(released).sort(), expected);
+  }
 });
 
 test('assertLocalBackendRuntimeBundleKeys は未知/欠落した鍵を拒否する', () => {
-  const bundle = buildLocalBackendRuntimeBundle(createPackagedLocalBackendEnv());
+  const bundle = buildLocalBackendRuntimeBundle(createPackagedLocalBackendEnv(), DISABLED);
 
   assert.throws(
-    () => assertLocalBackendRuntimeBundleKeys({ ...bundle, OPENAI_API_KEY: 'sk-injected' }),
+    () =>
+      assertLocalBackendRuntimeBundleKeys({ ...bundle, OPENAI_API_KEY: 'sk-injected' }, DISABLED),
     /unknown=OPENAI_API_KEY/
   );
   const { LOG_FILE_PATH: _removed, ...withoutLogFilePath } = bundle;
   assert.throws(
-    () => assertLocalBackendRuntimeBundleKeys(withoutLogFilePath),
+    () => assertLocalBackendRuntimeBundleKeys(withoutLogFilePath, DISABLED),
     /missing=LOG_FILE_PATH/
   );
-  assert.throws(() => assertLocalBackendRuntimeBundleKeys([]), /root must be an object/);
+  assert.throws(
+    () => assertLocalBackendRuntimeBundleKeys(bundle, ENABLED),
+    /missing=LLM_PROXY_URL,WEB_TOOLS_PROXY_URL/
+  );
+  assert.throws(() => assertLocalBackendRuntimeBundleKeys([], DISABLED), /root must be an object/);
 });
