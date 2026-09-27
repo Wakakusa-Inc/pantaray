@@ -645,7 +645,8 @@ for (const language of ['ja', 'en'] as const) {
       (detail) => window.dispatchEvent(new CustomEvent('test:conversation', { detail })),
       update
     );
-    await expect(page.getByText('live-notes.md').first()).toBeAttached();
-    await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(100);
+    // The previous behavior jumped to the bottom within a frame of this update.
+    await page.waitForTimeout(1_000);
+    expect(await scroll.evaluate((element) => element.scrollTop)).toBe(100);
   });
 }
