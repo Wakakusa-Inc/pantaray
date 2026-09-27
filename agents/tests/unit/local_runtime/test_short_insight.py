@@ -279,8 +279,8 @@ def _stored(db_path: Path, *, run_id: str = RUN) -> dict[str, object]:
     with sqlite3.connect(db_path) as connection:
         connection.row_factory = sqlite3.Row
         insight = connection.execute(
-            "SELECT status, short_term_insight_data, reconsideration_reason "
-            "FROM agent_insights WHERE insight_id = ?",
+            "SELECT status, short_term_insight_data, reconsideration_reason, "
+            "source_cursor FROM agent_insights WHERE insight_id = ?",
             (run_id,),
         ).fetchone()
         activity = connection.execute(
@@ -354,6 +354,7 @@ async def test_successful_run_commits_outputs_catalog_and_cursor(
         "success",
         "# Insight\nThe user is fixing a parser bug.",
         "The user switched goals.",
+        "cursor-2",
     )
     assert stored["activity"] == (
         "success",
@@ -542,6 +543,7 @@ async def test_recorder_changes_during_inference_preserve_range_and_publication(
         "success",
         _output().insight,
         _output().reconsideration_reason,
+        "cursor-2",
     )
     assert stored["activity"][0] == "success"
     assert stored["catalog"] == ["activity_log", "short_term_insight"]

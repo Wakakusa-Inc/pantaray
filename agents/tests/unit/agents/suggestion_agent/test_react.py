@@ -262,3 +262,91 @@ async def test_suggestion_react_returns_invalid_submission_for_repair(
 
 async def _completed() -> None:
     return None
+
+
+SCREEN_TEXT = "text shown on the user's screen"
+
+
+async def _execute_raw_activity(
+    call: ReactToolCall,
+    _step_number: int,
+) -> ReactToolResult:
+    return ReactToolResult(
+        tool_name=call.tool_name,
+        status="success",
+        output={
+            "contexts": [{"window_title": SCREEN_TEXT}],
+            "events": [["event-1", "2026-09-28T02:56:50+09:00", 0]],
+            "has_more": False,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_raw_activity_reaches_the_model_but_no_stored_step(
+    suggestion_agent: SuggestionAgent,
+) -> None:
+    prompts: list[str] = []
+    steps: list[ReactLoopStep] = []
+    tools = tuple(
+        ReactToolDefinition(
+            name=tool_id,
+            description="Read activity.",
+            request_schema={"type": "object"},
+            response_schema={"type": "object"},
+            execute=_execute_raw_activity,
+        )
+        if tool_id == "zanei_timeline"
+        else _probe_tool(tool_id)
+        for tool_id in SUGGESTION_TOOL_IDS
+    )
+
+    async def generate_tool_call(**kwargs) -> LlmToolCallTurn:  # noqa: ANN003
+        prompts.append(kwargs["prompt"])
+        # No continuation, so every turn's prompt carries the transcript and is
+        # recorded with its step.
+        name, arguments = (
+            ("zanei_timeline", {})
+            if len(prompts) == 1
+            else (SUBMIT_SUGGESTION_TOOL_NAME, _terminal_payload())
+        )
+        return LlmToolCallTurn(
+            calls=(
+                LlmToolCall(
+                    call_id=f"call-{len(prompts)}", name=name, arguments=arguments
+                ),
+            ),
+            continuation=None,
+        )
+
+    async def record_step(step: ReactLoopStep) -> None:
+        steps.append(step)
+
+    await run_suggestion_react(
+        user_id="user-1",
+        suggestion_id="suggestion-activity",
+        initial_prompt="initial context",
+        system_instruction="system",
+        research_tools=FixedSuggestionResearchTools(tools),
+        generate_tool_call=generate_tool_call,
+        parse_output=suggestion_agent._parse_suggestion_output,  # noqa: SLF001
+        record_step=record_step,
+        discard_llm_thoughts=lambda: None,
+    )
+
+    assert SCREEN_TEXT in prompts[-1]
+    stored = repr([(step.prompt_text, step.tool_output) for step in steps])
+    assert SCREEN_TEXT not in stored
+    (final_tool_step,) = [
+        step
+        for step in steps
+        if step.tool_name == "zanei_timeline" and step.tool_output
+    ]
+    assert final_tool_step.tool_output == {
+        "has_more": False,
+        "event_count": 1,
+        "first_observed_at": "2026-09-28T02:56:50+09:00",
+        "last_observed_at": "2026-09-28T02:56:50+09:00",
+    }
+    assert steps[-1].prompt_text is not None
+    assert '"event_count": 1' in steps[-1].prompt_text

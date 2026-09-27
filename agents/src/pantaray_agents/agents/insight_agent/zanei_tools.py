@@ -67,6 +67,11 @@ class _EventArguments(BaseModel):
     start: Annotated[int, Field(ge=0)] = 0
 
 
+# Shared with the Suggestion run, which offers the same two reads.
+PAGE_REQUEST_SCHEMA = _PageArguments.model_json_schema()
+EVENT_REQUEST_SCHEMA = _EventArguments.model_json_schema()
+
+
 @dataclass(slots=True)
 class ZaneiTools:
     reader: SourceReader
@@ -114,7 +119,7 @@ class ZaneiTools:
                     "pages are large; once a result reports page_budget_spent, "
                     "complete with what you read."
                 ),
-                request_schema=_PageArguments.model_json_schema(),
+                request_schema=PAGE_REQUEST_SCHEMA,
                 response_schema=response_schema,
                 execute=self.timeline,
             ),
@@ -126,7 +131,7 @@ class ZaneiTools:
                     "values, url for browser location. start is a UTF-8 byte "
                     "offset; use next_start to continue truncated text."
                 ),
-                request_schema=_EventArguments.model_json_schema(),
+                request_schema=EVENT_REQUEST_SCHEMA,
                 response_schema=response_schema,
                 execute=self.query,
             ),
