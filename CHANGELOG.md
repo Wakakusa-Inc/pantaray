@@ -3,6 +3,16 @@
 Each release's section becomes its notes on GitHub Releases. Write for people who use Pantaray,
 in English and Japanese.
 
+## 0.2.3
+
+- You can now delete a conversation from History. Select the trash button on an entry and confirm;
+  it cannot be restored. Files in your folders are not deleted, and a conversation that is running
+  or waiting for approval cannot be deleted until it stops.
+
+---
+
+- 履歴から会話を 1 つずつ削除できるようになりました。各項目のゴミ箱ボタンを押して確認すると消えます。元には戻せません。あなたのフォルダにあるファイルは消えません。実行中・確認待ちの会話は、止まるまで削除できません。
+
 ## 0.2.2
 
 - While Pantaray is working, the conversation no longer jumps to the bottom when you have scrolled
