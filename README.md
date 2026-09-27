@@ -36,7 +36,8 @@ drag Pantaray into your Applications folder. Builds are signed and notarized, an
 ## Privacy
 
 With your permission, Pantaray records the apps you use, your window titles, the text on screen,
-and what you type. The recording is an encrypted file on this Mac and is deleted after 48 hours.
+and what you type. The raw recording is an encrypted file on this Mac and is deleted after 48
+hours. The summaries of your work made from it stay on this Mac.
 Password managers, and sign-in and payment pages, are never recorded. Only what a proposal or a
 request needs is sent to the AI you chose; the recording file itself never leaves this Mac.
 Pantaray has no analytics and no usage tracking.

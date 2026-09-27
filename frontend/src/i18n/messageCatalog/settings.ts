@@ -216,7 +216,7 @@ export const SETTINGS_MESSAGES = defineMessages({
     'recordingIntro.browsers':
       'In Chrome, page contents are recorded except in Incognito windows. In Safari, Firefox, and similar browsers they are not. Window titles are recorded in every browser.',
     'recordingIntro.excluded':
-      'Password managers, and the contents of sign-in and payment pages, are not recorded. Recordings are kept on this Mac and deleted after 48 hours. The parts needed for suggestions and tasks are sent to the AI you chose.',
+      'Password managers, and the contents of sign-in and payment pages, are not recorded. The raw recording stays on this Mac for up to 48 hours. The summaries of your work made from it stay on this Mac. The parts needed for suggestions and tasks are sent to the AI you chose.',
     'recordingIntro.start': 'Start recording',
     'recordingIntro.later': 'Later',
     'recordingIntro.settingsNote': 'You can exclude apps and sites in Settings.',
@@ -497,7 +497,7 @@ export const SETTINGS_MESSAGES = defineMessages({
     'recordingIntro.browsers':
       'ページの中身は、Chrome ではシークレットウィンドウを除いて記録します。Safari や Firefox などでは記録しません。ウィンドウの名前はどのブラウザでも記録します。',
     'recordingIntro.excluded':
-      'パスワード管理アプリと、サインイン・決済のページの中身は記録しません。記録はこの Mac に保存され、48 時間で消えます。提案や作業に必要な部分は、選んだ AI に送ります。',
+      'パスワード管理アプリと、サインイン・決済のページの中身は記録しません。記録そのものは、この Mac に最大 48 時間だけ保存されます。そこから作る作業のまとめは、この Mac に残ります。提案や作業に必要な部分は、選んだ AI に送ります。',
     'recordingIntro.start': '記録を始める',
     'recordingIntro.later': 'あとで',
     'recordingIntro.settingsNote': '除外するアプリやサイトは設定で変えられます',
