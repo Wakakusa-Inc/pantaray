@@ -101,6 +101,11 @@ export function ProjectOrganizationEditor(props: ProjectOrganizationEditorProps)
               aria-label={props.t('settings.workspace.projectOrganization.remove', {
                 name: organization.display_name,
               })}
+              onKeyDown={(event) => {
+                // Choosing or creating an organization with Enter moves focus here, so the
+                // repeats of a held Enter must not remove the organization just added.
+                if (event.key === 'Enter' && event.repeat) event.preventDefault();
+              }}
               onClick={() => void removeOrganization(organization.organization_id)}
             >
               <X size={9} strokeWidth={3} aria-hidden="true" />

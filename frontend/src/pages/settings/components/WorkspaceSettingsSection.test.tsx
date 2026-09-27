@@ -1135,6 +1135,31 @@ describe('WorkspaceSettingsSection', () => {
     });
   });
 
+  it('ignores a held Enter on the remove chip that selecting an organization focused', async () => {
+    const user = userEvent.setup();
+    const workspaceSettings = installProjectOrganizationSettings([]);
+
+    renderWorkspaceSettingsSection(japaneseTranslate);
+    await screen.findByText('Project A');
+    await user.click(screen.getByRole('button', { name: 'Project Aの組織を選択' }));
+    const picker = screen.getByRole('dialog', { name: 'Project Aの組織を選択' });
+    within(picker).getByRole('button', { name: 'Org A' }).focus();
+    await user.keyboard('{Enter}');
+    const removeButton = await screen.findByRole('button', { name: 'Org Aを外す' });
+    await waitFor(() => expect(removeButton).toHaveFocus());
+
+    // fireEvent returns false when the handler cancels the key's default activation.
+    expect(fireEvent.keyDown(removeButton, { key: 'Enter', repeat: true })).toBe(false);
+    expect(workspaceSettings.updateProjectLinks).toHaveBeenCalledTimes(1);
+
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(workspaceSettings.updateProjectLinks).toHaveBeenLastCalledWith('project-a', {
+        organizationIds: [],
+      });
+    });
+  });
+
   it('restores the add chip focus when organization selection fails', async () => {
     const user = userEvent.setup();
     installProjectOrganizationSettings([], async () => {
