@@ -949,10 +949,12 @@ def test_suggestion_research_tool_set_is_read_only(
         "grep",
         "web_search",
         "web_extract",
+        "zanei_timeline",
+        "zanei_query",
     }
     assert names.isdisjoint({"thinking", "apply_patch", "bash", "run_python"})
     for definition in definitions:
-        required = definition.request_schema.get("required")
+        required = definition.request_schema.get("required", [])
         assert isinstance(required, list)
         assert "hypothesis" not in required
         assert "evidence_goal" not in required

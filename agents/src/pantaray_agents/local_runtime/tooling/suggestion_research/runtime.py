@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pantaray_agents.agents.artifact_react import ReactToolDefinition
+from pantaray_agents.local_runtime.context.source_control import context_source_control
+from pantaray_agents.local_runtime.context.source_reader import SourceReader
 from pantaray_agents.local_runtime.tooling.memory_retrieval import (
     MemoryContextSession,
     MemoryRetrievalPolicy,
@@ -16,6 +18,7 @@ from pantaray_agents.local_runtime.tooling.react_tools import (
 )
 
 from .snapshot import SuggestionResearchSnapshot
+from .zanei import SuggestionZaneiSession
 
 MEMORY_SEARCH_CONTENT_MAX_CHARS = 500
 MEMORY_SEARCH_MAX_RESULTS = 8
@@ -37,6 +40,7 @@ class LocalSuggestionResearchTools:
         run_id: str,
     ) -> tuple[ReactToolDefinition, ...]:
         memory_context = MemoryContextSession(user_id=user_id, run_id=run_id)
+        gate = context_source_control.gate
         memory_tools = MemoryRetrievalSession(
             db_path=self.db_path,
             busy_timeout_ms=self.busy_timeout_ms,
@@ -67,6 +71,13 @@ class LocalSuggestionResearchTools:
                 memory_context=memory_context,
             ).definitions(),
             *WebResearchToolSession(user_id=user_id).definitions(),
+            *SuggestionZaneiSession(
+                user_id=user_id,
+                gate=gate,
+                reader=SourceReader(gate),
+                db_path=self.db_path,
+                busy_timeout_ms=self.busy_timeout_ms,
+            ).definitions(),
         )
 
 

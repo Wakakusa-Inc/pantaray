@@ -45,6 +45,8 @@ SUGGESTION_TOOL_IDS: tuple[str, ...] = (
     "grep",
     "web_search",
     "web_extract",
+    "zanei_timeline",
+    "zanei_query",
 )
 
 type SuggestionStepRecorder = Callable[[ReactLoopStep], Awaitable[None]]
