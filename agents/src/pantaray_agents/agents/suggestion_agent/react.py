@@ -37,6 +37,8 @@ from .research import SuggestionResearchTools
 SUGGESTION_MAX_LLM_TURNS = 30
 SUGGESTION_MAX_RESEARCH_TOOL_CALLS = 30
 SUBMIT_SUGGESTION_TOOL_NAME = "submit_suggestion"
+# Offered only while the user lets commands run without asking.
+SUGGESTION_COMMAND_TOOL_ID = "bash"
 SUGGESTION_TOOL_IDS: tuple[str, ...] = (
     "memory_search",
     "get_memory_reference",
@@ -48,6 +50,7 @@ SUGGESTION_TOOL_IDS: tuple[str, ...] = (
     "web_extract",
     "zanei_timeline",
     "zanei_query",
+    SUGGESTION_COMMAND_TOOL_ID,
 )
 
 # Raw computer activity reaches the model within this run only. Like the short
@@ -174,12 +177,18 @@ async def run_suggestion_react(
     record_step: SuggestionStepRecorder,
     discard_llm_thoughts: SuggestionThoughtDiscarder,
 ) -> SuggestionExtraction:
+    definitions = research_tools.build_tool_definitions(
+        user_id=user_id,
+        run_id=suggestion_id,
+    )
+    offered = {definition.name for definition in definitions}
     tool_definitions = resolve_react_tool_definitions(
-        definitions=research_tools.build_tool_definitions(
-            user_id=user_id,
-            run_id=suggestion_id,
+        definitions=definitions,
+        tool_ids=tuple(
+            tool_id
+            for tool_id in SUGGESTION_TOOL_IDS
+            if tool_id != SUGGESTION_COMMAND_TOOL_ID or tool_id in offered
         ),
-        tool_ids=SUGGESTION_TOOL_IDS,
     )
 
     async def call_llm(
@@ -276,6 +285,7 @@ async def run_suggestion_react(
 __all__ = [
     "ACTIVITY_TOOL_IDS",
     "SUBMIT_SUGGESTION_TOOL_NAME",
+    "SUGGESTION_COMMAND_TOOL_ID",
     "SUGGESTION_TOOL_IDS",
     "SUGGESTION_MAX_LLM_TURNS",
     "SUGGESTION_MAX_RESEARCH_TOOL_CALLS",

@@ -15,6 +15,7 @@ from pantaray_agents.agents.core.mixins.llm_tool_use_mixin import LlmToolCallTur
 from pantaray_agents.agents.suggestion_agent import SuggestionAgent
 from pantaray_agents.agents.suggestion_agent.react import (
     SUBMIT_SUGGESTION_TOOL_NAME,
+    SUGGESTION_COMMAND_TOOL_ID,
     SUGGESTION_MAX_LLM_TURNS,
     SUGGESTION_TOOL_IDS,
     _terminal_tool,
@@ -216,6 +217,40 @@ async def test_suggestion_react_final_turn_exposes_only_submit(
     assert result["has_suggestion"] is True
     assert len(tool_sets) == SUGGESTION_MAX_LLM_TURNS
     assert tool_sets[-1] == (SUBMIT_SUGGESTION_TOOL_NAME,)
+
+
+@pytest.mark.asyncio
+async def test_suggestion_react_runs_without_the_command_tool(
+    suggestion_agent: SuggestionAgent,
+) -> None:
+    tool_sets: list[tuple[str, ...]] = []
+
+    async def generate_tool_call(**kwargs) -> LlmToolCallTurn:  # noqa: ANN003
+        tool_sets.append(tuple(tool.name for tool in kwargs["tools"]))
+        return _turn(
+            SUBMIT_SUGGESTION_TOOL_NAME, _terminal_payload(), call_id="submit-1"
+        )
+
+    await run_suggestion_react(
+        user_id="user-1",
+        suggestion_id="suggestion-no-commands",
+        initial_prompt="initial context",
+        system_instruction="system",
+        research_tools=FixedSuggestionResearchTools(
+            tuple(
+                _probe_tool(tool_id)
+                for tool_id in SUGGESTION_TOOL_IDS
+                if tool_id != SUGGESTION_COMMAND_TOOL_ID
+            )
+        ),
+        generate_tool_call=generate_tool_call,
+        parse_output=suggestion_agent._parse_suggestion_output,  # noqa: SLF001
+        record_step=lambda _step: _completed(),
+        discard_llm_thoughts=lambda: None,
+    )
+
+    assert SUGGESTION_COMMAND_TOOL_ID not in tool_sets[0]
+    assert "memory_search" in tool_sets[0]
 
 
 @pytest.mark.asyncio

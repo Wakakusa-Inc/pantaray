@@ -84,6 +84,9 @@ system_instruction: |
   retrieve a bounded reference; use `read` when more context is needed.
   `list`, `glob` and `grep` navigate the listed read-only roots. Use `web_search`
   and `web_extract` when an external fact could change the recommendation.
+  `bash`, when offered, runs a command to check current state, such as `git log`
+  or `gh pr view`. Only read: never run a command that writes or changes anything,
+  such as merge, push, send or delete. A failed check leaves the state unknown.
   `zanei_timeline` and `zanei_query` read the computer activity recorded after the
   latest Insight's observations. Check it before suggesting from a premise that may
   have changed since it was observed:

@@ -40,6 +40,9 @@ from pantaray_agents.local_runtime.tooling.react_tools import (
 from pantaray_agents.local_runtime.tooling.repository.workspace_settings_models import (
     WorkspaceSettings,
 )
+from pantaray_agents.schema.read_access import ReadAccessScope
+
+from .commands import commands_run_without_asking
 
 PENDING_WORK_PREVIEW_MAX_CHARS = 6_000
 STABLE_MEMORY_CONTEXT_MAX_CHARS = 4_500
@@ -52,6 +55,9 @@ STABLE_MEMORY_TREE_MAX_PATHS = 30
 class SuggestionResearchSnapshot:
     roots: tuple[ReadOnlyRoot, ...]
     stable_memory: SuggestionStableMemoryContext
+    # Whether the run offers commands at all; each command checks again.
+    commands_allowed: bool
+    read_access_scope: ReadAccessScope
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +132,14 @@ def build_suggestion_research_snapshot(
             limit=PENDING_WORK_PREVIEW_MAX_CHARS,
         ),
     )
-    return SuggestionResearchSnapshot(roots=roots, stable_memory=stable_memory)
+    return SuggestionResearchSnapshot(
+        roots=roots,
+        stable_memory=stable_memory,
+        commands_allowed=commands_run_without_asking(
+            db_path=db_path, busy_timeout_ms=busy_timeout_ms, user_id=user_id
+        ),
+        read_access_scope=workspace_settings.read_access_scope,
+    )
 
 
 def _workspace_roots(

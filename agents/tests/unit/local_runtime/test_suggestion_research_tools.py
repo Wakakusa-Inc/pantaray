@@ -12,7 +12,6 @@ from pantaray_agents.agents.artifact_react import (
     ReactToolRegistry,
     ToolCallEnvelope,
 )
-from pantaray_agents.agents.suggestion_agent.react import SUGGESTION_TOOL_IDS
 from pantaray_agents.local_runtime.memory_catalog.artifact_domain_publication import (
     FactArtifactPublication,
     LongTermInsightArtifactPublication,
@@ -938,7 +937,6 @@ def test_suggestion_research_tool_set_is_read_only(
         user_id="user-1",
         run_id="suggestion-1",
     )
-    assert tuple(definition.name for definition in definitions) == SUGGESTION_TOOL_IDS
     names = {definition.name for definition in definitions}
 
     assert names == {

@@ -14,9 +14,11 @@ from pantaray_agents.local_runtime.tooling.memory_retrieval import (
 from pantaray_agents.local_runtime.tooling.react_tools import (
     ReadOnlyFileToolSession,
     WebResearchToolSession,
+    WorkspaceReadRoot,
     memory_revision_by_source,
 )
 
+from .commands import SuggestionCommandSession
 from .snapshot import SuggestionResearchSnapshot
 from .zanei import InsightActivityStart, SuggestionZaneiSession
 
@@ -75,6 +77,21 @@ class LocalSuggestionResearchTools:
                 reader=SourceReader(context_source_control.gate),
                 start=self.activity_start,
             ).definitions(),
+            *(
+                SuggestionCommandSession(
+                    db_path=self.db_path,
+                    busy_timeout_ms=self.busy_timeout_ms,
+                    user_id=user_id,
+                    workspace_roots=tuple(
+                        root.canonical_path
+                        for root in self.snapshot.roots
+                        if isinstance(root, WorkspaceReadRoot)
+                    ),
+                    read_access_scope=self.snapshot.read_access_scope,
+                ).definitions()
+                if self.snapshot.commands_allowed
+                else ()
+            ),
         )
 
 
