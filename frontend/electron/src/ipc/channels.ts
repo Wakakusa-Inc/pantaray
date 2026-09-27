@@ -47,6 +47,8 @@ export const validReceiveChannels = [
   'recording:gateStateChanged',
   // UI language change
   'ui:languageChanged',
+  // A downloaded update became ready: re-read the notice
+  'update:readyNoticeChanged',
 ] as const;
 
 export const validInvokeChannels = [
@@ -109,6 +111,10 @@ export const validInvokeChannels = [
   // UI language (SSOT)
   'ui:getLanguage',
   'ui:setLanguage',
+  // Update ready notice (main window)
+  'update:getReadyNotice',
+  'update:dismissReadyNotice',
+  'update:restartToUpdate',
   // Recording filter (apps / websites, exclude or include-only)
   'privacy:getCaptureSettings',
   'privacy:updateCaptureSettings',

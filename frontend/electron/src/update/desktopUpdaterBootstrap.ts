@@ -13,8 +13,7 @@ type LoggerLike = {
 
 type UpdateUiLike = {
   getUpdateMenuCopy(language: UiLanguage): UpdateMenuCopy;
-  rebuildTrayMenu(): void;
-  rebuildAppMenu(): void;
+  handleUpdateDownloaded(): void;
   handleNoUpdateAvailable(text: UpdateMenuCopy): void;
   handleUpdateCheckFailed(text: UpdateMenuCopy): void;
 };
@@ -37,10 +36,7 @@ export function createDesktopUpdaterForMain(params: {
         message: text.downloadingBody,
       });
     },
-    onUpdateDownloaded: () => {
-      params.updateUi.rebuildTrayMenu();
-      params.updateUi.rebuildAppMenu();
-    },
+    onUpdateDownloaded: () => params.updateUi.handleUpdateDownloaded(),
     onUpdateNotAvailable: ({ reason }) => {
       if (reason !== 'manual') return;
       params.updateUi.handleNoUpdateAvailable(

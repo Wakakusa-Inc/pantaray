@@ -297,6 +297,11 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
         actionFiles: {
           open: ({ path }) => shell.showItemInFolder(path),
         },
+        update: {
+          getReadyNotice: params.updateUi.getReadyNotice,
+          dismissReadyNotice: params.updateUi.dismissReadyNotice,
+          restartToUpdate: params.updateUi.restartToUpdate,
+        },
         actions: {
           ...actions,
           readConversationPage: (request) =>

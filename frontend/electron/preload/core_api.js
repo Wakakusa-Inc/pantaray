@@ -43,6 +43,16 @@ function createCoreApi({ ipcRenderer, ipcPolicy, initialUiLanguage, processRef }
         return () => ipcRenderer.removeListener('ui:languageChanged', listener);
       },
     },
+    update: {
+      getReadyNotice: () => ipcRenderer.invoke('update:getReadyNotice'),
+      dismissReadyNotice: () => ipcRenderer.invoke('update:dismissReadyNotice'),
+      restartToUpdate: () => ipcRenderer.invoke('update:restartToUpdate'),
+      onReadyNoticeChanged: (callback) => {
+        const listener = () => callback();
+        ipcRenderer.on('update:readyNoticeChanged', listener);
+        return () => ipcRenderer.removeListener('update:readyNoticeChanged', listener);
+      },
+    },
   };
 }
 

@@ -25,6 +25,7 @@ import { registerShortcutHandlers } from './handlers/shortcut';
 import { registerShareHandlers } from './handlers/share';
 import { registerShareCardHandlers } from './handlers/shareCard';
 import { registerUiLanguageHandlers } from './handlers/uiLanguage';
+import { registerUpdateHandlers } from './handlers/update';
 import { registerWindowHandlers } from './handlers/window';
 import { registerWorkspaceSettingsHandlers } from './handlers/workspaceSettings';
 import { registerWsBridgeHandlers } from './handlers/wsBridge';
@@ -50,6 +51,7 @@ export function registerAllIpcHandlers(ctx: MainContext): RegisterAllResult {
   registerActionImageHandlers(ctx, registrar);
   registerHistoryHandlers(ctx, registrar);
   registerUiLanguageHandlers(ctx, registrar);
+  registerUpdateHandlers(ctx, registrar);
   registerScreenshotHandlers(ctx, registrar);
   registerShareHandlers(ctx, registrar);
   registerShareCardHandlers(ctx, registrar);
