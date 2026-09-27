@@ -149,3 +149,60 @@ test('test-channel versions accept prereleases and unpackaged builds never check
   assert.equal(autoUpdater.allowPrerelease, true);
   assert.deepEqual(calls, []);
 });
+
+test('a downloaded update becomes the main window notice and restarts through the menu path', () => {
+  const { createUpdateUiManager } = require('../electron/dist/main_runtime/updateUi.js');
+  const handlers = new Map();
+  const calls = [];
+  const sent = [];
+  let trayMenu = null;
+  const app = { isPackaged: true, getVersion: () => '0.2.1', exit: () => {} };
+  const autoUpdater = createAutoUpdater();
+  autoUpdater.on = (event, handler) => handlers.set(event, handler);
+  autoUpdater.quitAndInstall = () => calls.push('quitAndInstall');
+
+  withDesktopUpdaterMocks({ app, autoUpdater, timers: { setTimeout: () => 1 } }, (module) => {
+    let updater = null;
+    const updateUi = createUpdateUiManager({
+      app,
+      menu: { buildFromTemplate: (template) => ({ template }), setApplicationMenu: () => {} },
+      getUiLanguage: () => 'en',
+      getDesktopUpdater: () => updater,
+      getTray: () => ({
+        setContextMenu: (menu) => {
+          trayMenu = menu;
+        },
+        setToolTip: () => {},
+      }),
+      getMainWindow: () => ({
+        isDestroyed: () => false,
+        webContents: { send: (channel) => sent.push(channel) },
+      }),
+      getGlobalShortcutAccelerator: () => null,
+      setTrayStatusVisual: () => {},
+      onQuitRequested: () => calls.push('quitRequested'),
+    });
+    updater = module.createDesktopUpdater({
+      logger: null,
+      onUpdateDownloaded: () => updateUi.handleUpdateDownloaded(),
+    });
+
+    // Nothing downloaded: no notice, and a restart request does not quit the app.
+    handlers.get('update-available')({ version: '0.2.2' });
+    assert.equal(updateUi.getReadyNotice(), null);
+    updateUi.restartToUpdate();
+    assert.deepEqual(calls, []);
+
+    handlers.get('update-downloaded')({ version: '0.2.2' });
+    assert.deepEqual(sent, ['update:readyNoticeChanged']);
+    assert.deepEqual(updateUi.getReadyNotice(), { version: '0.2.2' });
+
+    trayMenu.template.find((item) => item.label === 'Restart to update').click();
+    updateUi.restartToUpdate();
+    assert.deepEqual(calls, ['quitRequested', 'quitAndInstall', 'quitRequested', 'quitAndInstall']);
+
+    // "Later" holds for the app run, so a reopened main window reads no notice either.
+    updateUi.dismissReadyNotice();
+    assert.equal(updateUi.getReadyNotice(), null);
+  });
+});

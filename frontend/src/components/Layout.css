@@ -42,3 +42,56 @@
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 4px;
 }
+
+/* In the shell's flow, below the page, so it never covers what the page shows. */
+.app-update-notice-region {
+  flex-shrink: 0;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.app-update-notice {
+  margin: 0 var(--space-lg) var(--space-lg);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-lg);
+  border: 1px solid var(--border-color-hover);
+  border-radius: 8px;
+  background: #20252d;
+  color: var(--text-primary);
+  font-size: var(--text-ui-size-sm);
+}
+
+.app-update-notice p {
+  margin: 0;
+}
+
+.app-update-notice button {
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 12px;
+}
+
+.app-update-notice-restart {
+  background: #dfe7f0;
+  color: #171b21;
+  font-weight: var(--weight-semibold);
+}
+
+.app-update-notice-later {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.app-update-notice-later:hover {
+  color: var(--text-primary);
+}
+
+.app-update-notice button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+}
