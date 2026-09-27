@@ -348,3 +348,48 @@ async def test_a_run_that_ends_on_a_replaced_route_publishes_no_memory(
     assert heads == []
     assert completed == (0,)
     assert job_row == ("queued", None)
+
+
+class _AgentThatMustNotRun(_ScriptedMemoryAgent):
+    async def update(
+        self,
+        context: MemoryUpdateContext,
+        *,
+        tool_definitions: tuple[ReactToolDefinition, ...],
+        tool_result_directory_fd: int,
+    ) -> MemoryUpdateAgentResult:
+        raise AssertionError("a run with every input deleted has nothing to read")
+
+
+@pytest.mark.asyncio
+async def test_a_run_whose_every_action_was_deleted_completes_as_a_no_op(
+    tmp_path: Path,
+) -> None:
+    runtime = _bootstrap(tmp_path)
+    payload = _claimed_payload(runtime)
+    payload["summary_ids"] = []
+    payload["action_terminals"] = [
+        {
+            "source_id": "action-deleted",
+            "action_id": "action-deleted",
+            "action_completed_at": TRIGGER_AT,
+            "turn_start_step_number": 1,
+            "turn_end_step_number": 2,
+            "action_prompt_name": "action/executing",
+            "action_prompt_version": "1.0",
+        }
+    ]
+
+    await execute_memory_update_job(
+        payload=payload, runtime=runtime, build_agent=_builder(_AgentThatMustNotRun(()))
+    )
+
+    with sqlite3.connect(runtime.db_path) as connection:
+        completed = connection.execute(
+            """SELECT payload_json FROM process_events
+               WHERE process_id = ? AND event_name = 'memory_update_completed'""",
+            (payload["process_id"],),
+        ).fetchall()
+        nodes = connection.execute("SELECT COUNT(*) FROM memory_nodes").fetchone()
+    assert [json.loads(str(row[0])) for row in completed] == [{"published_sources": []}]
+    assert nodes == (0,)

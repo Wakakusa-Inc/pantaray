@@ -8,6 +8,7 @@ A category the agent left untouched publishes nothing.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
@@ -25,6 +26,9 @@ from pantaray_agents.local_runtime.memory_catalog.artifact_domain_publication im
     LongTermInsightArtifactPublication,
     publish_fact_artifact,
     publish_long_term_insight_artifact,
+)
+from pantaray_agents.local_runtime.memory_catalog.artifact_workspace import (
+    drop_links_to_deleted_targets,
 )
 from pantaray_agents.local_runtime.memory_catalog.connection import (
     open_memory_catalog_connection,
@@ -58,6 +62,8 @@ from pantaray_agents.local_runtime.tooling.memory_file_editor import (
 from pantaray_agents.tasks.memory_update_context import PreparedMemoryUpdateRun
 from pantaray_agents.tasks.types import MemoryUpdateJobPayload
 
+logger = logging.getLogger(__name__)
+
 type ProfileBriefBuilder = Callable[[MemorySource, str], Awaitable[str]]
 
 
@@ -77,6 +83,7 @@ async def publish_memory_update_run(
         if draft.draft_revision == base.draft_revision:
             _discard_unpublished_node(runtime=runtime, draft=draft)
             continue
+        draft = _without_deleted_targets(runtime=runtime, draft=draft)
         if route.source == "agent_experience":
             _publish_agent_experience(
                 runtime=runtime,
@@ -156,6 +163,22 @@ def _publish_agent_experience(
         artifact_root=runtime.artifact_root,
         publication=AgentExperiencePublication(binding=binding, draft=indexed),
     )
+
+
+def _without_deleted_targets(
+    *, runtime: LocalMemoryFileEditorRuntime, draft: MemoryDraftCheckpoint
+) -> MemoryDraftCheckpoint:
+    """A conversation deleted mid-run takes the refs into its copies with it."""
+
+    with open_memory_catalog_connection(
+        db_path=runtime.db_path, busy_timeout_ms=runtime.busy_timeout_ms
+    ) as connection:
+        published, dropped = drop_links_to_deleted_targets(
+            connection=connection, draft=draft
+        )
+    if dropped:
+        logger.info("Memory update dropped %d refs to deleted memory", dropped)
+    return published
 
 
 def _discard_unpublished_node(
