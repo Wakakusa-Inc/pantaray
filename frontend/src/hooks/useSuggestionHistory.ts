@@ -20,6 +20,8 @@ type UseSuggestionHistoryResult = {
   hasMore: boolean;
   isRealtimeSyncing: boolean;
   isUnread: (item: ConversationHistoryListItem) => boolean;
+  /** Drops a row whose conversation was deleted. */
+  removeItem: (identity: string) => void;
 };
 
 const DEFAULT_FILTERS: SuggestionHistoryFilters = { status: 'all', searchText: '' };
@@ -32,7 +34,7 @@ export function limitHistorySearchText(searchText: string): string {
   return [...searchText].slice(0, HISTORY_MAX_SEARCH_CODE_POINTS).join('');
 }
 
-function itemIdentity(item: ConversationHistoryListItem): string {
+export function itemIdentity(item: ConversationHistoryListItem): string {
   return item.kind === 'conversation'
     ? `conversation:${item.action_id}`
     : `suggestion:${item.suggestion_id}`;
@@ -208,6 +210,15 @@ export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
     };
   }, [clearPendingRefresh, runFetch]);
 
+  const removeItem = useCallback(
+    (identity: string) => {
+      setItems((current) => current.filter((item) => itemIdentity(item) !== identity));
+      // A page read before the delete committed would bring the row back; this read replaces it.
+      void runFetch(null, true);
+    },
+    [runFetch]
+  );
+
   const isUnread = useCallback(
     (item: ConversationHistoryListItem) =>
       item.kind === 'conversation' &&
@@ -227,5 +238,6 @@ export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
     hasMore: nextCursor !== null,
     isRealtimeSyncing,
     isUnread,
+    removeItem,
   };
 };

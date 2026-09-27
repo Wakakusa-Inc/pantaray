@@ -47,6 +47,7 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
   const overlayFactoryCalls = [];
   let openNewConversationCalls = 0;
   const openActionConversationCalls = [];
+  const deleteItemCalls = [];
   const shortcutInputs = [];
   const updateCalls = [];
   const ctx = {
@@ -83,6 +84,10 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
     history: {
       fetch: async (_params) => ({ data: [], error: null }),
       markCompletionViewed: () => {},
+      deleteItem: async (request) => {
+        deleteItemCalls.push(request);
+        return { ok: true };
+      },
     },
     ui: {
       getLanguage: () => 'en',
@@ -191,6 +196,17 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
   assert.equal(await openConversation({}, { actionId: 'action-1' }), 'created');
   assert.deepEqual(openActionConversationCalls, ['action-1']);
   await assert.rejects(async () => openConversation({}, { actionId: ' ' }));
+
+  const deleteItem = fakeIpc.invokeHandlers.get('history:deleteItem');
+  assert.deepEqual(await deleteItem({}, { kind: 'suggestion', id: 'suggestion-1' }), { ok: true });
+  for (const invalid of [
+    { kind: 'process', id: 'process-1' },
+    { kind: 'conversation', id: ' action-1' },
+    { kind: 'conversation', id: 'action-1', extra: true },
+  ]) {
+    await assert.rejects(async () => deleteItem({}, invalid), /history:deleteItem/);
+  }
+  assert.deepEqual(deleteItemCalls, [{ kind: 'suggestion', id: 'suggestion-1' }]);
 
   const setShortcut = fakeIpc.invokeHandlers.get('shortcut:setAccelerator');
   assert.deepEqual(await setShortcut({}, '  Command+K  '), {

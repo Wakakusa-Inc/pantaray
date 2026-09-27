@@ -162,6 +162,20 @@ test('local backend client は未許可 path/method を token 送信前に拒否
     await assert.rejects(() =>
       client.requestJson({ path: '/v1/agents/users/user-1/actions/messages', method: 'GET' })
     );
+    // Deleting a history row is DELETE on a conversation or a Suggestion, and nothing else.
+    for (const [path, method] of [
+      ['/api/agent/history/items/conversation/action-1', 'GET'],
+      ['/api/agent/history/items/process/process-1', 'DELETE'],
+      ['/api/agent/history/items/conversation/action-1/extra', 'DELETE'],
+      ['/api/agent/history', 'DELETE'],
+    ]) {
+      await assert.rejects(
+        () => client.requestJson({ path, method }),
+        (error) =>
+          error instanceof LocalBackendRequestError &&
+          error.message === 'Local backend route is not allowed.'
+      );
+    }
     for (const method of ['GET', 'PUT', 'DELETE']) {
       await assert.rejects(
         () => client.requestJson({ path: '/local/action-screen-capture', method }),
@@ -192,6 +206,8 @@ test('local backend client の route allowlist は現在の全 call site を許�
     ['/local/action-screen-capture', 'POST'],
     ['/api/agent/history', 'GET'],
     ['/api/agent/history/suggestion-1/overlay-bootstrap', 'GET'],
+    ['/api/agent/history/items/conversation/action-1', 'DELETE'],
+    ['/api/agent/history/items/suggestion/suggestion-1', 'DELETE'],
     ['/v1/agents/users/user-1/actions/action-1/approvals', 'POST'],
     ['/v1/agents/users/user-1/actions/action-1/approval-mode', 'GET'],
     ['/v1/agents/users/user-1/actions/action-1/approval-mode', 'PUT'],
@@ -293,6 +309,22 @@ test('local backend client は public type を保持し nested error_code を優
         error instanceof LocalBackendRequestError &&
         error.errorCode === 'APPROVAL_DECISION_CONFLICT' &&
         error.message === 'Approval conflict.'
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('local backend client は本文のない 204 を成功として返す', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(null, { status: 204 });
+  try {
+    assert.equal(
+      await readyClient.requestJson({
+        path: '/api/agent/history/items/conversation/action-1',
+        method: 'DELETE',
+      }),
+      undefined
     );
   } finally {
     globalThis.fetch = originalFetch;

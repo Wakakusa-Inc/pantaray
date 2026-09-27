@@ -1,7 +1,9 @@
-import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
+import { useLayoutEffect, useState } from 'react';
 
+import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
 import { HistoryCaptureControls } from '@/components/history/HistoryCaptureControls';
+import { HistoryDeleteDialog } from '@/components/history/HistoryDeleteDialog';
 import HistoryFilterBar from '@/components/history/HistoryFilterBar';
 import { getConversationHistoryStatusMeta } from '@/components/history/statusTokens';
 import { ShortcutHint, ShortcutKeycaps } from '@/components/shortcut/ShortcutHint';
@@ -10,10 +12,39 @@ import {
   type ShortcutHintState,
 } from '@/components/shortcut/useGlobalShortcutHint';
 import { useI18n } from '@/context/useI18n';
-import { useSuggestionHistory } from '@/hooks/useSuggestionHistory';
+import { itemIdentity, useSuggestionHistory } from '@/hooks/useSuggestionHistory';
 import type { MessageKey } from '@/i18n/types';
 
 import './suggestionHistoryPage.css';
+
+const NEW_CONVERSATION_BUTTON_ID = 'history-new-conversation';
+const openButtonId = (identity: string) => `history-open:${identity}`;
+const deleteButtonId = (identity: string) => `history-delete:${identity}`;
+
+/**
+ * A running or approval-waiting conversation is one whose own run the backend refuses to delete
+ * (409 `CONVERSATION_BUSY`). A Suggestion's `approval_pending` only waits for the user's answer.
+ */
+function isDeleteBlocked(item: ConversationHistoryListItem): boolean {
+  return item.kind === 'conversation' && item.status !== 'idle';
+}
+
+function deleteFailureMessageKey(errorCode: string | null): MessageKey {
+  if (errorCode === 'CONVERSATION_BUSY') return 'history.delete.busy';
+  if (errorCode === 'AUTHENTICATION_REQUIRED') return 'history.error.authenticationRequired';
+  return 'history.delete.failed';
+}
+
+async function deleteHistoryItem(item: ConversationHistoryListItem): Promise<MessageKey | null> {
+  const deleteItem = window.electron?.history?.deleteItem;
+  if (!deleteItem) throw new Error('History delete bridge is unavailable.');
+  const result = await deleteItem(
+    item.kind === 'conversation'
+      ? { kind: 'conversation', id: item.action_id }
+      : { kind: 'suggestion', id: item.suggestion_id }
+  );
+  return result.ok ? null : deleteFailureMessageKey(result.errorCode);
+}
 
 function openSuggestionHistory(suggestionId: string): void {
   const showHistory = window.electron?.agentOverlay?.showHistory;
@@ -69,24 +100,66 @@ const SuggestionHistoryPage = () => {
     loadMore,
     hasMore,
     isUnread,
+    removeItem,
   } = useSuggestionHistory();
   const { t, formatDateTime } = useI18n();
-  const [overlayError, setOverlayError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<ConversationHistoryListItem | null>(
+    null
+  );
+  const [deletingIdentity, setDeletingIdentity] = useState<string | null>(null);
+  const [focusTargetId, setFocusTargetId] = useState<string | null>(null);
   const shortcutHint = useGlobalShortcutHint();
+  useLayoutEffect(() => {
+    if (focusTargetId === null) return;
+    document.getElementById(focusTargetId)?.focus();
+    setFocusTargetId(null);
+  }, [focusTargetId]);
+
+  const cancelDelete = (): void => {
+    if (confirmingDelete) setFocusTargetId(deleteButtonId(itemIdentity(confirmingDelete)));
+    setConfirmingDelete(null);
+  };
+  const confirmDelete = async (): Promise<void> => {
+    const item = confirmingDelete;
+    if (!item) return;
+    const identity = itemIdentity(item);
+    const identities = items.map(itemIdentity);
+    const index = identities.indexOf(identity);
+    const successor = identities[index + 1] ?? identities[index - 1];
+    setConfirmingDelete(null);
+    setDeletingIdentity(identity);
+    setNotice(null);
+    let failureKey: MessageKey | null;
+    try {
+      failureKey = await deleteHistoryItem(item);
+    } catch {
+      failureKey = 'history.delete.failed';
+    } finally {
+      setDeletingIdentity(null);
+    }
+    if (failureKey !== null) {
+      setNotice(t(failureKey));
+      setFocusTargetId(deleteButtonId(identity));
+      return;
+    }
+    removeItem(identity);
+    setFocusTargetId(successor ? openButtonId(successor) : NEW_CONVERSATION_BUTTON_ID);
+  };
   const handleNewConversation = async (): Promise<void> => {
-    setOverlayError(null);
+    setNotice(null);
     try {
       await openNewConversation();
     } catch {
-      setOverlayError(t('history.openOverlayFailed'));
+      setNotice(t('history.openOverlayFailed'));
     }
   };
   const handleConversation = async (actionId: string): Promise<void> => {
-    setOverlayError(null);
+    setNotice(null);
     try {
       await openConversation(actionId);
     } catch {
-      setOverlayError(t('history.openOverlayFailed'));
+      setNotice(t('history.openOverlayFailed'));
     }
   };
   const renderContent = () => {
@@ -137,21 +210,34 @@ const SuggestionHistoryPage = () => {
             <div key={identity} className="history-item">
               <button
                 type="button"
+                id={openButtonId(identity)}
                 className="history-item-button"
                 onClick={() => {
                   if (item.kind === 'conversation') {
                     void handleConversation(item.action_id);
                     return;
                   }
-                  setOverlayError(null);
+                  setNotice(null);
                   try {
                     openSuggestionHistory(item.suggestion_id);
                   } catch {
-                    setOverlayError(t('history.openOverlayFailed'));
+                    setNotice(t('history.openOverlayFailed'));
                   }
                 }}
               >
                 {content}
+              </button>
+              <button
+                type="button"
+                id={deleteButtonId(identity)}
+                className="history-item-delete"
+                aria-label={`${t('common.delete')} ${item.title}`}
+                title={t('common.delete')}
+                aria-busy={deletingIdentity === identity}
+                disabled={isDeleteBlocked(item) || deletingIdentity !== null}
+                onClick={() => setConfirmingDelete(item)}
+              >
+                <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
           );
@@ -182,6 +268,7 @@ const SuggestionHistoryPage = () => {
           <ShortcutHint state={shortcutHint} t={t} />
           <button
             type="button"
+            id={NEW_CONVERSATION_BUTTON_ID}
             className="history-filter-button history-new-conversation__button"
             onClick={() => void handleNewConversation()}
           >
@@ -196,13 +283,16 @@ const SuggestionHistoryPage = () => {
           disabled={loading}
         />
         {isRealtimeSyncing ? <div className="history-sync">{t('history.syncing')}</div> : null}
-        {overlayError ? (
+        {notice ? (
           <div className="history-error" role="alert">
-            {overlayError}
+            {notice}
           </div>
         ) : null}
       </div>
       {renderContent()}
+      {confirmingDelete ? (
+        <HistoryDeleteDialog t={t} onCancel={cancelDelete} onConfirm={() => void confirmDelete()} />
+      ) : null}
       <HistoryCaptureControls />
     </div>
   );

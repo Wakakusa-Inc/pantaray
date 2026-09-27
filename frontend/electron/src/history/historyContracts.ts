@@ -66,8 +66,17 @@ export const ConversationHistoryPageSchema = z
   })
   .strict();
 
+/** One history row, named the way `DELETE /api/agent/history/items/{kind}/{id}` names it. */
+export const HistoryItemDeleteRequestSchema = z
+  .object({
+    kind: z.enum(['conversation', 'suggestion']),
+    id: canonicalIdentitySchema,
+  })
+  .strict();
+
 export type ConversationHistoryStatus = z.infer<typeof ConversationHistoryStatusSchema>;
 export type ConversationHistoryListItem = z.infer<
   typeof ConversationHistoryPageSchema
 >['items'][number];
 export type ConversationHistoryRequest = z.infer<typeof ConversationHistoryRequestSchema>;
+export type HistoryItemDeleteRequest = z.infer<typeof HistoryItemDeleteRequestSchema>;
