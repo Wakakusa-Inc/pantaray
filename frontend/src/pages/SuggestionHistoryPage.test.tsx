@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
 
 import { COMMON_MESSAGES } from '@/i18n/messageCatalog/common';
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   loading: false,
   loadMore: vi.fn(),
   markCompletionViewed: vi.fn(async () => undefined),
+  removeItem: vi.fn(),
   setFilters: vi.fn(),
   unreadActionId: 'A1' as string | null,
 }));
@@ -59,11 +60,28 @@ vi.mock('@/hooks/useSuggestionHistory', async (importOriginal) => ({
     loadMore: mocks.loadMore,
     hasMore: true,
     isUnread: (item: { action_id?: string }) => item.action_id === mocks.unreadActionId,
+    removeItem: mocks.removeItem,
   }),
 }));
 
+const originalShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, 'showModal');
+
+beforeEach(() => {
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    },
+  });
+});
+
 afterEach(() => {
   cleanup();
+  if (originalShowModal) {
+    Object.defineProperty(HTMLDialogElement.prototype, 'showModal', originalShowModal);
+  } else {
+    Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+  }
   mocks.error = 'history.error.fetchFailed';
   mocks.itemsOverride = null;
   mocks.loading = false;
@@ -174,7 +192,7 @@ it('Conversation行はOverlayを開き、実際の表示前に既読にしない
   expect(mocks.markCompletionViewed).not.toHaveBeenCalled();
   expect(screen.queryByRole('region', { name: 'history.detail.conversation' })).toBeNull();
 
-  fireEvent.click(screen.getByRole('button', { name: /Suggestion/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Suggestion/ }));
   expect(showHistory).toHaveBeenCalledWith({
     suggestionId: 'S1',
     initialUiState: { expand: true },
@@ -254,4 +272,117 @@ it('バッジは running / approval_pending だけに出し、idle には出さ�
     'history.status.running',
     'history.status.approvalPending',
   ]);
+});
+
+function installDeleteBridge(result: { ok: true } | { ok: false; errorCode: string | null }) {
+  const deleteItem = vi.fn(async () => result);
+  window.electron = { history: { deleteItem } } as unknown as Window['electron'];
+  mocks.error = null;
+  mocks.unreadActionId = null;
+  return deleteItem;
+}
+
+it('削除の確認はキャンセルが初期フォーカスで、キャンセルもEscも削除せず元のボタンへ戻る', async () => {
+  const deleteItem = installDeleteBridge({ ok: true });
+  render(<SuggestionHistoryPage />);
+
+  const trigger = screen.getByRole('button', { name: 'common.delete Conversation' });
+  await userEvent.click(trigger);
+  const dialog = screen.getByRole('dialog', { name: 'history.delete.confirmTitle' });
+  expect(dialog).toHaveAccessibleDescription('history.delete.confirmBody');
+  expect(screen.getByRole('button', { name: 'common.cancel' })).toHaveFocus();
+  await userEvent.keyboard('{Enter}');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(trigger).toHaveFocus();
+
+  await userEvent.click(trigger);
+  fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(trigger).toHaveFocus();
+  expect(deleteItem).not.toHaveBeenCalled();
+  expect(mocks.removeItem).not.toHaveBeenCalled();
+});
+
+it('削除すると行を一覧から外し、次の行へフォーカスを移す', async () => {
+  const deleteItem = installDeleteBridge({ ok: true });
+  render(<SuggestionHistoryPage />);
+
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete Conversation' }));
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete' }));
+  expect(deleteItem).toHaveBeenCalledWith({ kind: 'conversation', id: 'A1' });
+  expect(mocks.removeItem).toHaveBeenCalledWith('conversation:A1');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByRole('button', { name: /^Suggestion/ })).toHaveFocus();
+
+  // A Suggestion row is deleted the same way, by its own id.
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete Suggestion' }));
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete' }));
+  expect(deleteItem).toHaveBeenLastCalledWith({ kind: 'suggestion', id: 'S1' });
+});
+
+it('実行中で断られたら短い通知を出し、行を残して削除ボタンへ戻る', async () => {
+  installDeleteBridge({ ok: false, errorCode: 'CONVERSATION_BUSY' });
+  render(<SuggestionHistoryPage />);
+
+  const trigger = screen.getByRole('button', { name: 'common.delete Conversation' });
+  await userEvent.click(trigger);
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('history.delete.busy');
+  expect(mocks.removeItem).not.toHaveBeenCalled();
+  expect(trigger).toHaveFocus();
+  expect(HISTORY_MESSAGES.ja['history.delete.busy']).toBe(
+    'この会話は実行中のため、いまは削除できません。'
+  );
+});
+
+it('ほかの失敗は削除失敗として通知する', async () => {
+  const deleteItem = installDeleteBridge({
+    ok: false,
+    errorCode: 'CONVERSATION_HISTORY_DELETE_FAILED',
+  });
+  render(<SuggestionHistoryPage />);
+
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete Conversation' }));
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('history.delete.failed');
+
+  deleteItem.mockRejectedValueOnce(new Error('bridge failed'));
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete Conversation' }));
+  await userEvent.click(screen.getByRole('button', { name: 'common.delete' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('history.delete.failed');
+  expect(mocks.removeItem).not.toHaveBeenCalled();
+});
+
+it('実行中・確認待ちの会話は削除できず、返事待ちの提案は削除できる', () => {
+  installDeleteBridge({ ok: true });
+  mocks.itemsOverride = [
+    {
+      kind: 'conversation',
+      action_id: 'A-running',
+      title: 'Running',
+      updated_at: '2026-08-30T01:02:03.000Z',
+      status: 'running',
+      latest_completion_event_id: null,
+    },
+    {
+      kind: 'conversation',
+      action_id: 'A-approval',
+      title: 'Approval',
+      updated_at: '2026-08-30T01:02:03.000Z',
+      status: 'approval_pending',
+      latest_completion_event_id: null,
+    },
+    {
+      kind: 'suggestion',
+      suggestion_id: 'S-offer',
+      title: 'Offer',
+      updated_at: '2026-08-30T01:02:03.000Z',
+      status: 'approval_pending',
+    },
+  ];
+  render(<SuggestionHistoryPage />);
+
+  expect(screen.getByRole('button', { name: 'common.delete Running' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'common.delete Approval' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'common.delete Offer' })).toBeEnabled();
 });

@@ -38,7 +38,11 @@ import type { ActionImageMimeType } from '../../electron/src/protocol/imageStora
 import type { RecordingStartResult } from '../../electron/src/screenshot/screenshotSync';
 import type { HistoryFetchResult } from '../../electron/src/history/historyFetch';
 import type { ActionCompletionViewedRequest } from '../../electron/src/history/actionReadState';
-import type { ConversationHistoryRequest } from '../../electron/src/history/historyContracts';
+import type {
+  ConversationHistoryRequest,
+  HistoryItemDeleteRequest,
+} from '../../electron/src/history/historyContracts';
+import type { HistoryItemDeleteResult } from '../../electron/src/history/historyItemDelete';
 
 import type { CommandNetworkSettings } from '../../electron/src/settings/workspaceSettingsFetch';
 
@@ -232,6 +236,7 @@ declare global {
       history?: {
         fetch: (params: ConversationHistoryRequest) => Promise<HistoryFetchResult>;
         markCompletionViewed: (request: ActionCompletionViewedRequest) => Promise<void>;
+        deleteItem: (request: HistoryItemDeleteRequest) => Promise<HistoryItemDeleteResult>;
         openNewConversation: () => Promise<void>;
         /** Resolves to how the Overlay was shown, or why it was not (sign-in or recording). */
         openConversation: (request: {

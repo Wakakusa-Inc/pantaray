@@ -64,6 +64,7 @@ test('Action preload API forwards typed invokes and retains only the latest targ
   await api.history.markCompletionViewed(viewed);
   await api.history.openNewConversation();
   await api.history.openConversation({ actionId: 'a1' });
+  await api.history.deleteItem({ kind: 'conversation', id: 'a1' });
 
   assert.deepEqual(ipcRenderer.invoked, [
     ['action:submitMessage', submit],
@@ -72,6 +73,7 @@ test('Action preload API forwards typed invokes and retains only the latest targ
     ['history:markCompletionViewed', viewed],
     ['history:openNewConversation'],
     ['history:openConversation', { actionId: 'a1' }],
+    ['history:deleteItem', { kind: 'conversation', id: 'a1' }],
   ]);
 
   const latest = { kind: 'action_updated', snapshot: { actionId: 'a2', page: 2 } };
