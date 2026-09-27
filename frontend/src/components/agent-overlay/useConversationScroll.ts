@@ -11,6 +11,7 @@ const BOTTOM_TOLERANCE_PX = 2;
 
 export function useConversationScroll({
   actionId,
+  userTurnId,
   liveUpdate,
   paging,
   scrollRef,
@@ -18,6 +19,8 @@ export function useConversationScroll({
   answerRef,
 }: {
   actionId: string | null;
+  /** ID of the latest message or resume the user sent from this composer. */
+  userTurnId: string | null;
   liveUpdate: Pick<ActionLiveSnapshot, 'actionId' | 'lifecycle'> | null;
   paging: ConversationPagingState;
   scrollRef: RefObject<HTMLDivElement>;
@@ -26,8 +29,6 @@ export function useConversationScroll({
 }) {
   const position = useRef({ top: 0, atBottom: true, pageCount: 1 });
   const restored = useRef(false);
-  const previousPage = useRef(paging.currentPage);
-  const previousUpdate = useRef(liveUpdate);
   const ready = actionId !== null && paging.pages?.[0].action.action_id === actionId;
   const historyReady = paging.olderPageState === 'idle';
   const readyRef = useRef(ready);
@@ -50,8 +51,6 @@ export function useConversationScroll({
       pageCount: 1,
     };
     restored.current = false;
-    previousPage.current = null;
-    previousUpdate.current = null;
     const scroll = scrollRef.current;
     const content = contentRef.current;
     if (!actionId || !scroll || !content) return;
@@ -70,34 +69,26 @@ export function useConversationScroll({
     };
   }, [actionId, scrollRef, contentRef, save]);
 
+  // The user's own send or resume shows what it started, even from a scrolled-up position.
+  // Everything else, including a run that starts by itself, follows only from the bottom.
+  useLayoutEffect(() => {
+    if (userTurnId === null) return;
+    position.current.atBottom = true;
+    const scroll = scrollRef.current;
+    if (scroll && restored.current && readyRef.current) scroll.scrollTop = scroll.scrollHeight;
+  }, [userTurnId, scrollRef]);
+
   useLayoutEffect(() => {
     readyRef.current = ready;
     const scroll = scrollRef.current;
     if (!ready || !scroll) return;
-    const current = paging.currentPage;
-    const previous = previousPage.current;
-    // Replayed terminal snapshots must not displace a restored reading position.
-    const newActivity =
-      previous !== null &&
-      (current !== previous || liveUpdate !== previousUpdate.current) &&
-      (liveUpdate?.lifecycle?.status === 'processing' ||
-        current?.action.status === 'processing' ||
-        current?.action.status === 'queued' ||
-        previous?.action.status === 'processing' ||
-        previous?.action.status === 'queued' ||
-        current?.action.latest_run_id !== previous?.action.latest_run_id);
-    previousPage.current = current;
-    previousUpdate.current = liveUpdate;
-    // New activity takes precedence over a saved position. Without new activity,
-    // only a saved non-bottom position needs its complete history to restore.
-    if (!restored.current && !position.current.atBottom && !historyReady && !newActivity) return;
-    const showLatest = position.current.atBottom || newActivity;
-    if (showLatest) {
+    // Only a saved non-bottom position needs its complete history to restore.
+    if (!restored.current && !position.current.atBottom && !historyReady) return;
+    if (position.current.atBottom) {
       const item = answerRef.current?.querySelector('.action-conversation__items > li:last-child');
       const line = item?.querySelector('.action-conversation__run')?.lastElementChild;
       (line ?? item)?.scrollIntoView({ block: 'end' });
       scroll.scrollTop = scroll.scrollHeight;
-      position.current.atBottom = true;
     } else if (!restored.current) {
       scroll.scrollTop = position.current.top;
     }

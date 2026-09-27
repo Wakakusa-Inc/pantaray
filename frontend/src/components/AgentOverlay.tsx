@@ -200,6 +200,8 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
   const lifecycle = liveState?.actionId === conversationActionId ? liveState.lifecycle : null;
   useConversationScroll({
     actionId: conversationActionId,
+    userTurnId:
+      composer.submission?.request.message.message_id ?? composer.resume?.messageId ?? null,
     liveUpdate: liveState,
     paging,
     scrollRef: ctrl.scrollableContentRef,
