@@ -74,10 +74,12 @@ export function WorkspaceSettingsSection({ t }: WorkspaceSettingsSectionProps) {
                 projects={settings.projects}
                 folders={settings.folders}
                 disabled={controller.isProjectStructurePending}
+                organizationCreateBusy={isPending(workspacePendingKey.organizationCreate)}
                 dragController={controller.dragController}
                 statusMessage={controller.errorMessage ?? undefined}
                 t={t}
                 onCreateFolder={controller.createFolder}
+                onCreateOrganization={controller.addOrganization}
                 onSelectFolder={controller.selectFolder}
                 onDeleteProject={controller.deleteProject}
                 onDeleteFolder={controller.deleteFolder}

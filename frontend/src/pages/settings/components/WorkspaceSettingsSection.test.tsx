@@ -111,6 +111,29 @@ function installProjectOrganizationSettings(
   return workspaceSettings;
 }
 
+type CreateOrganization = (input: { displayName: string }) => Promise<WorkspaceOrganization>;
+
+function installOrganizationPickerSettings(
+  organizations: WorkspaceOrganization[],
+  createImplementation: CreateOrganization
+) {
+  const workspaceSettings = installProjectOrganizationSettings([]);
+  workspaceSettings.get.mockResolvedValue({
+    read_access_scope: 'workspace',
+    organizations: organizations.map((organization) => ({ ...organization })),
+    projects: [{ project_id: 'project-a', display_name: 'Project A', organization_ids: [] }],
+    folders: [],
+  });
+  workspaceSettings.createOrganization.mockImplementation(createImplementation);
+  return workspaceSettings;
+}
+
+async function openProjectOrganizationPicker(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByText('Project A');
+  await user.click(screen.getByRole('button', { name: 'Project Aの組織を選択' }));
+  return screen.getByRole('dialog', { name: 'Project Aの組織を選択' });
+}
+
 type DeleteOrganization = (organizationId: string) => Promise<void>;
 type DeleteFolder = (folderId: string) => Promise<void>;
 
@@ -1133,6 +1156,100 @@ describe('WorkspaceSettingsSection', () => {
       expect(screen.queryByRole('dialog', { name: 'Project Aの組織を選択' })).toBeNull();
       expect(addTrigger).toHaveFocus();
     });
+  });
+
+  it('creates an organization from the project picker and links it to that project', async () => {
+    const user = userEvent.setup();
+    const workspaceSettings = installOrganizationPickerSettings(
+      [{ organization_id: 'org-a', display_name: 'Northwind' }],
+      async ({ displayName }) => ({ organization_id: 'org-new', display_name: displayName })
+    );
+
+    renderWorkspaceSettingsSection(japaneseTranslate);
+    const picker = await openProjectOrganizationPicker(user);
+    expect(within(picker).getByRole('button', { name: 'Northwind' })).toBeInTheDocument();
+    await user.click(within(picker).getByRole('button', { name: '組織を追加' }));
+    expect(within(picker).getByRole('textbox', { name: '組織名' })).toHaveFocus();
+    await user.keyboard('Acme{Enter}');
+
+    await waitFor(() => {
+      expect(workspaceSettings.createOrganization).toHaveBeenCalledWith({ displayName: 'Acme' });
+      expect(workspaceSettings.updateProjectLinks).toHaveBeenCalledWith('project-a', {
+        organizationIds: ['org-new'],
+      });
+      expect(screen.queryByRole('dialog', { name: 'Project Aの組織を選択' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Acmeを外す' })).toHaveFocus();
+    });
+  });
+
+  it('returns from the new organization field to the list with Escape', async () => {
+    const user = userEvent.setup();
+    const workspaceSettings = installOrganizationPickerSettings(
+      [{ organization_id: 'org-a', display_name: 'Northwind' }],
+      async () => {
+        throw new Error('not expected');
+      }
+    );
+
+    renderWorkspaceSettingsSection(japaneseTranslate);
+    const picker = await openProjectOrganizationPicker(user);
+    await user.click(within(picker).getByRole('button', { name: '組織を追加' }));
+    await user.keyboard('Acme{Escape}');
+
+    expect(screen.getByRole('dialog', { name: 'Project Aの組織を選択' })).toBe(picker);
+    expect(within(picker).queryByRole('textbox')).toBeNull();
+    expect(within(picker).getByRole('button', { name: 'Northwind' })).toBeInTheDocument();
+    expect(within(picker).getByRole('button', { name: '組織を追加' })).toHaveFocus();
+    expect(workspaceSettings.createOrganization).not.toHaveBeenCalled();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Project Aの組織を選択' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Project Aの組織を選択' })).toHaveFocus();
+  });
+
+  it('offers only adding an organization when none exist', async () => {
+    const user = userEvent.setup();
+    installOrganizationPickerSettings([], async ({ displayName }) => ({
+      organization_id: 'org-new',
+      display_name: displayName,
+    }));
+
+    renderWorkspaceSettingsSection(japaneseTranslate);
+    const picker = await openProjectOrganizationPicker(user);
+
+    const options = within(picker).getAllByRole('button');
+    expect(options).toHaveLength(1);
+    expect(options[0]).toHaveAccessibleName('組織を追加');
+    expect(options[0]).toHaveFocus();
+    expect(within(picker).queryByRole('group')).toBeNull();
+  });
+
+  it('keeps the draft open without linking when organization creation is refused', async () => {
+    const user = userEvent.setup();
+    const workspaceSettings = installOrganizationPickerSettings([], async () => {
+      throw new Error('create failed');
+    });
+
+    renderWorkspaceSettingsSection(japaneseTranslate);
+    const picker = await openProjectOrganizationPicker(user);
+    await user.click(within(picker).getByRole('button', { name: '組織を追加' }));
+    const input = within(picker).getByRole('textbox', { name: '組織名' });
+
+    await user.keyboard('   {Enter}');
+    expect(workspaceSettings.createOrganization).not.toHaveBeenCalled();
+
+    await user.clear(input);
+    await user.keyboard('Acme{Enter}');
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        japaneseTranslate('settings.workspace.saveFailed')
+      );
+    });
+    expect(workspaceSettings.createOrganization).toHaveBeenCalledWith({ displayName: 'Acme' });
+    expect(workspaceSettings.updateProjectLinks).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Project Aの組織を選択' })).toBe(picker);
+    expect(input).toHaveValue('Acme');
+    expect(input).toHaveFocus();
   });
 
   it('restores the selected remove chip focus when organization removal fails', async () => {

@@ -17,11 +17,13 @@ interface WorkspaceProjectListProps {
   disabled: boolean;
   dragController: WorkspaceProjectDragController;
   folders: WorkspaceFolder[];
+  organizationCreateBusy: boolean;
   organizations: WorkspaceOrganization[];
   projects: WorkspaceProject[];
   statusMessage?: string;
   t: Translate;
   onCreateFolder: (input: WorkspaceFolderCreateInput) => Promise<boolean>;
+  onCreateOrganization: (displayName: string) => Promise<string | null>;
   onDeleteFolder: (folderId: string, focus: FocusRequest) => Promise<void>;
   onDeleteProject: (projectId: string, focus: FocusRequest) => Promise<void>;
   onSelectFolder: () => Promise<string | null>;
@@ -70,6 +72,7 @@ export function WorkspaceProjectList(props: WorkspaceProjectListProps) {
               disabled={props.disabled}
               t={props.t}
               onCreateFolder={props.onCreateFolder}
+              onCreateOrganization={props.onCreateOrganization}
               onDeleteFolder={props.onDeleteFolder}
               onDeleteProject={(projectId) => {
                 const projectIds = props.projects.map((candidate) => candidate.project_id);
@@ -88,6 +91,7 @@ export function WorkspaceProjectList(props: WorkspaceProjectListProps) {
               createFolderBusy={props.isCreateFolderBusy(project.project_id)}
               deleteProjectBusy={props.isDeleteProjectBusy(project.project_id)}
               isDeleteFolderBusy={props.isDeleteFolderBusy}
+              organizationCreateBusy={props.organizationCreateBusy}
               projectLinksBusy={props.isProjectLinksBusy(project.project_id)}
             />
           ))}
