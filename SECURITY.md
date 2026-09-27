@@ -6,7 +6,7 @@ treat a broken privacy or approval boundary with the same severity as a classic 
 ## Reporting a vulnerability
 
 Please **do not open a public issue**. Use
-[GitHub private vulnerability reporting](https://github.com/Wakakusa-Inc/pantaray/security/advisories/new)
+[GitHub private vulnerability reporting](https://github.com/wakakusa-labs/pantaray/security/advisories/new)
 instead, and include the version, your macOS version, and the steps to reproduce.
 
 Never attach raw logs, a copy of your local database, or an Action transcript to a report: they

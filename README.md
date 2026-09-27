@@ -5,8 +5,8 @@
   <p>
     <img src="https://img.shields.io/badge/license-Apache--2.0-1a2332" alt="License: Apache-2.0">
     <img src="https://img.shields.io/badge/platform-macOS%20(Apple%20silicon)-1a2332" alt="Platform: macOS (Apple silicon)">
-    <a href="https://github.com/Wakakusa-Inc/pantaray/actions/workflows/ci-backend.yml"><img src="https://github.com/Wakakusa-Inc/pantaray/actions/workflows/ci-backend.yml/badge.svg" alt="CI (backend)"></a>
-    <a href="https://github.com/Wakakusa-Inc/pantaray/actions/workflows/ci-desktop.yml"><img src="https://github.com/Wakakusa-Inc/pantaray/actions/workflows/ci-desktop.yml/badge.svg" alt="CI (desktop)"></a>
+    <a href="https://github.com/wakakusa-labs/pantaray/actions/workflows/ci-backend.yml"><img src="https://github.com/wakakusa-labs/pantaray/actions/workflows/ci-backend.yml/badge.svg" alt="CI (backend)"></a>
+    <a href="https://github.com/wakakusa-labs/pantaray/actions/workflows/ci-desktop.yml"><img src="https://github.com/wakakusa-labs/pantaray/actions/workflows/ci-desktop.yml/badge.svg" alt="CI (desktop)"></a>
   </p>
 </div>
 
@@ -22,7 +22,7 @@ Pantaray takes it on and sees it through. You can also ask it for anything, any 
 ## Install
 
 Pantaray runs on macOS with Apple silicon. Download
-[Pantaray.dmg](https://github.com/Wakakusa-Inc/pantaray/releases/latest/download/Pantaray.dmg) and
+[Pantaray.dmg](https://github.com/wakakusa-labs/pantaray/releases/latest/download/Pantaray.dmg) and
 drag Pantaray into your Applications folder. Builds are signed and notarized, and the app keeps itself up to date.
 
 ## Getting started
@@ -44,7 +44,7 @@ Pantaray has no analytics and no usage tracking.
 
 ## Bug reports
 
-Please report bugs in [GitHub Issues](https://github.com/Wakakusa-Inc/pantaray/issues). We are not
+Please report bugs in [GitHub Issues](https://github.com/wakakusa-labs/pantaray/issues). We are not
 accepting pull requests at this time.
 
 ## Security

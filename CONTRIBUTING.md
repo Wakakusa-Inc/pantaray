@@ -1,7 +1,7 @@
 # Contributing to Pantaray
 
 Thanks for your interest in Pantaray. Bug reports are welcome in
-[GitHub Issues](https://github.com/Wakakusa-Inc/pantaray/issues). We are not accepting pull requests
+[GitHub Issues](https://github.com/wakakusa-labs/pantaray/issues). We are not accepting pull requests
 at this time. The rest of this guide covers building and running Pantaray from source.
 
 ## Reporting bugs
