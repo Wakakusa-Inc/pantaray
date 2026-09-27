@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -14,6 +15,7 @@ from pantaray_agents.local_runtime.storage import migrations
 from pantaray_agents.local_runtime.storage import sqlite_vector as vector
 from pantaray_agents.routers import history as history_router
 from pantaray_agents.schema import conversation_history as history
+from pantaray_agents.utils.error_handling import public_agent_http_error_handler
 
 _PAGE = history.ConversationHistoryPage(
     items=(
@@ -153,3 +155,38 @@ def test_history_maps_fixed_public_failures(
     if isinstance(mapped, PublicAgentHTTPError):
         assert mapped.error_code == "CONVERSATION_HISTORY_INTEGRITY_ERROR"
         assert mapped.public_message is None
+
+
+def test_delete_history_item_returns_204_and_maps_busy_and_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    outcomes = [None, history_router.ConversationBusyError("private"), sqlite3.Error()]
+    delete = Mock(side_effect=outcomes)
+    monkeypatch.setenv("LOCAL_DB_PATH", str(tmp_path / "local.db"))
+    monkeypatch.setenv("LOCAL_DB_BUSY_TIMEOUT_MS", "1500")
+    monkeypatch.setenv("LOCAL_ARTIFACT_ROOT", str(tmp_path))
+    monkeypatch.setattr(history_router, "delete_history_item", delete)
+    client = _client()
+    client.app.add_exception_handler(  # type: ignore[attr-defined]
+        PublicAgentHTTPError, public_agent_http_error_handler
+    )
+
+    with client:
+        responses = [
+            client.delete(f"{_PATH}/items/{kind}/item-1")
+            for kind in ("conversation", "suggestion", "conversation", "process")
+        ]
+
+    assert [response.status_code for response in responses] == [204, 409, 500, 422]
+    assert responses[0].content == b""
+    assert responses[1].json()["detail"]["error_code"] == "CONVERSATION_BUSY"
+    assert "private" not in responses[1].text
+    assert responses[2].json()["detail"]["error_code"] == (
+        "CONVERSATION_HISTORY_DELETE_FAILED"
+    )
+    assert [call.kwargs["kind"] for call in delete.call_args_list] == [
+        "conversation",
+        "suggestion",
+        "conversation",
+    ]
+    assert delete.call_args.kwargs["user_id"] == "user-123"
