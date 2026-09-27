@@ -1,33 +1,27 @@
 # Changelog
 
 Each release's section becomes its notes on GitHub Releases. Write for people who use Pantaray,
-in English and Japanese.
+in English and Japanese: one short sentence per change, saying what changed for them, not how.
 
 ## 0.2.3
 
-- You can now delete a conversation from History. Select the trash button on an entry and confirm;
-  it cannot be restored. Files in your folders are not deleted, and a conversation that is running
-  or waiting for approval cannot be deleted until it stops.
+- You can now delete a conversation from History.
 
 ---
 
-- 履歴から会話を 1 つずつ削除できるようになりました。各項目のゴミ箱ボタンを押して確認すると消えます。元には戻せません。あなたのフォルダにあるファイルは消えません。実行中・確認待ちの会話は、止まるまで削除できません。
+- 履歴から会話を削除できるようになりました。
 
 ## 0.2.2
 
-- While Pantaray is working, the conversation no longer jumps to the bottom when you have scrolled
-  up to read. It still follows along when you are at the bottom, and shows your message when you
-  send one.
-- When an update is ready, a small notice appears at the bottom left of the main window. Choose
-  Restart to update, or Later.
-- The recording introduction now says that the summaries of your work made from the recording stay
-  on this Mac, while the raw recording is deleted after 48 hours.
+- The conversation no longer jumps to the bottom while you scroll up to read.
+- When an update is ready, a notice appears at the bottom left of the main window.
+- The recording introduction now says that work summaries stay on this Mac.
 
 ---
 
-- Pantaray が作業している間に、上にスクロールして読んでいても、会話が最下部に引き戻されなくなりました。最下部にいるときは今までどおり新しい内容に付いていき、メッセージを送ったときは最新のところまで移ります。
-- 更新の準備ができたら、メインのウィンドウの左下に小さなお知らせを出すようにしました。「再起動して更新」か「あとで」を選べます。
-- 記録を始める画面で、記録そのものは 48 時間で消えること、そこから作る作業のまとめはこの Mac に残ることを説明するようにしました。
+- 上にスクロールして読んでいる間、会話が最下部に引き戻されなくなりました。
+- 更新の準備ができると、メインのウィンドウの左下にお知らせが出るようになりました。
+- 記録を始める画面で、作業のまとめがこの Mac に残ることを説明するようにしました。
 
 ## 0.2.1
 
