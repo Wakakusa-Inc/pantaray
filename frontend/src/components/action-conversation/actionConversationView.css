@@ -56,11 +56,12 @@
 }
 
 /*
- * The accent blue the app already uses for workspace project text. The deeper #7dabdc
- * falls near 3:1 on the overlay panel; this one stays above 4.5:1 on its brightest area.
+ * Matches the composer's project mentions. The overlay panel behind the bubble is mid-dark,
+ * so a deeper blue such as #7dabdc falls near 3:1; this one measures about 4.6:1 on the
+ * brightest bubble area.
  */
 .action-conversation__project-ref {
-  color: #bcd3ec;
+  color: #a8d0ff;
 }
 
 .action-conversation__state {
