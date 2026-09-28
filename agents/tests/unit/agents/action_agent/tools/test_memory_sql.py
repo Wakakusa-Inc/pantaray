@@ -13,6 +13,9 @@ from pantaray_agents.agents.action_agent.runtime.handlers.tools import (
     _run_validated_tool_impl,
     _validate_tool_args,
 )
+from pantaray_agents.agents.action_agent.services.memory_sql import (
+    MEMORY_SQL_ALLOWED_TABLES,
+)
 from pantaray_agents.agents.action_agent.tools import (
     MEMORY_SQL_TOOL,
     SUPERVISOR_SINGLE_REACT_TOOL_IDS,
@@ -96,6 +99,14 @@ async def _run_tool(
 def test_memory_sql_tool_is_registered() -> None:
     assert TOOL_REGISTRY["memory_sql"] is MEMORY_SQL_TOOL
     assert "memory_sql" in SUPERVISOR_SINGLE_REACT_TOOL_IDS
+
+
+def test_memory_sql_model_visible_description_names_every_readable_table() -> None:
+    # The model sees only the guide-derived description, so the table guide
+    # must live there or the model cannot write a query at all.
+    description = MEMORY_SQL_TOOL.prompt_contract.description
+    for table in MEMORY_SQL_ALLOWED_TABLES:
+        assert f"- {table}:" in description
 
 
 @pytest.mark.asyncio

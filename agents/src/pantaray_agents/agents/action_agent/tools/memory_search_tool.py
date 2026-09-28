@@ -139,8 +139,9 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
         description=(
             "Search current active Memory Catalog fragments with exact, lexical, and "
             "semantic retrieval. "
-            "Use this first for broad recall across stock knowledge, flow "
-            "knowledge, and prior agent work."
+            "Use this for broad recall by words and meaning across stock "
+            "knowledge, flow knowledge, and prior agent work. To narrow by time "
+            "range, source type, ordering, or counts, use memory_sql."
         ),
         guide=ToolGuideSpec(
             what=(
@@ -162,14 +163,17 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                 "for organized stock context, focus='activity' for recent flow "
                 "context, and focus='all' when the same topic may span both. If "
                 "a result contains a note-bearing ref, use get_memory_reference with "
-                "that result's context_handle to follow the exact immutable link."
+                "that result's context_handle to follow the exact immutable link. "
+                "When the question is bounded by a time range, source type, "
+                "ordering, or counts rather than by a topic, use memory_sql."
             ),
             pitfalls=(
                 "Do not treat one source as complete by itself. Stock knowledge can be "
                 "stale; flow knowledge is fresher but noisier and less organized. "
-                "When context matters, reconcile stock and flow evidence. Do not "
-                "specify tables or source-specific time ranges. time_hint is a ranking "
-                "hint, not a hard filter. Write the query with concrete names, IDs, "
+                "When context matters, reconcile stock and flow evidence. time_hint "
+                "only ranks results near a time and does not filter them; to "
+                "restrict results to a time range or source type, use memory_sql. "
+                "Write the query with concrete names, IDs, "
                 "paths, errors, and both Japanese/English terms when useful."
             ),
         ),
