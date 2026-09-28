@@ -141,7 +141,8 @@ export const SETTINGS_MESSAGES = defineMessages({
     'settings.shortcut.recordingButton': 'Press shortcut',
     'settings.shortcut.cancel': 'Cancel',
     'settings.shortcut.loading': 'Loading shortcut…',
-    'settings.shortcut.recording': 'Use Command, Control, {alt}, or F1–F11/F13–F24 alone.',
+    'settings.shortcut.recording':
+      'Press a key with Command, Control, or {alt} (for example, {alt}+Space), or press F1–F11 or F13–F24.',
     'settings.shortcut.saved': 'Shortcut updated.',
     'settings.shortcut.loadFailed': 'Failed to load the shortcut setting.',
     'settings.shortcut.settingsUnreadable': 'Saved shortcut unreadable. Record a new one.',
@@ -420,7 +421,7 @@ export const SETTINGS_MESSAGES = defineMessages({
     'settings.shortcut.cancel': 'キャンセル',
     'settings.shortcut.loading': 'ショートカットを読み込み中…',
     'settings.shortcut.recording':
-      'Command、Control、{alt}、またはF1〜F11・F13〜F24を押してください。',
+      'Command・Control・{alt}のどれかと一緒にキーを押すか（例：{alt}＋Space）、F1〜F11・F13〜F24を押してください。',
     'settings.shortcut.saved': 'ショートカットを更新しました。',
     'settings.shortcut.loadFailed': 'ショートカット設定の読み込みに失敗しました。',
     'settings.shortcut.settingsUnreadable':

@@ -24,6 +24,8 @@ const CODE_KEYS: Readonly<Record<string, string>> = {
   Quote: "'",
   Semicolon: ';',
   Slash: '/',
+  // Option+Space reports a no-break space as its key on macOS.
+  Space: 'Space',
 };
 
 const NAMED_KEYS: Readonly<Record<string, string>> = {
