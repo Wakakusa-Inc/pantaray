@@ -236,8 +236,9 @@ test('narrow English layout and reduced motion keep the controls reachable', asy
 const recorded = async (page: Page, key: string) =>
   JSON.parse((await page.locator('html').getAttribute(`data-${key}`))!);
 
+// The list stays outside the composer frame on either side.
 async function expectPlacement(input: Locator, listbox: Locator, placement: 'above' | 'below') {
-  const field = (await input.boundingBox())!;
+  const field = (await input.locator('xpath=ancestor::form').boundingBox())!;
   const list = (await listbox.boundingBox())!;
   if (placement === 'above') expect(list.y + list.height).toBeLessThan(field.y);
   else expect(list.y).toBeGreaterThan(field.y + field.height);
@@ -277,8 +278,17 @@ test('continuation: list floats above, filters, closes, and sends the reference'
   await expect(listbox.getByRole('option').last()).toHaveText('プロジェクトを追加');
   await expectPlacement(input, listbox, 'above');
   await expect(input).toHaveAttribute('aria-expanded', 'true');
-  expect(await listbox.evaluate((list) => list.scrollHeight > list.clientHeight)).toBe(true);
-  await capture(page, info, 'mention-above-conversation');
+  // Seven project rows scroll; "Add project" stays pinned under them and ↑ reaches it.
+  const addProject = listbox.getByRole('option', { name: 'プロジェクトを追加' });
+  const lastProject = listbox.getByRole('option', { name: 'Tidal Ops' });
+  await expect(addProject).toBeInViewport();
+  await expect(lastProject).not.toBeInViewport();
+  await capture(page, info, 'mention-above-conversation-v2');
+  await page.keyboard.press('ArrowUp');
+  await expect(addProject).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowUp');
+  await expect(lastProject).toBeInViewport();
+  await expect(addProject).toBeInViewport();
   await page.keyboard.type('zz');
   await expect(listbox).toHaveCount(0);
   await page.keyboard.press('Backspace');
@@ -292,15 +302,13 @@ test('continuation: list floats above, filters, closes, and sends the reference'
   await expect(listbox).toHaveCount(0);
   await input.fill('🚀 次は');
   await page.keyboard.type('＠au');
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('ArrowUp');
   await page.keyboard.press('Enter');
   await expect(input).toHaveValue('🚀 次はAurora Web ');
   const mention = page.locator('.overlay-composer [aria-hidden="true"] span', {
     hasText: 'Aurora Web',
   });
-  await expect(mention).toHaveCSS('color', 'rgb(188, 211, 236)');
-  await capture(page, info, 'mention-confirmed');
+  await expect(mention).toHaveCSS('color', 'rgb(168, 208, 255)');
+  await capture(page, info, 'mention-confirmed-v2');
   await page.keyboard.type('を確認して');
   await page.keyboard.press('Enter');
   expect((await recorded(page, 'submitted')).message).toMatchObject({
@@ -330,7 +338,7 @@ test('new conversation: small window opens the list below; none registered offer
   const listbox = page.getByRole('listbox', { name: 'プロジェクト' });
   await expect(listbox.getByRole('option')).toHaveText(['プロジェクトを追加']);
   await expectPlacement(input, listbox, 'below');
-  await capture(page, info, 'mention-below-no-projects');
+  await capture(page, info, 'mention-below-no-projects-v2');
   await listbox.getByRole('option').click();
   await expect(page.locator('html')).toHaveAttribute('data-workspace-opened', 'true');
   await expect(listbox).toHaveCount(0);
@@ -344,7 +352,7 @@ test('suggestion reply and approval supplement carry picked projects', async ({ 
   await page.keyboard.type('@');
   const listbox = page.getByRole('listbox', { name: 'プロジェクト' });
   await expectPlacement(page.getByRole('textbox'), listbox, 'below');
-  await capture(page, info, 'mention-below-small-window');
+  await capture(page, info, 'mention-below-small-window-v2');
   await page.keyboard.type('nim');
   await page.getByRole('option', { name: 'Nimbus API' }).click();
   await page.keyboard.press('Enter');

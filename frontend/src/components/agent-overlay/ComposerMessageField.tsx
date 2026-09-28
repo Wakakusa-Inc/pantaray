@@ -6,7 +6,6 @@ import styled from 'styled-components';
 import {
   findMentionTrigger,
   insertMention,
-  matchProjects,
   rebaseMentions,
   removeMentionBefore,
   mentionOptionId,
@@ -51,9 +50,9 @@ const Backdrop = styled.div`
   pointer-events: none;
 `;
 
-/** The app's project text blue, shared with project names in sent messages. */
+/** Project blue, shared with project names in sent messages; at least 4.5:1 on both surfaces. */
 const MentionText = styled.span`
-  color: #bcd3ec;
+  color: #a8d0ff;
 `;
 
 /**
@@ -136,7 +135,10 @@ export function ComposerMessageField({
   const trigger = caret === null || readOnly ? null : findMentionTrigger(value, caret);
   const catalog = trigger && session?.start === trigger.start ? session.catalog : null;
   const settings = catalog === 'loading' || catalog === 'failed' ? null : catalog;
-  const matches = settings && trigger ? matchProjects(settings.projects, trigger.query) : [];
+  const query = trigger?.query.toLowerCase() ?? '';
+  const matches = (settings?.projects ?? []).filter((project) =>
+    project.display_name.toLowerCase().includes(query)
+  );
   const options: MentionOptionItem[] = [
     ...matches.map((project) => ({
       kind: 'project' as const,
@@ -243,14 +245,9 @@ export function ComposerMessageField({
     onKeyDown(event);
   };
 
-  const segments: { text: string; mention: boolean }[] = [];
-  let cursor = 0;
-  for (const mention of mentions) {
-    segments.push({ text: value.slice(cursor, mention.start), mention: false });
-    segments.push({ text: value.slice(mention.start, mention.end), mention: true });
-    cursor = mention.end;
-  }
-  segments.push({ text: value.slice(cursor), mention: false });
+  // Plain text and project names alternate: even segments are plain, odd ones are mentions.
+  const bounds = [0, ...mentions.flatMap((mention) => [mention.start, mention.end]), value.length];
+  const segments = bounds.slice(1).map((end, index) => value.slice(bounds[index], end));
 
   return (
     <>
@@ -261,8 +258,8 @@ export function ComposerMessageField({
           // visibility, not display: a hidden-by-display box would lose its synced scrollTop.
           style={{ visibility: composing ? 'hidden' : undefined }}
         >
-          {segments.map((segment, index) =>
-            segment.mention ? <MentionText key={index}>{segment.text}</MentionText> : segment.text
+          {segments.map((text, index) =>
+            index % 2 ? <MentionText key={index}>{text}</MentionText> : text
           )}
           {/* A trailing newline needs a glyph after it to take up its line, as in the textarea. */}
           {'\u200b'}

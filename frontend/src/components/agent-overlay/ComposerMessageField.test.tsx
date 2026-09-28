@@ -17,23 +17,26 @@ function renderField(get: () => Promise<unknown>) {
   function Harness() {
     const [value, setValue] = useState('');
     const [mentions, setMentions] = useState<ComposerMention[]>([]);
+    // The list is placed relative to the field's form, as in the composer.
     return (
-      <ComposerMessageField
-        id="field"
-        textareaRef={createRef()}
-        value={value}
-        mentions={mentions}
-        readOnly={false}
-        placeholder=""
-        invalid={false}
-        describedBy={undefined}
-        onChange={(draft, next) => {
-          setValue(draft);
-          setMentions(next);
-        }}
-        onKeyDown={onKeyDown}
-        onPaste={() => {}}
-      />
+      <form>
+        <ComposerMessageField
+          id="field"
+          textareaRef={createRef()}
+          value={value}
+          mentions={mentions}
+          readOnly={false}
+          placeholder=""
+          invalid={false}
+          describedBy={undefined}
+          onChange={(draft, next) => {
+            setValue(draft);
+            setMentions(next);
+          }}
+          onKeyDown={onKeyDown}
+          onPaste={() => {}}
+        />
+      </form>
     );
   }
   render(

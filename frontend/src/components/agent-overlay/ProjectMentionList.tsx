@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { css } from 'styled-components';
@@ -8,54 +8,52 @@ import { useI18n } from '@/context/useI18n';
 import { mentionOptionId, type ComposerMention } from './composerMentions';
 
 const OPTION_HEIGHT_PX = 28;
-const VISIBLE_OPTIONS = 8;
+const VISIBLE_PROJECT_ROWS = 7;
 const FLOATING_PADDING_PX = 4;
 const FLOATING_GAP_PX = 6;
 
-/** Room a full floating list needs above the composer frame: rows, padding, border, gap. */
+/** Room a full panel needs above the composer frame: project rows, "Add project", chrome, gap. */
 export const MENTION_PANEL_ROOM_PX =
-  OPTION_HEIGHT_PX * VISIBLE_OPTIONS + FLOATING_PADDING_PX * 2 + 2 + FLOATING_GAP_PX;
+  OPTION_HEIGHT_PX * (VISIBLE_PROJECT_ROWS + 1) + FLOATING_PADDING_PX * 2 + 2 + FLOATING_GAP_PX;
 
 export type MentionPlacement = 'above' | 'below';
 
 /**
- * `above` floats over the conversation, portalled with fixed positioning like the approval mode
- * menu so no ancestor clips it. `below` sits in flow; the window grows downward, composer fixed.
+ * One dark panel for both sides, portalled into a host placed by this component: in body and
+ * fixed over the conversation (`above`), or in flow right after the composer frame (`below`),
+ * where the window grows downward and the frame stays put.
  */
 const MentionPanel = styled.div<{ $placement: MentionPlacement }>`
   display: grid;
   gap: 4px;
+  box-sizing: border-box;
+  padding: ${FLOATING_PADDING_PX}px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  /* Opaque so the conversation underneath does not show through. */
+  background: rgb(26, 30, 36);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  font-size: var(--text-body-size);
+  -webkit-app-region: no-drag;
 
   ${({ $placement }) =>
     $placement === 'above'
       ? css`
           position: fixed;
           z-index: 1000;
-          box-sizing: border-box;
-          padding: ${FLOATING_PADDING_PX}px;
-          border: 1px solid var(--border-color);
-          border-radius: 12px;
-          /* Opaque so the conversation underneath does not show through. */
-          background: rgb(26, 30, 36);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-          font-size: var(--text-body-size);
-          -webkit-app-region: no-drag;
         `
       : css`
-          padding-top: 8px;
-          border-top: 1px solid var(--border-color);
+          margin-top: ${FLOATING_GAP_PX}px;
         `}
 `;
 
-const MentionListbox = styled.ul`
-  max-height: ${OPTION_HEIGHT_PX * VISIBLE_OPTIONS}px;
-  margin: 0;
-  padding: 0;
+/** Only the projects scroll; "Add project" stays pinned under them as the last option. */
+const ProjectScroller = styled.div`
+  max-height: ${OPTION_HEIGHT_PX * VISIBLE_PROJECT_ROWS}px;
   overflow-y: auto;
-  list-style: none;
 `;
 
-const MentionOption = styled.li`
+const MentionOption = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
@@ -108,6 +106,7 @@ export function ProjectMentionList({
   placement: MentionPlacement;
   /** The composer text field; the floating list aligns with its form's frame. */
   anchorRef: RefObject<HTMLTextAreaElement>;
+  /** Matching projects followed by "Add project", always last. */
   options: readonly MentionOptionItem[];
   activeIndex: number;
   loadFailed: boolean;
@@ -115,9 +114,16 @@ export function ProjectMentionList({
 }) {
   const { t } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [host] = useState(() => document.createElement('div'));
   useEffect(() => {
     document.getElementById(mentionOptionId(id, activeIndex))?.scrollIntoView({ block: 'nearest' });
   }, [id, activeIndex]);
+  useLayoutEffect(() => {
+    const frame = anchorRef.current?.form;
+    if (placement === 'below') frame?.after(host);
+    else document.body.append(host);
+    return () => host.remove();
+  }, [anchorRef, host, placement]);
   useLayoutEffect(() => {
     if (placement !== 'above') return;
     const place = () => {
@@ -133,6 +139,21 @@ export function ProjectMentionList({
     return () => window.removeEventListener('resize', place);
   });
 
+  const renderOption = (option: MentionOptionItem, index: number) => (
+    <MentionOption
+      key={option.kind === 'project' ? option.projectId : 'add'}
+      id={mentionOptionId(id, index)}
+      role="option"
+      aria-selected={index === activeIndex}
+      onClick={() => onPick(index)}
+    >
+      {option.kind === 'add' ? <Plus strokeWidth={1.75} aria-hidden /> : null}
+      <span>
+        {option.kind === 'project' ? option.displayName : t('overlay.composer.mention.addProject')}
+      </span>
+    </MentionOption>
+  );
+
   const panel = (
     // Keep focus (and the caret) in the text field while the pointer picks an option.
     <MentionPanel
@@ -143,25 +164,13 @@ export function ProjectMentionList({
       {loadFailed ? (
         <MentionFailure role="alert">{t('overlay.composer.mention.loadFailed')}</MentionFailure>
       ) : null}
-      <MentionListbox id={id} role="listbox" aria-label={t('overlay.composer.mention.label')}>
-        {options.map((option, index) => (
-          <MentionOption
-            key={option.kind === 'project' ? option.projectId : 'add'}
-            id={mentionOptionId(id, index)}
-            role="option"
-            aria-selected={index === activeIndex}
-            onClick={() => onPick(index)}
-          >
-            {option.kind === 'add' ? <Plus strokeWidth={1.75} aria-hidden /> : null}
-            <span>
-              {option.kind === 'project'
-                ? option.displayName
-                : t('overlay.composer.mention.addProject')}
-            </span>
-          </MentionOption>
-        ))}
-      </MentionListbox>
+      <div id={id} role="listbox" aria-label={t('overlay.composer.mention.label')}>
+        <ProjectScroller role="presentation">
+          {options.slice(0, -1).map(renderOption)}
+        </ProjectScroller>
+        {renderOption(options[options.length - 1], options.length - 1)}
+      </div>
     </MentionPanel>
   );
-  return placement === 'above' ? createPortal(panel, document.body) : panel;
+  return createPortal(panel, host);
 }

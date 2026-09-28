@@ -1,8 +1,4 @@
-/**
- * A workspace project named in the composer draft. `start`/`end` are UTF-16 offsets into the
- * raw draft (what the textarea indexes); the send path converts them with
- * `codePointSpanInTrimmedText`. `paths` is copied when the project is picked.
- */
+/** A project named in the draft; `start`/`end` are UTF-16 offsets into the raw draft. */
 export type ComposerMention = Readonly<{
   projectId: string;
   displayName: string;
@@ -31,9 +27,8 @@ export function findMentionTrigger(draft: string, caret: number): MentionTrigger
 }
 
 /**
- * Carry mentions across one edit of the draft. The edit is the span between the common prefix
- * and suffix; a mention it touches becomes plain text, one after it moves by the length change.
- * Every kept mention therefore still spells its project name.
+ * Carry mentions across one edit (the span between common prefix and suffix): a mention it
+ * touches becomes plain text, a later one shifts. Every kept mention still spells its name.
  */
 export function rebaseMentions(
   previous: string,
@@ -101,15 +96,6 @@ export function removeMentionBefore(
     mentions: rebaseMentions(draft, next, mentions),
     caret: target.start,
   };
-}
-
-/** Case-insensitive substring match on the project name, keeping the given order. */
-export function matchProjects<Project extends { display_name: string }>(
-  projects: readonly Project[],
-  query: string
-): Project[] {
-  const needle = query.toLowerCase();
-  return projects.filter((project) => project.display_name.toLowerCase().includes(needle));
 }
 
 export function mentionOptionId(listId: string, index: number): string {
