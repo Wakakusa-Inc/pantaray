@@ -183,9 +183,9 @@ prompt: |
   </activity_summaries>
 
   ## Completed Action turns
-  Each entry names one completed Action turn and its outcome. Retrieve the steps
-  you need with `list_action_steps`, `search_action_steps`, and `history_fetch`
-  using the entry's `action_id`.
+  Each entry names one Action and the steps of every turn it completed since the
+  last memory run. Retrieve the steps you need with `list_action_steps`,
+  `search_action_steps`, and `history_fetch` using the entry's `action_id`.
   <action_turns>
   {action_turns}
   </action_turns>

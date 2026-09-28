@@ -37,7 +37,7 @@ HISTORY_FETCH_TOOL_NAME = "history_fetch"
 
 @dataclass(frozen=True, slots=True)
 class ActionTurnWindow:
-    """One completed Action turn the run may read as evidence."""
+    """The steps of one Action the run may read: every turn it completed here."""
 
     action_id: str
     turn_start_step_number: int
