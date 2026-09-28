@@ -83,11 +83,10 @@ def test_public_item_rejects_private_and_noncanonical_fields(
         ConversationHistoryItem.model_validate(_conversation(**updates))
 
 
-def test_cursor_round_trip_preserves_filter_and_exact_key() -> None:
+def test_cursor_round_trip_preserves_search_and_exact_key() -> None:
     updated_at = "2026-08-30T00:00:00.123Z"
     payload = ConversationHistoryCursor(
         user_id="user-1",
-        status="approval_pending",
         search_text="Ꭰ",
         updated_at=updated_at,
         kind="conversation",
@@ -112,13 +111,13 @@ def test_history_item_serializes_indexed_millisecond_key_without_rewriting() -> 
 @pytest.mark.parametrize(
     "payload_json",
     [
-        b'{"user_id":"user-1","status":"idle","search_text":"","updated_at":"2026-08-30T00:00:00.123Z","kind":"conversation","stable_id":1}',
-        b'{"user_id":"user-1","status":"idle","search_text":" Work ","updated_at":"2026-08-30T00:00:00.123Z","kind":"conversation","stable_id":"action-1"}',
-        b'{"user_id":"user-1","status":"idle","search_text":"","updated_at":"2026-08-30T00:00:00.123Z","kind":"conversation","stable_id":"action-1","extra":true}',
-        b'{"user_id":"user-1","status":"idle","search_text":"","updated_at":"2026-08-30T00:00:00.123000Z","kind":"conversation","stable_id":"action-1"}',
-        b'{"user_id":"user-1","status":"idle","search_text":"","updated_at":"2026-08-30T09:00:00.123+09:00","kind":"conversation","stable_id":"action-1"}',
-        b'{"user_id":"user-1","status":"idle","search_text":"","updated_at":"not-a-timestamp","kind":"conversation","stable_id":"action-1"}',
-        b'{"user_id":"user-1","status":"idle","search_text":"","updated_at":"0001-01-01T00:00:00.000+23:59","kind":"conversation","stable_id":"action-1"}',
+        b'{"user_id":"user-1","search_text":"","updated_at":"2026-08-30T00:00:00.123Z","kind":"conversation","stable_id":1}',
+        b'{"user_id":"user-1","search_text":" Work ","updated_at":"2026-08-30T00:00:00.123Z","kind":"conversation","stable_id":"action-1"}',
+        b'{"user_id":"user-1","search_text":"","updated_at":"2026-08-30T00:00:00.123Z","kind":"conversation","stable_id":"action-1","extra":true}',
+        b'{"user_id":"user-1","search_text":"","updated_at":"2026-08-30T00:00:00.123000Z","kind":"conversation","stable_id":"action-1"}',
+        b'{"user_id":"user-1","search_text":"","updated_at":"2026-08-30T09:00:00.123+09:00","kind":"conversation","stable_id":"action-1"}',
+        b'{"user_id":"user-1","search_text":"","updated_at":"not-a-timestamp","kind":"conversation","stable_id":"action-1"}',
+        b'{"user_id":"user-1","search_text":"","updated_at":"0001-01-01T00:00:00.000+23:59","kind":"conversation","stable_id":"action-1"}',
     ],
 )
 def test_cursor_rejects_untrusted_payload_shapes(payload_json: bytes) -> None:
@@ -131,7 +130,6 @@ def test_cursor_rejects_untrusted_payload_shapes(payload_json: bytes) -> None:
 def test_cursor_rejects_malformed_and_noncanonical_encoding() -> None:
     payload = ConversationHistoryCursor(
         user_id="user-1",
-        status="all",
         search_text="",
         updated_at="2026-08-30T00:00:00.000Z",
         kind="suggestion",

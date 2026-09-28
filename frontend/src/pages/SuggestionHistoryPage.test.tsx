@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   loadMore: vi.fn(),
   markCompletionViewed: vi.fn(async () => undefined),
   removeItem: vi.fn(),
-  setFilters: vi.fn(),
+  setSearchText: vi.fn(),
   unreadActionId: 'A1' as string | null,
 }));
 vi.mock('@/components/history/HistoryCaptureControls', () => ({
@@ -54,8 +54,8 @@ vi.mock('@/hooks/useSuggestionHistory', async (importOriginal) => ({
     loadingMore: false,
     error: mocks.error,
     isRealtimeSyncing: false,
-    filters: { status: 'all', searchText: '' },
-    setFilters: mocks.setFilters,
+    searchText: '',
+    setSearchText: mocks.setSearchText,
     refresh: vi.fn(),
     loadMore: mocks.loadMore,
     hasMore: true,
@@ -98,7 +98,7 @@ it('空状態でも起動ボタンは右上の1つだけで、keyboardから開�
   expect(HISTORY_MESSAGES.en['history.newConversation']).toBe('New conversation');
   expect(screen.getAllByRole('button', { name: 'history.newConversation' })).toHaveLength(1);
   const cta = screen.getByRole('button', { name: 'history.newConversation' });
-  expect(cta.closest('.history-new-conversation')).not.toBeNull();
+  expect(cta.closest('.history-toolbar')).not.toBeNull();
   cta.focus();
   await userEvent.keyboard('{Enter}');
   expect(openNewConversation).toHaveBeenCalledOnce();
@@ -134,7 +134,7 @@ it('CTAの隣に設定中のショートカットをキーキャップで表示�
     '⌥',
     'Space',
   ]);
-  expect(keycaps.closest('.history-new-conversation')).not.toBeNull();
+  expect(keycaps.closest('.history-toolbar')).not.toBeNull();
   expect(keycaps.nextElementSibling).toBe(
     screen.getByRole('button', { name: 'history.newConversation' })
   );
@@ -227,13 +227,10 @@ it('Overlay起動失敗を通知し、追加読み込みと検索に応答する
 
   fireEvent.click(screen.getByRole('button', { name: 'history.loadMore' }));
   expect(mocks.loadMore).toHaveBeenCalledOnce();
-  const search = screen.getByRole('searchbox', { name: 'history.filter.searchLabel' });
+  const search = screen.getByRole('searchbox', { name: 'history.search' });
   fireEvent.change(search, { target: { value: `${'😀'.repeat(256)}x` } });
   expect(search).toHaveValue('😀'.repeat(256));
-  fireEvent.click(screen.getByRole('button', { name: 'history.filter.searchButton' }));
-  expect(mocks.setFilters.mock.calls[0][0]({ status: 'all', searchText: '' }).searchText).toBe(
-    '😀'.repeat(256)
-  );
+  await waitFor(() => expect(mocks.setSearchText).toHaveBeenCalledWith('😀'.repeat(256)));
 });
 
 it('バッジは running / approval_pending だけに出し、idle には出さない', () => {

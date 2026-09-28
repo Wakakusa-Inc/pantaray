@@ -43,7 +43,7 @@ const PAGE = {
 const REQUEST = {
   cursor: 'cursor-current',
   limit: 100,
-  filters: { status: 'all', searchText: ' café ' },
+  filters: { searchText: ' café ' },
 } as const;
 
 describe('createHistoryFetcher', () => {
@@ -73,7 +73,6 @@ describe('createHistoryFetcher', () => {
         query: {
           cursor: 'cursor-current',
           limit: 100,
-          status: 'all',
           search_text: ' café ',
         },
         timeoutMs: 30_000,
@@ -109,7 +108,6 @@ describe('createHistoryFetcher', () => {
   it.each([
     { ...REQUEST, limit: 0 },
     { ...REQUEST, limit: 101 },
-    { ...REQUEST, filters: { ...REQUEST.filters, status: 'pending' } },
     { ...REQUEST, filters: { ...REQUEST.filters, searchText: '😀'.repeat(257) } },
   ])('invalid request %# は HTTP を呼ばない', async (request) => {
     const requestJsonMock = vi.fn(async () => PAGE);

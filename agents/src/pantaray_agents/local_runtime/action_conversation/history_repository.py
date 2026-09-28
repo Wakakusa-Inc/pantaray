@@ -7,10 +7,7 @@ import sqlite3
 from pantaray_agents.local_runtime.runtime.action_logical_run_authority import (
     select_action_logical_run_authorities_in_connection,
 )
-from pantaray_agents.schema.conversation_history import (
-    ConversationHistoryFilter,
-    ConversationHistoryPage,
-)
+from pantaray_agents.schema.conversation_history import ConversationHistoryPage
 
 from .history_candidates import read_conversation_history_candidates_in_connection
 from .history_projection import (
@@ -23,7 +20,6 @@ def read_conversation_history_page_in_connection(
     *,
     connection: sqlite3.Connection,
     user_id: str,
-    status: ConversationHistoryFilter,
     search_text: str,
     cursor: str | None,
     limit: int,
@@ -34,7 +30,6 @@ def read_conversation_history_page_in_connection(
     candidates = read_conversation_history_candidates_in_connection(
         connection=connection,
         user_id=user_id,
-        status=status,
         search_text=normalized_search,
         cursor=cursor,
         limit=limit,

@@ -54,7 +54,6 @@ def _read(
         page = read_conversation_history_page_in_connection(
             connection=connection,
             user_id=_USER_ID,
-            status="all",
             search_text=search_text,
             cursor=cursor,
             limit=limit,

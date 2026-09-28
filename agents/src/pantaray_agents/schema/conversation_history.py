@@ -12,7 +12,6 @@ from pantaray_agents.schema.action_conversation import (
 from pantaray_agents.utils.timestamps import normalize_iso8601_utc_z_milliseconds
 
 type ConversationHistoryStatus = Literal["running", "approval_pending", "idle"]
-type ConversationHistoryFilter = Literal["all", "running", "approval_pending", "idle"]
 
 
 def _require_canonical_history_timestamp(value: str) -> str:
@@ -74,7 +73,6 @@ class ConversationHistoryPage(_ConversationHistoryModel):
 
 
 __all__ = [
-    "ConversationHistoryFilter",
     "ConversationHistoryItem",
     "ConversationHistoryListItem",
     "ConversationHistoryPage",
