@@ -19,15 +19,6 @@ from .base import (
     tool_execution_policy,
 )
 
-_SCALAR_JSON_SCHEMA = {
-    "anyOf": [
-        {"type": "string"},
-        {"type": "number"},
-        {"type": "boolean"},
-        {"type": "null"},
-    ]
-}
-
 _TABLE_GUIDE = "\n".join(
     [
         "Readable memory tables:",
@@ -65,7 +56,8 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                 "Accepted query shape:\n"
                 "- A single read-only SELECT statement.\n"
                 "- WITH clauses are allowed only when the final statement is SELECT.\n"
-                "- Use ? placeholders for dynamic values and provide values through params.\n"
+                "- Write values directly in the SQL as literals, for example "
+                "period_start >= '2026-09-27T00:00:00Z'.\n"
                 "- The executor applies the current action's memory scope automatically.\n\n"
                 + _TABLE_GUIDE
             ),
@@ -105,26 +97,11 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                     description=(
                         "Single read-only SELECT statement.\n"
                         "- WITH ... SELECT is allowed.\n"
-                        "- Use ? placeholders with params for dynamic values.\n"
+                        "- Write values directly in the SQL as literals.\n"
                         "- Do not include multiple statements, PRAGMA, writes, DDL, "
                         "ATTACH, or manual account-scope authorization filters."
                     ),
                     llm_order=10,
-                ),
-                field_spec(
-                    name="params",
-                    schema={
-                        "type": "array",
-                        "items": _SCALAR_JSON_SCHEMA,
-                        "maxItems": 50,
-                    },
-                    prompt_type="array",
-                    description=(
-                        "Optional scalar parameters for ? placeholders.\n"
-                        "- Provide values in placeholder order.\n"
-                        "- Values must be string, number, boolean, or null."
-                    ),
-                    llm_order=20,
                 ),
                 field_spec(
                     name="limit",
@@ -139,7 +116,7 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                         f"- Default: {DEFAULT_MEMORY_SQL_LIMIT}.\n"
                         f"- Maximum: {MAX_MEMORY_SQL_LIMIT}."
                     ),
-                    llm_order=30,
+                    llm_order=20,
                 ),
             )
         ),

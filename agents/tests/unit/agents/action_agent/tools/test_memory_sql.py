@@ -124,8 +124,7 @@ async def test_memory_sql_tool_executes_read_only_query(
     result = await _run_tool(
         action_agent,
         args={
-            "sql": "SELECT fact_id, facts_profile_brief FROM agent_facts WHERE fact_id = ?",
-            "params": ["fact-1"],
+            "sql": "SELECT fact_id, facts_profile_brief FROM agent_facts WHERE fact_id = 'fact-1'",
             "limit": 10,
         },
         state=state,

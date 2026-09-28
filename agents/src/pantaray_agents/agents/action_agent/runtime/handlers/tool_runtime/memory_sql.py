@@ -38,14 +38,12 @@ async def run_memory_sql_tool(
         else DEFAULT_MEMORY_SQL_LIMIT
     )
     sql = require_string_arg(args, "sql")
-    params = _optional_scalar_params(args)
     limit = require_int_arg(args, "limit", default_limit)
     user_id = _current_user_id(state)
 
     repo_result = run_local_memory_sql(
         user_id=user_id,
         sql=sql,
-        params=params,
         limit=limit,
     )
     if repo_result.error:
@@ -75,15 +73,6 @@ async def run_memory_sql_tool(
         completed_at=now_iso(),
         output=cast(JSONValue, payload),
     )
-
-
-def _optional_scalar_params(args: ToolArgs) -> list[JSONValue]:
-    raw = args.get("params")
-    if raw is None:
-        return []
-    if not isinstance(raw, list):
-        raise RuntimeError("params must be a list after validation")
-    return list(raw)
 
 
 def _current_user_id(state: MutableMapping[str, object]) -> str:

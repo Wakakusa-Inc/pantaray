@@ -224,9 +224,8 @@ def test_execute_memory_sql_reads_allowed_tables(tmp_path: Path) -> None:
         user_id="user-1",
         sql=(
             "SELECT suggestion_id, answer FROM agent_suggestions "
-            "WHERE suggestion_id = ?"
+            "WHERE suggestion_id = 'sug-1'"
         ),
-        params=["sug-1"],
         limit=20,
     )
 
@@ -250,7 +249,6 @@ def test_execute_memory_sql_scopes_rows_to_current_user(tmp_path: Path) -> None:
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
         sql="SELECT suggestion_id, answer FROM agent_suggestions ORDER BY suggestion_id",
-        params=[],
         limit=20,
     )
 
@@ -272,7 +270,6 @@ def test_execute_memory_sql_rejects_main_table_bypass(tmp_path: Path) -> None:
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
         sql="SELECT suggestion_id FROM main.agent_suggestions",
-        params=[],
         limit=20,
     )
 
@@ -292,7 +289,6 @@ def test_execute_memory_sql_rejects_cte_name_spoof_bypass(tmp_path: Path) -> Non
             "SELECT suggestion_id FROM main.agent_suggestions"
             ") SELECT suggestion_id FROM agent_suggestions"
         ),
-        params=[],
         limit=20,
     )
 
@@ -312,7 +308,6 @@ def test_execute_memory_sql_allows_non_conflicting_cte_names(tmp_path: Path) -> 
             "SELECT suggestion_id, answer FROM agent_suggestions"
             ") SELECT suggestion_id, answer FROM recent"
         ),
-        params=[],
         limit=20,
     )
 
@@ -340,7 +335,6 @@ def test_execute_memory_sql_rejects_private_view_name_spoof(
             "SELECT suggestion_id FROM agent_suggestions"
             ") SELECT suggestion_id FROM __memory_sql_agent_suggestions"
         ),
-        params=[],
         limit=20,
     )
 
@@ -372,7 +366,6 @@ def test_execute_memory_sql_rejects_queries_without_memory_table_reads(
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
         sql=sql,
-        params=[],
         limit=20,
     )
 
@@ -389,8 +382,7 @@ def test_execute_memory_sql_allows_empty_results_after_memory_table_read(
         db_path=str(db_path),
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
-        sql="SELECT suggestion_id FROM agent_suggestions WHERE answer LIKE ?",
-        params=["%missing%"],
+        sql="SELECT suggestion_id FROM agent_suggestions WHERE answer LIKE '%missing%'",
         limit=20,
     )
 
@@ -412,7 +404,6 @@ def test_execute_memory_sql_rejects_legacy_artifact_projection_tables(
             "SELECT block_id, preview_text FROM memory_artifact_blocks "
             "ORDER BY block_id"
         ),
-        params=[],
         limit=20,
     )
 
@@ -430,7 +421,6 @@ def test_execute_memory_sql_allows_safe_aggregate_functions(tmp_path: Path) -> N
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
         sql="SELECT COUNT(*) AS suggestion_count FROM agent_suggestions",
-        params=[],
         limit=20,
     )
 
@@ -443,11 +433,11 @@ def test_execute_memory_sql_allows_safe_aggregate_functions(tmp_path: Path) -> N
     ("sql", "expected_rows"),
     [
         (
-            "SELECT suggestion_id FROM agent_suggestions WHERE answer LIKE ?",
+            "SELECT suggestion_id FROM agent_suggestions WHERE answer LIKE '%sandbox%'",
             [{"suggestion_id": "sug-1"}],
         ),
         (
-            "SELECT suggestion_id FROM agent_suggestions WHERE answer GLOB ?",
+            "SELECT suggestion_id FROM agent_suggestions WHERE answer GLOB '*sandbox*'",
             [{"suggestion_id": "sug-1"}],
         ),
         (
@@ -462,18 +452,11 @@ def test_execute_memory_sql_allows_common_search_functions(
     expected_rows: list[dict[str, object]],
 ) -> None:
     db_path = _bootstrap_db(tmp_path)
-    params: list[object] = []
-    if "LIKE" in sql:
-        params = ["%sandbox%"]
-    if "GLOB" in sql:
-        params = ["*sandbox*"]
-
     result = execute_memory_sql(
         db_path=str(db_path),
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
         sql=sql,
-        params=params,
         limit=20,
     )
 
@@ -506,7 +489,6 @@ def test_execute_memory_sql_rejects_unsafe_or_disallowed_queries(
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
         sql=sql,
-        params=[],
         limit=20,
     )
 
@@ -522,7 +504,6 @@ def test_execute_memory_sql_limits_rows_and_cell_text(tmp_path: Path) -> None:
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
         sql=("SELECT log_id, description FROM activity_logs ORDER BY period_end DESC"),
-        params=[],
         limit=1,
     )
 
