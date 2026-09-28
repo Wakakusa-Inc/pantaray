@@ -78,10 +78,12 @@ def merged_action_terminals(
     Turns are independent step ranges, not cumulative states, so a run that
     coalesced several turns of one Action must be able to read every one of
     them. They become one window because an Action carries exactly one evidence
-    ref and one revision; that identity is the newest turn's. Dispatch takes
-    pending triggers oldest first and never re-queues one, so the turns of an
-    Action inside one run are consecutive, and the span reaches no turn another
-    run reads.
+    ref and one revision. The window keeps the newest turn's identity but the
+    revision of the newest turn that published one: an error or cancel turn
+    publishes nothing, so the Action's current revision is still the one an
+    earlier successful turn published. Dispatch takes pending triggers oldest
+    first and never re-queues one, so the turns of an Action inside one run are
+    consecutive, and the span reaches no turn another run reads.
     """
 
     turns_by_action: dict[str, list[MemoryUpdateActionTerminal]] = {}
@@ -89,12 +91,18 @@ def merged_action_terminals(
         turns_by_action.setdefault(terminal["action_id"], []).append(terminal)
     merged: list[MemoryUpdateActionTerminal] = []
     for action_id in sorted(turns_by_action):
-        turns = turns_by_action[action_id]
-        newest = max(turns, key=lambda turn: turn["turn_end_step_number"])
-        window = newest.copy()
+        turns = sorted(
+            turns_by_action[action_id], key=lambda turn: turn["turn_end_step_number"]
+        )
+        window = turns[-1].copy()
         window["turn_start_step_number"] = min(
             turn["turn_start_step_number"] for turn in turns
         )
+        window.pop("source_action_revision_id", None)
+        for turn in reversed(turns):
+            if "source_action_revision_id" in turn:
+                window["source_action_revision_id"] = turn["source_action_revision_id"]
+                break
         merged.append(window)
     return tuple(merged)
 

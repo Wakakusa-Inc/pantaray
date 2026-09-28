@@ -289,17 +289,19 @@ def _insert_user_step(db_path: Path, *, step_number: int, text: str) -> None:
         )
 
 
-def _turn(start: int, end: int, revision_id: str) -> MemoryUpdateActionTerminal:
-    return {
+def _turn(start: int, end: int, revision_id: str | None) -> MemoryUpdateActionTerminal:
+    terminal: MemoryUpdateActionTerminal = {
         "source_id": f"action-1:{end}",
         "action_id": "action-1",
         "action_completed_at": f"2026-09-07T00:00:0{end // 3}Z",
-        "source_action_revision_id": revision_id,
         "turn_start_step_number": start,
         "turn_end_step_number": end,
         "action_prompt_name": "action",
         "action_prompt_version": f"{end // 3}.0",
     }
+    if revision_id is not None:
+        terminal["source_action_revision_id"] = revision_id
+    return terminal
 
 
 def _tool_call(name: str, **args: JSONValue) -> ReactToolCall:
@@ -367,6 +369,32 @@ async def test_every_turn_one_run_coalesced_for_an_action_stays_readable(
     assert memory_run_binding_from_payload(payload).action_evidence == (
         MemoryRunActionEvidence(
             action_id="action-1", source_action_revision_id="rev-3"
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("revisions", "expected"),
+    [
+        # An error or cancel turn publishes no revision, so the Action's current
+        # revision is still the one the earlier successful turn published.
+        (("rev-1", "rev-2", None), "rev-2"),
+        ((None, None, None), None),
+    ],
+)
+def test_the_action_cites_the_newest_revision_its_turns_published(
+    revisions: tuple[str | None, str | None, str | None], expected: str | None
+) -> None:
+    payload = _payload()
+    payload["action_terminals"] = [
+        _turn(1, 3, revisions[0]),
+        _turn(4, 6, revisions[1]),
+        _turn(7, 9, revisions[2]),
+    ]
+
+    assert memory_run_binding_from_payload(payload).action_evidence == (
+        MemoryRunActionEvidence(
+            action_id="action-1", source_action_revision_id=expected
         ),
     )
 
