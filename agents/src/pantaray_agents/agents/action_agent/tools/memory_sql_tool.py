@@ -30,7 +30,7 @@ _TABLE_GUIDE = "\n".join(
         "period_start/period_end label the 15-minute job window that wrote the row, not the time the activity was observed; the activity "
         "is usually observed before period_start, and further before when recording stopped or the job was delayed. When a question "
         "needs the exact time something was observed rather than the rows of a window, use memory_search, whose source_records "
-        "results carry observed_at.",
+        "results give each quote's time on its Observed: line.",
         "- activity_summaries: aggregated activity summaries; key columns summary_id, summary_type, period_start, period_end, summary, status. "
         f"summary_type is one of {', '.join(get_args(SummaryType))}.",
         "status is the state of the job that wrote the row (processing, success, error, canceled, timeout; agent_actions also queued). "

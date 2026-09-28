@@ -170,7 +170,8 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                 "find candidates. When it is bounded only by time, such as what "
                 "happened in a window, or rows of memory_sql's tables must be "
                 "ordered or counted, use memory_sql. For the exact time something "
-                "was observed, use the observed_at of source_records results."
+                "was observed, use the Observed: line of each quote in source_records "
+                "results; the result's observed_at is the latest time in its run."
             ),
             pitfalls=(
                 "Do not treat one source as complete by itself. Stock knowledge can be "
