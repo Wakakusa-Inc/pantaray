@@ -51,6 +51,7 @@ function conversation(settled: boolean, includeLastTool = true): ActionConversat
     message_id: `message-${sequence}`,
     accepted_sequence: sequence,
     images: [],
+    project_refs: [],
     status: 'adopted',
   });
   return parseActionConversationPage({

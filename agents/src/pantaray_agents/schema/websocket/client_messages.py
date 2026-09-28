@@ -7,7 +7,9 @@ from pydantic.types import UUID4
 
 from ..agent.action_message import (
     ACTION_MESSAGE_MAX_IMAGES,
+    ACTION_MESSAGE_MAX_PROJECT_REFS,
     ACTION_MESSAGE_SUPPLEMENT_MAX_CODEPOINTS,
+    ActionProjectRef,
 )
 from ..agent.image import ImageInput
 
@@ -35,6 +37,11 @@ class ExecuteActionMessage(BaseModel):
         default=None,
         max_length=ACTION_MESSAGE_SUPPLEMENT_MAX_CODEPOINTS,
         description="提案承認時にUSERが追加する条件（任意）",
+    )
+    supplement_project_refs: tuple[ActionProjectRef, ...] = Field(
+        default=(),
+        max_length=ACTION_MESSAGE_MAX_PROJECT_REFS,
+        description="Workspace projects named in the trimmed supplement",
     )
 
 

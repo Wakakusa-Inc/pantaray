@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import { ActionMessageRequestSchema } from '../../actions/actionContracts';
+import { ActionMessageRequestSchema, ActionProjectRefsSchema } from '../../actions/actionContracts';
 
 import {
   isActionSupplementWithinLimit,
@@ -103,6 +103,7 @@ export const AcceptActionRequestSchema = z
     suggestionId: IdString,
     commandId: IdString.nullable(),
     supplement: ActionSupplementSchema,
+    supplementProjectRefs: ActionProjectRefsSchema,
     approvalMode: z.enum(['prompt_each_time', 'always_allow']),
     images: ActionMessageRequestSchema.shape.message.shape.images,
   })

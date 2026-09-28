@@ -525,6 +525,7 @@ export function createOrchestrationRendererBridge(params: {
             command_id: nextCommandId,
             language: params.getUiLanguage(),
             supplement: request.supplement,
+            supplement_project_refs: request.supplementProjectRefs,
             approval_mode: request.approvalMode,
             images: request.images,
           },

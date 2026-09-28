@@ -39,7 +39,7 @@ it('renders the backend contract through the shared History and Overlay renderer
     name: /^Pantaray's work 1, Run 1:/,
   });
 
-  expect(user).toHaveTextContent('Please inspect the repository');
+  expect(user).toHaveTextContent('Please inspect the Demo App repository');
   expect(finalOutput).toHaveTextContent('Canonical final answer');
   expect(within(user).getByRole('list', { name: '1 attached image' })).toBeVisible();
   expect(conversation).not.toHaveTextContent('/private/captures/secret-window.png');
@@ -91,6 +91,7 @@ it('projects the newest-first backend page as chronological history', () => {
             accepted_sequence: 2,
             content: 'Second request',
             images: [],
+            project_refs: [],
             status: 'adopted',
           },
         ],
@@ -113,6 +114,7 @@ it('projects the newest-first backend page as chronological history', () => {
             accepted_sequence: 1,
             content: 'First request',
             images: [],
+            project_refs: [],
             status: 'adopted',
           },
         ],

@@ -1,4 +1,4 @@
-import type { ActionMessageRequest } from '../actions/actionContracts';
+import type { ActionMessageRequest, ActionProjectRef } from '../actions/actionContracts';
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
@@ -20,6 +20,8 @@ export type AcceptActionRequest = {
   suggestionId: string;
   commandId: string | null;
   supplement: string | null;
+  // Spans point into the trimmed supplement.
+  supplementProjectRefs: ActionProjectRef[];
   approvalMode: 'prompt_each_time' | 'always_allow';
   images: ActionMessageRequest['message']['images'];
 };
@@ -101,6 +103,7 @@ export type ExecuteActionClientEvent = {
     command_id: string;
     language: UiLanguage;
     supplement: string | null;
+    supplement_project_refs: AcceptActionRequest['supplementProjectRefs'];
     approval_mode: AcceptActionRequest['approvalMode'];
     images: AcceptActionRequest['images'];
   };

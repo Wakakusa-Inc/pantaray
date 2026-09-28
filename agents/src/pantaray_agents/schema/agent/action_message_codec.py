@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pydantic import TypeAdapter, ValidationError
 
-from .action_message import ActionUserMessageInput, SuggestionApprovalInput
+from .action_message import (
+    ActionProjectRef,
+    ActionUserMessageInput,
+    SuggestionApprovalInput,
+)
 
 _ACTION_USER_MESSAGE_ADAPTER = TypeAdapter(ActionUserMessageInput)
 
@@ -47,16 +51,19 @@ def render_action_user_visible_text(*, content: str, supplement: str | None) -> 
 
 
 def render_action_user_request_text(message: ActionUserMessageInput) -> str:
-    visible_text = render_action_user_visible_text(
-        content=message.content, supplement=message.supplement
-    )
-
+    sections = [
+        render_action_user_visible_text(
+            content=message.content, supplement=message.supplement
+        )
+    ]
     approval = message.suggestion_approval
-    if approval is None:
-        return visible_text
-
-    metadata_lines = _render_suggestion_metadata(approval)
-    return visible_text + "\n\nSuggestion metadata:\n" + "\n".join(metadata_lines)
+    if approval is not None:
+        metadata_lines = _render_suggestion_metadata(approval)
+        sections.append("Suggestion metadata:\n" + "\n".join(metadata_lines))
+    project_refs = (*message.project_refs, *message.supplement_project_refs)
+    if project_refs:
+        sections.append(_render_project_refs(project_refs))
+    return "\n\n".join(sections)
 
 
 def _render_suggestion_metadata(approval: SuggestionApprovalInput) -> list[str]:
@@ -69,6 +76,18 @@ def _render_suggestion_metadata(approval: SuggestionApprovalInput) -> list[str]:
         metadata_lines.append(f"- Project: {approval.project_name}")
     metadata_lines.append(f"- Approved at: {approval.approved_at}")
     return metadata_lines
+
+
+def _render_project_refs(refs: tuple[ActionProjectRef, ...]) -> str:
+    first_by_project: dict[str, ActionProjectRef] = {}
+    for ref in refs:
+        first_by_project.setdefault(ref.project_id, ref)
+    lines = [
+        f"- {ref.display_name}: "
+        + (", ".join(ref.paths) if ref.paths else "no folders registered")
+        for ref in first_by_project.values()
+    ]
+    return "Referenced workspace projects:\n" + "\n".join(lines)
 
 
 __all__ = [

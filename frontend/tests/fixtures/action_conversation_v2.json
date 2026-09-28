@@ -33,11 +33,18 @@
           "step_number": 1,
           "message_id": "message-user-request",
           "accepted_sequence": 1,
-          "content": "Please inspect the repository",
+          "content": "Please inspect the Demo App repository",
           "images": [
             {
               "kind": "image",
               "storage_path": "/private/captures/secret-window.png"
+            }
+          ],
+          "project_refs": [
+            {
+              "display_name": "Demo App",
+              "start": 19,
+              "end": 27
             }
           ],
           "status": "adopted",

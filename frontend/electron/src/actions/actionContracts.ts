@@ -13,6 +13,9 @@ const TERMINAL_CONVERSATION_STATUSES = new Set(['success', 'error', 'canceled'])
 const ACTION_MESSAGE_ID_MAX_CODEPOINTS = 128;
 const ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS = 32_000;
 const ACTION_MESSAGE_MAX_IMAGES = 32;
+const ACTION_MESSAGE_MAX_PROJECT_REFS = 32;
+const ACTION_PROJECT_REF_MAX_PATHS = 32;
+const ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS = 200;
 
 export type ActionTimelinePosition = Readonly<{
   step_number: number;
@@ -69,6 +72,42 @@ const ImageReferenceSchema = z
   })
   .strict();
 
+const CodePointOffsetSchema = z.number().int().nonnegative();
+
+// A workspace project named in the user's text, copied when the message is sent.
+// start/end are Unicode code-point offsets into the trimmed text the backend
+// stores; codePointSpanInTrimmedText converts the composer's UTF-16 offsets.
+// The backend checks that each span names display_name and that paths are absolute.
+export const ActionProjectRefsSchema = z
+  .array(
+    z
+      .object({
+        project_id: ActionMessageIdSchema,
+        display_name: boundedActionMessageText(ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS),
+        paths: z.array(NonBlankTextSchema).max(ACTION_PROJECT_REF_MAX_PATHS),
+        start: CodePointOffsetSchema,
+        end: CodePointOffsetSchema,
+      })
+      .strict()
+  )
+  .max(ACTION_MESSAGE_MAX_PROJECT_REFS);
+
+/**
+ * Convert a UTF-16 span of the raw composer draft to the code-point span of the
+ * same characters in the trimmed text that is sent. This is the one place the two
+ * units meet: JavaScript strings index UTF-16, the stored message indexes code points.
+ */
+export function codePointSpanInTrimmedText(
+  draft: string,
+  utf16Start: number,
+  utf16End: number
+): Readonly<{ start: number; end: number }> {
+  const trimmedStart = draft.length - draft.trimStart().length;
+  const codePointLength = (from: number, to: number) => Array.from(draft.slice(from, to)).length;
+  const start = codePointLength(trimmedStart, utf16Start);
+  return { start, end: start + codePointLength(utf16Start, utf16End) };
+}
+
 export const ActionMessageRequestSchema = z
   .object({
     target: ActionMessageTargetSchema,
@@ -79,6 +118,7 @@ export const ActionMessageRequestSchema = z
         content: ActionMessageContentSchema,
         images: z.array(ImageReferenceSchema).max(ACTION_MESSAGE_MAX_IMAGES),
         language: z.enum(['en', 'ja']).nullable().optional(),
+        project_refs: ActionProjectRefsSchema.optional(),
       })
       .strict(),
   })
@@ -130,6 +170,16 @@ const UserEntrySchema = z
     content: NonBlankTextSchema.nullable(),
     approved_suggestion: ApprovedSuggestionSchema.nullable(),
     images: z.array(ImageReferenceSchema),
+    // Code-point spans of workspace projects named in `content`, as sent.
+    project_refs: z.array(
+      z
+        .object({
+          display_name: NonBlankTextSchema,
+          start: CodePointOffsetSchema,
+          end: CodePointOffsetSchema,
+        })
+        .strict()
+    ),
     status: z.enum(['adopted', 'pending', 'not_executed']),
   })
   .strict()
@@ -393,6 +443,7 @@ export type ActionMessageSubmitResult =
   | Readonly<{ kind: 'action_conflict' }>;
 export type ActionConversationPage = z.infer<typeof ActionConversationPageSchema>;
 export type ActionImageReference = z.infer<typeof ImageReferenceSchema>;
+export type ActionProjectRef = z.infer<typeof ActionProjectRefsSchema>[number];
 export type ActionToolOutputDetail = z.infer<typeof ActionToolOutputDetailSchema>;
 
 export class ActionWireContractError extends Error {

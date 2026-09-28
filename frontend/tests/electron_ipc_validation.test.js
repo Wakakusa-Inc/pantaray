@@ -522,23 +522,24 @@ test('ws:acceptAction rejects invalid fields and Unicode overflow', async () => 
   const { ctx, ipcMain } = buildCtx();
   const invoke = getInvoke(ipcMain, 'ws:acceptAction');
   await assert.rejects(
-    invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 123, commandId: null, supplement: null }),
+    invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 123, commandId: null, supplement: null, supplementProjectRefs: [] }),
     rejectsValidation('ws:acceptAction')
   );
   await assert.rejects(
-    invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: null, extra: true }),
+    invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: null, supplementProjectRefs: [], extra: true }),
     rejectsValidation('ws:acceptAction')
   );
   await assert.rejects(
-    invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '😀'.repeat(8_001) }),
+    invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '😀'.repeat(8_001), supplementProjectRefs: [] }),
     rejectsValidation('ws:acceptAction')
   );
   for (const invalid of [
     { approvalMode: 'unknown' },
     { images: [{ kind: 'file', storage_path: 'private.pdf' }] },
     { images: Array(33).fill({ kind: 'image', storage_path: 'image.png' }) },
+    { supplementProjectRefs: [{ project_id: 'p1', display_name: 'Demo', paths: [], start: -1, end: 4 }] },
   ]) {
-    await assert.rejects(invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: null, ...invalid }), rejectsValidation('ws:acceptAction'));
+    await assert.rejects(invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: null, supplementProjectRefs: [], ...invalid }), rejectsValidation('ws:acceptAction'));
   }
   assert.equal(ctx.ws.acceptAction.calls.length, 0);
 });
@@ -546,12 +547,13 @@ test('ws:acceptAction rejects invalid fields and Unicode overflow', async () => 
 test('ws:acceptAction normalizes blank and accepts 8,000 Unicode code points', async () => {
   const { ctx, ipcMain } = buildCtx();
   const invoke = getInvoke(ipcMain, 'ws:acceptAction');
-  const request = { approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '😀'.repeat(8_000) };
+  const supplementProjectRefs = [{ project_id: 'p1', display_name: '😀', paths: ['/workspace/demo'], start: 0, end: 1 }];
+  const request = { approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '😀'.repeat(8_000), supplementProjectRefs };
   await invoke(request);
-  await invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '   ' });
+  await invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '   ', supplementProjectRefs: [] });
   assert.deepEqual(ctx.ws.acceptAction.calls, [
     [request],
-    [{ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: null }],
+    [{ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: null, supplementProjectRefs: [] }],
   ]);
 });
 

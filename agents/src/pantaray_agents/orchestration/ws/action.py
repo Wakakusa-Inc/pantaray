@@ -30,6 +30,7 @@ from pantaray_agents.schema.agent.action import (
     ActionUserMessageInput,
     SuggestionApprovalInput,
 )
+from pantaray_agents.schema.agent.action_message import ActionProjectRef
 from pantaray_agents.schema.agent.base import ErrorSeverity, ErrorType
 from pantaray_agents.schema.agent.image import ImageInput
 from pantaray_agents.schema.websocket import ExecuteActionMessage
@@ -68,6 +69,7 @@ def _build_suggestion_action_command(
     approved_at: str,
     language: ActionLanguage | None,
     supplement: str | None,
+    supplement_project_refs: tuple[ActionProjectRef, ...],
     approval_mode: ApprovalMode,
     images: tuple[ImageInput, ...],
     suggestion_row: Mapping[str, object],
@@ -96,6 +98,7 @@ def _build_suggestion_action_command(
                 content=content,
                 language=language,
                 supplement=supplement,
+                supplement_project_refs=supplement_project_refs,
                 images=images,
                 suggestion_approval=SuggestionApprovalInput(
                     suggestion_id=suggestion_id,
@@ -176,6 +179,7 @@ class ActionFlowMixin(ActionRelayMixin):
                     approved_at=approved_at,
                     language=language,
                     supplement=_optional_text(payload.supplement),
+                    supplement_project_refs=payload.supplement_project_refs,
                     approval_mode=payload.approval_mode,
                     images=payload.images,
                     suggestion_row=suggestion_row,
