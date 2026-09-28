@@ -36,6 +36,7 @@ describe('shortcutAcceleratorFromKeyEvent', () => {
     [keyEvent('k', { code: 'KeyK', metaKey: true }), false, 'Super+K'],
     [keyEvent('\u00a0', { code: 'Space', altKey: true }), true, 'Option+Space'],
     [keyEvent(' ', { code: 'Space', ctrlKey: true }), true, 'Control+Space'],
+    [keyEvent('@', { code: 'KeyL', altKey: true }), true, 'Option+L'],
     [keyEvent('F1'), false, 'F1'],
     [keyEvent('F24', { shiftKey: true }), false, 'Shift+F24'],
   ])('converts a supported chord to an Electron accelerator', (event, isMac, expected) => {
