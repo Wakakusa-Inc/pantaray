@@ -1,8 +1,12 @@
-import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { createServer, type ViteDevServer } from 'vite';
 import type { OverlaySnapshotPayload } from '../../src/components/agent-overlay/model/overlayTypes';
 import type { AcceptActionRequest } from '../../electron/src/orchestration/eventContracts';
-import type { ActionMessageRequest } from '../../electron/src/actions/actionContracts';
+import {
+  parseActionConversationPage,
+  type ActionMessageRequest,
+} from '../../electron/src/actions/actionContracts';
+import type { ActionLiveUpdate } from '../../electron/src/actions/actionLiveCore';
 
 // Render the production entry with deterministic IPC inputs; no backend, account, or live store.
 let vite: ViteDevServer;
@@ -27,7 +31,33 @@ test.beforeEach(async ({ page }) => {
         approval: {
           getWorkspaceEditCommandPreference: async () => ({ approval_mode: 'prompt_each_time' }),
         },
+        // Dummy projects; a test empties the workspace with data-no-projects on <html>.
+        workspaceSettings: {
+          get: async () => {
+            // prettier-ignore
+            const names = ['Aurora Web', 'Nimbus API', '北極星アプリ', 'Harbor Docs', 'Lumen Design', 'Orbit Mobile', 'Pixel Studio', 'Quartz Data', 'Sierra Infra', 'Tidal Ops'];
+            const paths = ['/Users/demo/projects/aurora-web', '/Users/demo/projects/aurora-shared'];
+            return {
+              read_access_scope: 'workspace',
+              organizations: [],
+              projects: (document.documentElement.dataset.noProjects ? [] : names).map(
+                (display_name, sort_order) => ({
+                  project_id: `project-${sort_order}`,
+                  display_name,
+                  sort_order,
+                  organization_ids: [],
+                })
+              ),
+              // prettier-ignore
+              folders: paths.map((real_path, index) => ({ folder_id: `folder-${index}`, display_name: `folder-${index}`, real_path, canonical_real_path: real_path, organization_ids: [], project_ids: ['project-0'] })),
+            };
+          },
+        },
         agentOverlay: {
+          getActionApprovalMode: async () => ({ approval_mode: 'prompt_each_time' }),
+          openWorkspaceSettings: () => {
+            document.documentElement.dataset.workspaceOpened = 'true';
+          },
           onSnapshot: (callback: (payload: OverlaySnapshotPayload) => void) => {
             const listener = (event: Event) =>
               callback((event as CustomEvent<OverlaySnapshotPayload>).detail);
@@ -47,7 +77,13 @@ test.beforeEach(async ({ page }) => {
           },
         },
         actions: {
-          onConversationUpdated: () => noop,
+          onConversationUpdated: (callback: (update: ActionLiveUpdate) => void) => {
+            const listener = (event: Event) =>
+              callback((event as CustomEvent<ActionLiveUpdate>).detail);
+            window.addEventListener('test:conversation', listener);
+            document.documentElement.dataset.conversationReady = 'true';
+            return () => window.removeEventListener('test:conversation', listener);
+          },
           submitMessage: async (request: ActionMessageRequest) => {
             document.documentElement.dataset.submitted = JSON.stringify(request);
             return { kind: 'action_conflict' };
@@ -145,7 +181,9 @@ test('offer: inline decisions, expanded instructions and fresh suggestion reset'
   await capture(page, info, 'offer-expanded');
   const composerBox = (await page.locator('.overlay-composer').boundingBox())!;
   const expandedAcceptBox = (await accept.boundingBox())!;
-  const dismissBox = (await page.getByRole('button', { name: '見送る', exact: true }).boundingBox())!;
+  const dismissBox = (await page
+    .getByRole('button', { name: '見送る', exact: true })
+    .boundingBox())!;
   expect(expandedAcceptBox.y).toBeGreaterThan(composerBox.y + composerBox.height);
   expect(Math.abs(expandedAcceptBox.y - dismissBox.y)).toBeLessThan(2);
   expect(expandedAcceptBox.x).toBeGreaterThan(dismissBox.x + dismissBox.width);
@@ -193,4 +231,144 @@ test('narrow English layout and reduced motion keep the controls reachable', asy
   ).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(360);
   await capture(page, info, 'offer-narrow-reduced-motion');
+});
+
+const recorded = async (page: Page, key: string) =>
+  JSON.parse((await page.locator('html').getAttribute(`data-${key}`))!);
+
+// The list stays outside the composer frame on either side.
+async function expectPlacement(input: Locator, listbox: Locator, placement: 'above' | 'below') {
+  const field = (await input.locator('xpath=ancestor::form').boundingBox())!;
+  const list = (await listbox.boundingBox())!;
+  if (placement === 'above') expect(list.y + list.height).toBeLessThan(field.y);
+  else expect(list.y).toBeGreaterThan(field.y + field.height);
+}
+
+test('continuation: list floats above, filters, closes, and sends the reference', async ({
+  page,
+}, info) => {
+  await page.goto(`${baseUrl}notification.html?mode=standalone&actionId=action-1`);
+  await expect(page.locator('html')).toHaveAttribute('data-conversation-ready', 'true');
+  const entry = (step: number, content: string) =>
+    step % 2
+      ? // prettier-ignore
+        { step_kind: 'user', approved_suggestion: null, step_id: `step-${step}`, step_number: step, content, message_id: `message-${step}`, accepted_sequence: step, images: [], project_refs: [], status: 'adopted' }
+      : { step_kind: 'assistant', step_id: `step-${step}`, step_number: step, content };
+  // prettier-ignore
+  const conversation = parseActionConversationPage({
+    action: { action_id: 'action-1', suggestion_id: null, status: 'success', latest_run_id: 'run-1', approved_suggestion: null, resumable: false },
+    runs: [{ run_id: 'run-1', status: 'success', started_at: '2026-09-14T00:00:00.000000Z', completed_at: '2026-09-14T00:01:00.000000Z', completion_event_id: 'completion-1', final_output: '変更点を3つにまとめました。', error: null,
+      entries: [entry(1, '先週の議事録を整理して'), entry(2, '議事録を読み、決定事項と宿題に分けます。'), entry(3, '宿題は担当者ごとに'), entry(4, '担当者ごとに並べ替えます。'), entry(5, '期限が近い順にして'), entry(6, '期限の近い順に並べ、今週分に印を付けました。'), entry(7, '共有用の文面も作って')].reverse() }],
+    unadopted_messages: [],
+    next_cursor: null,
+  });
+  const update: ActionLiveUpdate = {
+    kind: 'action_updated',
+    // prettier-ignore
+    snapshot: { actionId: 'action-1', page: conversation, pageVersion: 1, transientToolSteps: [], approvalBlockers: [], lifecycle: null },
+  };
+  await page.evaluate((detail) => {
+    window.dispatchEvent(new CustomEvent('test:conversation', { detail }));
+  }, update);
+  const input = page.getByRole('textbox', { name: 'メッセージ', exact: true });
+  await input.click();
+  await page.keyboard.type('🚀 次は@');
+  const listbox = page.getByRole('listbox', { name: 'プロジェクト' });
+  await expect(listbox.getByRole('option')).toHaveCount(11);
+  await expect(listbox.getByRole('option').last()).toHaveText('プロジェクトを追加');
+  await expectPlacement(input, listbox, 'above');
+  await expect(input).toHaveAttribute('aria-expanded', 'true');
+  // Seven project rows scroll; "Add project" stays pinned under them and ↑ reaches it.
+  const addProject = listbox.getByRole('option', { name: 'プロジェクトを追加' });
+  const lastProject = listbox.getByRole('option', { name: 'Tidal Ops' });
+  await expect(addProject).toBeInViewport();
+  await expect(lastProject).not.toBeInViewport();
+  await capture(page, info, 'mention-above-conversation-v2');
+  await page.keyboard.press('ArrowUp');
+  await expect(addProject).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('ArrowUp');
+  await expect(lastProject).toBeInViewport();
+  await expect(addProject).toBeInViewport();
+  await page.keyboard.type('zz');
+  await expect(listbox).toHaveCount(0);
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('AU');
+  await expect(listbox.getByRole('option')).toHaveText(['Aurora Web', 'プロジェクトを追加']);
+  await capture(page, info, 'mention-filtering');
+  await page.keyboard.press('Escape');
+  await expect(listbox).toHaveCount(0);
+  await page.keyboard.type('r');
+  await expect(listbox).toHaveCount(0);
+  await input.fill('🚀 次は');
+  await page.keyboard.type('＠au');
+  await page.keyboard.press('Enter');
+  await expect(input).toHaveValue('🚀 次はAurora Web ');
+  const mention = page.locator('.overlay-composer [aria-hidden="true"] span', {
+    hasText: 'Aurora Web',
+  });
+  await expect(mention).toHaveCSS('color', 'rgb(168, 208, 255)');
+  await capture(page, info, 'mention-confirmed-v2');
+  await page.keyboard.type('を確認して');
+  await page.keyboard.press('Enter');
+  expect((await recorded(page, 'submitted')).message).toMatchObject({
+    content: '🚀 次はAurora Web を確認して',
+    project_refs: [
+      {
+        project_id: 'project-0',
+        display_name: 'Aurora Web',
+        paths: [expect.stringContaining('aurora-web'), expect.stringContaining('aurora-shared')],
+        start: 4,
+        end: 14,
+      },
+    ],
+  });
+});
+
+test('new conversation: small window opens the list below; none registered offers Add', async ({
+  page,
+}, info) => {
+  await page.goto(`${baseUrl}notification.html?mode=standalone`);
+  const input = page.getByRole('textbox', { name: 'メッセージ', exact: true });
+  await expect(input).toBeFocused();
+  await page.evaluate(() => (document.documentElement.dataset.noProjects = 'true'));
+  await page.keyboard.type('一行目');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('@');
+  const listbox = page.getByRole('listbox', { name: 'プロジェクト' });
+  await expect(listbox.getByRole('option')).toHaveText(['プロジェクトを追加']);
+  await expectPlacement(input, listbox, 'below');
+  await capture(page, info, 'mention-below-no-projects-v2');
+  await listbox.getByRole('option').click();
+  await expect(page.locator('html')).toHaveAttribute('data-workspace-opened', 'true');
+  await expect(listbox).toHaveCount(0);
+  await expect(input).toBeFocused();
+});
+
+test('suggestion reply and approval supplement carry picked projects', async ({ page }, info) => {
+  await page.goto(`${baseUrl}notification.html`);
+  await showSuggestion(page, 'message_only');
+  await page.getByRole('button', { name: 'この提案に返信' }).click();
+  await page.keyboard.type('@');
+  const listbox = page.getByRole('listbox', { name: 'プロジェクト' });
+  await expectPlacement(page.getByRole('textbox'), listbox, 'below');
+  await capture(page, info, 'mention-below-small-window-v2');
+  await page.keyboard.type('nim');
+  await page.getByRole('option', { name: 'Nimbus API' }).click();
+  await page.keyboard.press('Enter');
+  expect((await recorded(page, 'submitted')).message.project_refs).toEqual([
+    { project_id: 'project-1', display_name: 'Nimbus API', paths: [], start: 0, end: 10 },
+  ]);
+
+  await page.goto(`${baseUrl}notification.html`);
+  await showSuggestion(page, 'action_offer');
+  await page.getByRole('button', { name: '追加の指示（任意）' }).click();
+  await page.keyboard.type('  @北極');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('だけ');
+  await page.getByRole('button', { name: '承認', exact: true }).click();
+  expect(await recorded(page, 'accepted')).toMatchObject({
+    supplement: '北極星アプリ だけ',
+    supplementProjectRefs: [{ project_id: 'project-2', start: 0, end: 6 }],
+  });
 });

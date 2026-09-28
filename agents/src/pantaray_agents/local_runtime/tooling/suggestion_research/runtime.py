@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pantaray_agents.agents.artifact_react import ReactToolDefinition
+from pantaray_agents.local_runtime.context.source_control import context_source_control
+from pantaray_agents.local_runtime.context.source_reader import SourceReader
 from pantaray_agents.local_runtime.tooling.memory_retrieval import (
     MemoryContextSession,
     MemoryRetrievalPolicy,
@@ -12,10 +14,13 @@ from pantaray_agents.local_runtime.tooling.memory_retrieval import (
 from pantaray_agents.local_runtime.tooling.react_tools import (
     ReadOnlyFileToolSession,
     WebResearchToolSession,
+    WorkspaceReadRoot,
     memory_revision_by_source,
 )
 
+from .commands import SuggestionCommandSession
 from .snapshot import SuggestionResearchSnapshot
+from .zanei import InsightActivityStart, SuggestionZaneiSession
 
 MEMORY_SEARCH_CONTENT_MAX_CHARS = 500
 MEMORY_SEARCH_MAX_RESULTS = 8
@@ -29,6 +34,7 @@ class LocalSuggestionResearchTools:
     db_path: Path
     busy_timeout_ms: int
     snapshot: SuggestionResearchSnapshot
+    activity_start: InsightActivityStart | None
 
     def build_tool_definitions(
         self,
@@ -67,6 +73,25 @@ class LocalSuggestionResearchTools:
                 memory_context=memory_context,
             ).definitions(),
             *WebResearchToolSession(user_id=user_id).definitions(),
+            *SuggestionZaneiSession(
+                reader=SourceReader(context_source_control.gate),
+                start=self.activity_start,
+            ).definitions(),
+            *(
+                SuggestionCommandSession(
+                    db_path=self.db_path,
+                    busy_timeout_ms=self.busy_timeout_ms,
+                    user_id=user_id,
+                    workspace_roots=tuple(
+                        root.canonical_path
+                        for root in self.snapshot.roots
+                        if isinstance(root, WorkspaceReadRoot)
+                    ),
+                    read_access_scope=self.snapshot.read_access_scope,
+                ).definitions()
+                if self.snapshot.commands_allowed
+                else ()
+            ),
         )
 
 

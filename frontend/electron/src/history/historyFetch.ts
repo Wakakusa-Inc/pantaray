@@ -57,7 +57,6 @@ export function createHistoryFetcher(params: {
         query: {
           cursor: request.cursor,
           limit: request.limit,
-          status: request.filters.status,
           search_text: request.filters.searchText,
         },
         timeoutMs: HISTORY_REQUEST_TIMEOUT_MS,

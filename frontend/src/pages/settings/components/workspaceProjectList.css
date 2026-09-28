@@ -297,7 +297,8 @@
   margin-bottom: 5px;
 }
 
-.workspace-organization-select button {
+.workspace-organization-select button,
+.workspace-organization-create-option {
   align-items: center;
   background: transparent;
   border: 1px solid transparent;
@@ -315,12 +316,14 @@
 }
 
 .workspace-organization-select button:hover,
-.workspace-organization-select button[aria-pressed='true'] {
+.workspace-organization-select button[aria-pressed='true'],
+.workspace-organization-create-option:hover {
   background: rgba(125, 171, 220, 0.12);
   border-color: rgba(125, 171, 220, 0.28);
 }
 
-.workspace-organization-select button:focus-visible {
+.workspace-organization-select button:focus-visible,
+.workspace-organization-create-option:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 1px;
 }
@@ -328,6 +331,12 @@
 .workspace-organization-select button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.workspace-organization-create-option {
+  color: #bcd3ec;
+  font-weight: 700;
+  justify-content: flex-start;
 }
 
 .workspace-organization-dialog {

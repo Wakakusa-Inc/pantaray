@@ -205,14 +205,15 @@ def _persist_short_insight(
         )
         connection.execute(
             """INSERT INTO agent_insights(insight_id, user_id, status,
-               short_term_insight_data, facts, reconsideration_reason, prompt_name,
-               prompt_version, created_at, updated_at)
-               VALUES (?, ?, 'success', ?, '', ?, ?, ?, ?, ?)""",
+               short_term_insight_data, facts, reconsideration_reason, source_cursor,
+               prompt_name, prompt_version, created_at, updated_at)
+               VALUES (?, ?, 'success', ?, '', ?, ?, ?, ?, ?, ?)""",
             (
                 run_id,
                 binding.user_id,
                 output.insight,
                 output.reconsideration_reason,
+                cursor,
                 InsightAgent.PROMPT_NAME,
                 InsightAgent.PROMPT_VERSION,
                 now,

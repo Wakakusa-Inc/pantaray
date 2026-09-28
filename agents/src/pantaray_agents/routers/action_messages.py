@@ -239,6 +239,7 @@ def _canonical_command(
             content=message.content,
             images=message.images,
             language=message.language,
+            project_refs=message.project_refs,
         ),
     )
 

@@ -24,6 +24,7 @@ from pantaray_agents.local_runtime.runtime.action_message_models import (
 )
 from pantaray_agents.schema.action_conversation import ActionStepStatus
 from pantaray_agents.schema.agent.action_message import (
+    ActionProjectRef,
     ActionUserMessageInput,
     SuggestionApprovalInput,
 )
@@ -91,6 +92,51 @@ def test_projects_proposal_separately_without_internal_suggestion_metadata(
         "content": "Apply the change",
     }
     assert entry.images[0].storage_path == "captures/1.png"
+
+
+_DEMO_REF = ActionProjectRef(
+    project_id="project-1",
+    display_name="Demo App",
+    paths=("/workspace/demo-app",),
+    start=6,
+    end=14,
+)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        ActionUserMessageInput(
+            message_id="message-1",
+            content="Check Demo App",
+            project_refs=(_DEMO_REF,),
+        ),
+        ActionUserMessageInput(
+            message_id="message-1",
+            content="Apply the change",
+            supplement="Check Demo App",
+            supplement_project_refs=(_DEMO_REF,),
+            suggestion_approval=SuggestionApprovalInput(
+                suggestion_id="suggestion-1", approved_at="2026-08-30T00:00:00Z"
+            ),
+        ),
+    ],
+)
+def test_project_refs_follow_the_text_the_entry_shows(
+    message: ActionUserMessageInput,
+) -> None:
+    row = replace(
+        _modern_user_row(),
+        user_message_json=serialize_action_user_message(message),
+        user_request_text=render_action_user_request_text(message),
+    )
+
+    entry = project_action_user_entry(row)
+
+    assert entry.content == "Check Demo App"
+    assert entry.model_dump(mode="json")["project_refs"] == [
+        {"display_name": "Demo App", "start": 6, "end": 14}
+    ]
 
 
 def test_ordinary_user_text_is_not_interpreted_as_proposal_metadata() -> None:

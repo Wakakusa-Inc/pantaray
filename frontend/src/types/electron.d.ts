@@ -272,7 +272,6 @@ declare global {
       update?: {
         /** A downloaded update waiting for a restart; `null` when none, or after "later". */
         getReadyNotice: () => Promise<UpdateReadyNotice | null>;
-        dismissReadyNotice: () => Promise<void>;
         restartToUpdate: () => Promise<void>;
         onReadyNoticeChanged: (callback: () => void) => () => void;
       };

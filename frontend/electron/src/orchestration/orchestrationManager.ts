@@ -23,7 +23,7 @@ import type {
   ResumeProcessRequest,
 } from './contracts';
 import { isScreenCaptureRequestedEvent } from './eventContracts';
-import { ActionMessageRequestSchema } from '../actions/actionContracts';
+import { ActionMessageRequestSchema, ActionProjectRefsSchema } from '../actions/actionContracts';
 import { createOrchestrationRendererBridge } from './orchestrationRendererBridge';
 
 export type CreateOrchestrationWS = (opts: {
@@ -168,13 +168,15 @@ export function createOrchestrationManager(params: {
     switch (event) {
       case 'execute_action': {
         const images = ActionMessageRequestSchema.shape.message.shape.images.safeParse(data.images);
+        const projectRefs = ActionProjectRefsSchema.safeParse(data.supplement_project_refs);
         if (
           typeof data.suggestion_id !== 'string' ||
           typeof data.command_id !== 'string' ||
           (data.language !== 'en' && data.language !== 'ja') ||
           !(typeof data.supplement === 'string' || data.supplement === null) ||
           (data.approval_mode !== 'prompt_each_time' && data.approval_mode !== 'always_allow') ||
-          !images.success
+          !images.success ||
+          !projectRefs.success
         ) {
           return null;
         }
@@ -185,6 +187,7 @@ export function createOrchestrationManager(params: {
             command_id: data.command_id,
             language: data.language,
             supplement: data.supplement,
+            supplement_project_refs: projectRefs.data,
             approval_mode: data.approval_mode,
             images: images.data,
           },

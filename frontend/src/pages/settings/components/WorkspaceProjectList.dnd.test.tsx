@@ -43,10 +43,12 @@ function DndHarness({
       statusMessage={failed ? 'save failed' : undefined}
       dragController={dragController}
       folders={[]}
+      organizationCreateBusy={false}
       organizations={[]}
       projects={projects}
       t={translate}
       onCreateFolder={async () => true}
+      onCreateOrganization={async () => null}
       onDeleteFolder={async () => {}}
       onDeleteProject={async () => {}}
       onSelectFolder={async () => null}

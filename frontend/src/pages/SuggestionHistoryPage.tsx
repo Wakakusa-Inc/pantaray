@@ -1,10 +1,10 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useLayoutEffect, useState } from 'react';
 
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
 import { HistoryCaptureControls } from '@/components/history/HistoryCaptureControls';
 import { HistoryDeleteDialog } from '@/components/history/HistoryDeleteDialog';
-import HistoryFilterBar from '@/components/history/HistoryFilterBar';
+import HistorySearchField from '@/components/history/HistorySearchField';
 import { getConversationHistoryStatusMeta } from '@/components/history/statusTokens';
 import { ShortcutHint, ShortcutKeycaps } from '@/components/shortcut/ShortcutHint';
 import {
@@ -94,8 +94,8 @@ const SuggestionHistoryPage = () => {
     loadingMore,
     error,
     isRealtimeSyncing,
-    filters,
-    setFilters,
+    searchText,
+    setSearchText,
     refresh,
     loadMore,
     hasMore,
@@ -264,24 +264,28 @@ const SuggestionHistoryPage = () => {
   return (
     <div className="history-container">
       <div className="history-header">
-        <div className="history-new-conversation">
+        <div className="history-toolbar">
+          <HistorySearchField searchText={searchText} onSearch={setSearchText} />
+          <button
+            type="button"
+            className="history-toolbar__icon-button"
+            aria-label={t('history.reload')}
+            title={t('history.reload')}
+            onClick={() => void refresh()}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+          </button>
           <ShortcutHint state={shortcutHint} t={t} />
           <button
             type="button"
             id={NEW_CONVERSATION_BUTTON_ID}
-            className="history-filter-button history-new-conversation__button"
+            className="history-new-conversation-button"
             onClick={() => void handleNewConversation()}
           >
             <Plus size={16} aria-hidden="true" />
             {t('history.newConversation')}
           </button>
         </div>
-        <HistoryFilterBar
-          filters={filters}
-          onFilterChange={setFilters}
-          onReload={() => void refresh()}
-          disabled={loading}
-        />
         {isRealtimeSyncing ? <div className="history-sync">{t('history.syncing')}</div> : null}
         {notice ? (
           <div className="history-error" role="alert">

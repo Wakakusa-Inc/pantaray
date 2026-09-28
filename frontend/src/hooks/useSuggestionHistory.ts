@@ -3,18 +3,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
 import { useI18n } from '@/context/useI18n';
 
-export type SuggestionHistoryFilters = {
-  status: 'all' | 'running' | 'approval_pending' | 'idle';
-  searchText: string;
-};
-
 type UseSuggestionHistoryResult = {
   items: ConversationHistoryListItem[];
   loading: boolean;
   loadingMore: boolean;
   error: string | null;
-  filters: SuggestionHistoryFilters;
-  setFilters: (updater: (previous: SuggestionHistoryFilters) => SuggestionHistoryFilters) => void;
+  searchText: string;
+  setSearchText: (searchText: string) => void;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
   hasMore: boolean;
@@ -24,7 +19,6 @@ type UseSuggestionHistoryResult = {
   removeItem: (identity: string) => void;
 };
 
-const DEFAULT_FILTERS: SuggestionHistoryFilters = { status: 'all', searchText: '' };
 const HISTORY_PAGE_SIZE = 25;
 const HISTORY_MAX_SEARCH_CODE_POINTS = 256;
 const AUTHENTICATION_REQUIRED_ERROR_CODE = 'AUTHENTICATION_REQUIRED';
@@ -71,12 +65,12 @@ function unreadCompletions(
  * owner changes, so this hook never re-checks the owner: it holds one owner for its whole
  * life, and main names the owner of every request itself and refuses one whose owner changed
  * while it was in flight (electron/src/history/historyFetch.ts). What is left is the order
- * within that one owner — a request generation that a filter change, a reload and a realtime
+ * within that one owner — a request generation that a search change, a reload and a realtime
  * refresh all bump, and a first page that has to land before its cursor can be used.
  */
 export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
   const { t } = useI18n();
-  const [filters, updateFilters] = useState<SuggestionHistoryFilters>(DEFAULT_FILTERS);
+  const [searchText, updateSearchText] = useState('');
   const [items, setItems] = useState<ConversationHistoryListItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [unreadByAction, setUnreadByAction] = useState<Map<string, string>>(new Map());
@@ -93,22 +87,11 @@ export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
     pendingRefreshRef.current = null;
   }, []);
 
-  const setFilters = useCallback(
-    (updater: (previous: SuggestionHistoryFilters) => SuggestionHistoryFilters) => {
-      requestGenerationRef.current += 1;
-      // A refresh scheduled under the old filters is dropped by the subscription cleanup,
-      // which re-runs because the new filters change `runFetch`.
-      setRealtimeSyncing(false);
-      updateFilters((previous) => {
-        const next = updater(previous);
-        return {
-          ...next,
-          searchText: limitHistorySearchText(next.searchText),
-        };
-      });
-    },
-    []
-  );
+  // A new search changes `runFetch`, so the effects below drop the old read and any scheduled
+  // refresh. The same search changes nothing and must not touch the read in flight.
+  const setSearchText = useCallback((next: string) => {
+    updateSearchText(limitHistorySearchText(next));
+  }, []);
 
   const runFetch = useCallback(
     async (cursor: string | null, silent: boolean): Promise<void> => {
@@ -133,7 +116,11 @@ export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
         }
 
         const fetchHistory = window.electron.history.fetch;
-        const response = await fetchHistory({ cursor, limit: HISTORY_PAGE_SIZE, filters });
+        const response = await fetchHistory({
+          cursor,
+          limit: HISTORY_PAGE_SIZE,
+          filters: { searchText },
+        });
         if (requestGeneration !== requestGenerationRef.current) return;
         if (response.error !== null) {
           setError(
@@ -172,7 +159,7 @@ export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
         }
       }
     },
-    [filters, t]
+    [searchText, t]
   );
 
   const refresh = useCallback(() => runFetch(null, true), [runFetch]);
@@ -203,7 +190,7 @@ export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
     });
     return () => {
       unsubscribe();
-      // The refresh this notification scheduled would carry the filters it was scheduled
+      // The refresh this notification scheduled would carry the search it was scheduled
       // with, and after unmount it would reach main on behalf of whoever owns it then.
       clearPendingRefresh();
       setRealtimeSyncing(false);
@@ -231,8 +218,8 @@ export const useSuggestionHistory = (): UseSuggestionHistoryResult => {
     loading,
     loadingMore,
     error,
-    filters,
-    setFilters,
+    searchText,
+    setSearchText,
     refresh,
     loadMore,
     hasMore: nextCursor !== null,

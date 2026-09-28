@@ -559,10 +559,82 @@ async def test_recent_suggestions_include_the_actual_user_reply_and_reaction(
     assert recent.data is not None and len(recent.data) == 1
     entry = recent.data[0]
     assert entry["user_reaction"] == ("accepted" if action_offer else None)
-    assert content in entry["user_reply"]
-    if action_offer:
-        assert "Prepare a draft only." in entry["user_reply"]
-        assert "Suggestion metadata" not in entry["user_reply"]
+    # An approval's content repeats the Suggestion; only the supplement is the reply.
+    assert entry["user_reply"] == ("Prepare a draft only." if action_offer else content)
+    assert entry["action_status"] == "queued"
+    assert entry["action_result"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("follow_up_process_status", "action_status"),
+    [("canceled", "canceled"), ("running", "processing")],
+)
+async def test_recent_suggestions_keep_the_latest_successful_action_result(
+    tmp_path: Path,
+    follow_up_process_status: str,
+    action_status: str,
+) -> None:
+    from pantaray_agents.schema.agent.action_message import (
+        ActionUserMessageInput,
+        SuggestionApprovalInput,
+    )
+
+    db_path = _bootstrap_db(tmp_path)
+    repo = _repo(db_path)
+    now = "2099-01-01T00:00:00Z"
+    await repo.create_processing_suggestion_row(
+        user_id=USER_ID, suggestion_id=SUGGESTION_ID, created_at=now
+    )
+    await repo.save_suggestion(
+        _success_response(answer="Check whether PR #1467 is merged?"),
+        prompt_name="suggestion",
+        prompt_version="react_v2",
+    )
+    approval = ActionUserMessageInput(
+        message_id="message-1",
+        content="Check whether PR #1467 is merged?",
+        suggestion_approval=SuggestionApprovalInput(
+            suggestion_id=SUGGESTION_ID, approved_at=now
+        ),
+    ).model_dump_json()
+    follow_up_terminal = (
+        "'event-2'" if follow_up_process_status == "canceled" else "NULL"
+    )
+    with sqlite3.connect(db_path) as connection:
+        # A follow-up turn clears agent_actions.final_output; the first turn's
+        # successful terminal is the result the Suggestion must still see.
+        connection.executescript(
+            f"""
+            INSERT INTO agent_actions(action_id,user_id,suggestion_id,initial_user_message_id,
+              execution_target_json,status,final_output,prompt_name,prompt_version,created_at,updated_at)
+            VALUES ('action-1','{USER_ID}','{SUGGESTION_ID}','message-1','{{"kind":"scratch"}}',
+              '{action_status}','','action','1','{now}','{now}');
+            INSERT INTO processes(process_id,user_id,kind,status,action_id,started_at,updated_at,
+              completed_at,heartbeat_at,terminal_event_id,next_event_seq)
+            VALUES ('run-1','{USER_ID}','action','completed','action-1','{now}','{now}','{now}','{now}','event-1',2),
+              ('run-2','{USER_ID}','action','{follow_up_process_status}','action-1','{now}','{now}',
+               NULL,'{now}',{follow_up_terminal},2);
+            INSERT INTO process_events(process_id,event_seq,event_id,event_name,payload_json,created_at)
+            VALUES ('run-1',1,'event-1','stream_end','{{"final_output":"PR #1467 is already merged."}}','{now}'),
+              ('run-2',1,'event-2','stream_end','{{"final_output":null}}','{now}');
+            INSERT INTO agent_action_steps(step_id,action_id,user_id,step_number,local_step_number,
+              short_step_id,step_type,step_name,status,goal_handle,user_message_id,user_message_json,
+              user_request_text,accepted_sequence,adopted_process_id,created_at)
+            VALUES ('step-1','action-1','{USER_ID}',1,1,'S-1-USER','user_request','user_request',
+              'success','S','message-1','{approval}','Check whether PR #1467 is merged?',1,'run-1','{now}'),
+              ('step-2','action-1','{USER_ID}',2,2,'S-2-USER','user_request','user_request',
+              'success','S',NULL,NULL,'Also check CI',2,'run-2','{now}');
+            """
+        )
+
+    recent = await repo.get_recent_suggestions(USER_ID)
+
+    assert recent.data is not None
+    entry = recent.data[0]
+    assert entry["user_reply"] is None
+    assert entry["action_status"] == action_status
+    assert entry["action_result"] == "PR #1467 is already merged."
 
 
 @pytest.mark.asyncio

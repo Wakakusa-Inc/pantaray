@@ -64,6 +64,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
   const {
     composer,
     images,
+    projectRefs: supplementProjectRefs,
     supplement,
     supplementInvalid,
     setComposer,
@@ -443,7 +444,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
     permissionsReady && composer.attachmentsInFlight === 0 && !supplementInvalid;
   const acceptSuggestion = () => {
     if (!canDecide || !canAcceptSuggestion || approvalMode.mode === null) return;
-    ctrl.onAccept({ supplement, approvalMode: approvalMode.mode, images });
+    ctrl.onAccept({ supplement, supplementProjectRefs, approvalMode: approvalMode.mode, images });
   };
   const composerContent =
     toolOutputLoader &&
@@ -452,6 +453,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
       <OverlayComposer
         approvalMode={approvalMode}
         draft={composer.draft}
+        mentions={composer.mentions}
         submissionControls={submissionControls}
         retryAcceptance={canDecide && ctrl.acceptFailed}
         attachments={composer.attachments}
@@ -478,10 +480,11 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
           permissionsReady && (composer.resume === null || composer.resume.state === 'failed')
         }
         textareaRef={standaloneComposerRef}
-        onDraftChange={(draft) =>
+        onDraftChange={(draft, mentions) =>
           setComposer((current) => ({
             ...current,
             draft,
+            mentions,
             validationFailed: false,
             resume: current.resume?.state === 'failed' ? null : current.resume,
           }))

@@ -223,8 +223,7 @@ async def test_bash_sandbox_request_uses_manifest_roots_without_workspace_id(
 
     assert outcome.status == "success"
     assert "workspace_id" not in captured_payload
-    assert captured_payload["manifest_id"] == context.manifest_id
-    assert captured_payload["action_plan_path"] == str(
+    assert captured_payload["action_storage"]["plan_path"] == str(
         context.workspace_path / "plan.md"
     )
     assert str(context.workspace_path.resolve()) in captured_payload["real_read_roots"]

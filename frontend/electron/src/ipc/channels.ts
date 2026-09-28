@@ -114,7 +114,6 @@ export const validInvokeChannels = [
   'ui:setLanguage',
   // Update ready notice (main window)
   'update:getReadyNotice',
-  'update:dismissReadyNotice',
   'update:restartToUpdate',
   // Recording filter (apps / websites, exclude or include-only)
   'privacy:getCaptureSettings',

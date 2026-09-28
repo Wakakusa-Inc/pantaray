@@ -24,6 +24,9 @@ from pantaray_agents.schema.action_conversation import ActionStatus
 from pantaray_agents.schema.agent.action_message import (
     ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
 )
+from pantaray_agents.schema.agent.action_message_codec import (
+    render_action_user_request_text,
+)
 from pantaray_agents.schema.repositories.repository import RepositoryResult
 from pantaray_agents.schema.websocket import AckEventMessage
 from pantaray_agents.schema.websocket.client_messages import ExecuteActionMessage
@@ -31,6 +34,13 @@ from pantaray_agents.schema.websocket.server_messages import ErrorMessage
 
 COMMAND_ID = "11111111-1111-4111-8111-111111111111"
 APPROVED_AT = "2026-08-16T01:02:03Z"
+DEMO_REF = {
+    "project_id": "project-1",
+    "display_name": "Demo App",
+    "paths": ["/workspace/demo-app"],
+    "start": 35,
+    "end": 43,
+}
 
 
 class _SessionStore:
@@ -187,7 +197,9 @@ async def test_execute_action_adapts_suggestion_to_the_canonical_creation_comman
             suggestion_id="suggestion-1",
             command_id=COMMAND_ID,
             language="ja",
-            supplement="Run only the focused regression.",
+            # Spans point into the trimmed supplement.
+            supplement="  Run only the focused regression in Demo App.",
+            supplement_project_refs=(DEMO_REF,),
         )
     )
 
@@ -200,7 +212,11 @@ async def test_execute_action_adapts_suggestion_to_the_canonical_creation_comman
     message = command.message
     assert message.message_id == COMMAND_ID
     assert message.content == "Apply the approved change"
-    assert message.supplement == "Run only the focused regression."
+    assert message.supplement == "Run only the focused regression in Demo App."
+    assert message.supplement_project_refs[0].display_name == "Demo App"
+    assert render_action_user_request_text(message).endswith(
+        "Referenced workspace projects:\n- Demo App: /workspace/demo-app"
+    )
     assert message.language == "ja"
     assert (
         message.images[0].storage_path
@@ -465,6 +481,32 @@ async def test_execute_action_rejects_legacy_oversized_suggestion_as_not_allowed
     assert handler.attached == []
     assert handler.errors[-1][0].error_code == "WS_ACTION_NOT_ALLOWED"
     assert handler.session_errors == []
+
+
+@pytest.mark.asyncio
+async def test_execute_action_rejects_a_project_ref_outside_its_supplement_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_runtime(monkeypatch)
+    monkeypatch.setattr(
+        "pantaray_agents.orchestration.ws.action.submit_action_message",
+        lambda _command: pytest.fail("invalid command must not reach persistence"),
+    )
+    handler = _Handler()
+
+    await handler.execute_action(
+        ExecuteActionMessage(
+            approval_mode="prompt_each_time",
+            images=(),
+            suggestion_id="suggestion-1",
+            command_id=COMMAND_ID,
+            supplement="Check Demo App.",
+            supplement_project_refs=(DEMO_REF,),
+        )
+    )
+
+    assert handler.attached == []
+    assert handler.errors[-1][0].error_code == "WS_ACTION_NOT_ALLOWED"
 
 
 @pytest.mark.asyncio

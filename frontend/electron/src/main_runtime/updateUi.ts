@@ -77,7 +77,6 @@ function clearTrayStatusTitle(tray: Tray): void {
 export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
   let captureStatusSnapshot: CaptureStatusSnapshot | null = null;
   let captureStatusRefreshSequence = 0;
-  let readyNoticeDismissed = false;
 
   // One restart path for the menus, the update dialog and the main window's notice.
   const restartToUpdate = (): void => {
@@ -94,7 +93,7 @@ export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
 
   const getReadyNotice = (): UpdateReadyNotice | null => {
     const updater = deps.getDesktopUpdater();
-    if (readyNoticeDismissed || !updater?.isUpdateDownloaded()) return null;
+    if (!updater?.isUpdateDownloaded()) return null;
     return { version: updater.getPendingVersion() };
   };
 
@@ -344,9 +343,6 @@ export function createUpdateUiManager(deps: UpdateUiManagerDeps) {
 
   return {
     consumeManualUpdateCheckPending: deps.consumeManualUpdateCheckPending,
-    dismissReadyNotice: () => {
-      readyNoticeDismissed = true;
-    },
     getReadyNotice,
     getUpdateMenuCopy,
     handleCheckUpdatesClick,

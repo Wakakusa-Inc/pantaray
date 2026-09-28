@@ -36,6 +36,7 @@ const canonicalUser = (key: string, content: string): CanonicalUserItem => ({
     accepted_sequence: 1,
     content,
     images: [],
+    project_refs: [],
     status: 'adopted',
   },
 });
@@ -536,6 +537,64 @@ describe('ActionConversationView', () => {
 
     expect(outside).toHaveFocus();
     outside.remove();
+  });
+
+  it('colors only the referenced project names, counting offsets in code points', () => {
+    // The emoji before each name are two UTF-16 units but one code point, so UTF-16
+    // slicing would shift both spans.
+    const content = '🙂 Compare Atlas with 📦 Borealis notes';
+    const referenced = canonicalUser('refs', content);
+    referenced.entry.project_refs = [
+      { display_name: 'Atlas', start: 10, end: 15 },
+      { display_name: 'Borealis', start: 23, end: 31 },
+    ];
+    const plain = canonicalUser('plain', 'No projects here');
+    renderView(viewWith([referenced, plain]));
+
+    const [referencedText, plainText] = screen
+      .getAllByRole('article', { name: 'You' })
+      .map((article) => article.querySelector('p')!);
+    expect(referencedText).toHaveTextContent(content, { normalizeWhitespace: false });
+    const refs = referencedText.querySelectorAll('.action-conversation__project-ref');
+    expect(Array.from(refs, (ref) => ref.textContent)).toEqual(['Atlas', 'Borealis']);
+    expect(plainText.children).toHaveLength(0);
+    expect(plainText).toHaveTextContent('No projects here');
+  });
+
+  it('colors project names in a message that is still being sent', () => {
+    const optimistic: ActionConversationUserItem = {
+      kind: 'user',
+      source: 'optimistic',
+      key: 'message-optimistic',
+      visibility: 'always',
+      submission: {
+        state: 'submitting',
+        request: {
+          target: { kind: 'existing', action_id: 'action-1', expected_process_id: 'process-1' },
+          message: {
+            version: 1,
+            message_id: 'message-optimistic',
+            content: 'Open Atlas',
+            images: [],
+            project_refs: [
+              {
+                project_id: 'project-1',
+                display_name: 'Atlas',
+                paths: ['/workspace/atlas'],
+                start: 5,
+                end: 10,
+              },
+            ],
+          },
+        },
+      },
+    };
+    renderView(viewWith([optimistic]));
+
+    const text = screen.getByRole('article', { name: 'You' }).querySelector('p')!;
+    expect(text).toHaveTextContent('Open Atlas');
+    const refs = text.querySelectorAll('.action-conversation__project-ref');
+    expect(Array.from(refs, (ref) => ref.textContent)).toEqual(['Atlas']);
   });
 
   it('labels pending, optimistic, and active tool states in Japanese', async () => {

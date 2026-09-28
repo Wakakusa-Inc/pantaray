@@ -21,8 +21,10 @@ from pantaray_agents.schema.action_conversation import (
     ToolEntry,
     ToolEntryOutcome,
     UserEntry,
+    UserEntryProjectRef,
     UserEntryStatus,
 )
+from pantaray_agents.schema.agent.action_message import ActionProjectRef
 from pantaray_agents.schema.agent.action_message_codec import (
     parse_stored_action_user_message,
 )
@@ -68,6 +70,7 @@ def project_action_user_entry(row: ActionHistoryUserRow) -> UserEntry:
     content: str | None
     images: tuple[ImageInput, ...]
     approved_suggestion: ApprovedSuggestion | None = None
+    project_refs: tuple[ActionProjectRef, ...] = ()
     if message is None:
         content = row.user_request_text
         images = ()
@@ -78,8 +81,10 @@ def project_action_user_entry(row: ActionHistoryUserRow) -> UserEntry:
                 content=message.content,
             )
             content = message.supplement
+            project_refs = message.supplement_project_refs
         else:
             content = message.content
+            project_refs = message.project_refs
         images = message.images
 
     status: UserEntryStatus = (
@@ -99,6 +104,12 @@ def project_action_user_entry(row: ActionHistoryUserRow) -> UserEntry:
             content=content,
             approved_suggestion=approved_suggestion,
             images=images,
+            project_refs=tuple(
+                UserEntryProjectRef(
+                    display_name=ref.display_name, start=ref.start, end=ref.end
+                )
+                for ref in project_refs
+            ),
             status=status,
         )
     except ValidationError as exc:

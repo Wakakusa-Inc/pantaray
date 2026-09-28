@@ -24,6 +24,7 @@ interface SortableProjectCardProps {
   project: WorkspaceProject;
   t: Translate;
   onCreateFolder: (input: WorkspaceFolderCreateInput) => Promise<boolean>;
+  onCreateOrganization: (displayName: string) => Promise<string | null>;
   onDeleteFolder: (folderId: string, focus: FocusRequest) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
   onSelectFolder: () => Promise<string | null>;
@@ -35,6 +36,7 @@ interface SortableProjectCardProps {
   createFolderBusy: boolean;
   deleteProjectBusy: boolean;
   isDeleteFolderBusy: (folderId: string) => boolean;
+  organizationCreateBusy: boolean;
   projectLinksBusy: boolean;
 }
 
@@ -92,9 +94,11 @@ export function SortableProjectCard(props: SortableProjectCardProps) {
 
         <ProjectOrganizationEditor
           busy={props.projectLinksBusy}
+          createBusy={props.organizationCreateBusy}
           organizations={props.organizations}
           project={props.project}
           t={props.t}
+          onCreateOrganization={props.onCreateOrganization}
           onUpdate={props.onUpdateOrganizations}
         />
 

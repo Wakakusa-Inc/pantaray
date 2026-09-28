@@ -191,7 +191,9 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
   const approvalPreferenceFetch = createApprovalPreferenceFetcher({ requestJson, getUserId });
   const workspaceSettingsFetch = createWorkspaceSettingsFetcher({ requestJson, getUserId });
   const selectWorkspaceFolder = async (): Promise<{ canceled: boolean; path: string | null }> => {
-    const mainWindow = BrowserWindow.getAllWindows()[0] ?? null;
+    // getAllWindows() lists the newest window first, which can be a hidden overlay;
+    // a dialog parented to it would show that overlay.
+    const mainWindow = params.getMainWindow();
     const options: Electron.OpenDialogOptions = { properties: ['openDirectory'] };
     const result = mainWindow
       ? await dialog.showOpenDialog(mainWindow, options)
@@ -310,7 +312,6 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
         },
         update: {
           getReadyNotice: params.updateUi.getReadyNotice,
-          dismissReadyNotice: params.updateUi.dismissReadyNotice,
           restartToUpdate: params.updateUi.restartToUpdate,
         },
         actions: {

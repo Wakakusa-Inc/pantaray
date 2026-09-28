@@ -25,7 +25,6 @@ from pantaray_agents.schema.agent.action_message import (
     ActionUserMessageInput,
     SuggestionApprovalInput,
 )
-from pantaray_agents.schema.conversation_history import ConversationHistoryFilter
 
 from .local_action_repository_support import bootstrap_action_repository_db
 
@@ -100,7 +99,6 @@ def history_connection(tmp_path: Path) -> Iterator[sqlite3.Connection]:
 def _read(
     connection: sqlite3.Connection,
     *,
-    status: ConversationHistoryFilter = "all",
     search_text: str = "",
     cursor: str | None = None,
     limit: int = 20,
@@ -108,7 +106,6 @@ def _read(
     return read_conversation_history_candidates_in_connection(
         connection=connection,
         user_id="user-1",
-        status=status,
         search_text=search_text,
         cursor=cursor,
         limit=limit,
@@ -148,26 +145,23 @@ def test_query_page_contract(history_connection: sqlite3.Connection) -> None:
     )
 
     with pytest.raises(OpaqueCursorError, match="another history query"):
-        _read(history_connection, status="idle", cursor=first.next_cursor)
+        _read(history_connection, search_text="needle", cursor=first.next_cursor)
 
 
-def test_status_and_search_contract(history_connection: sqlite3.Connection) -> None:
-    cases: tuple[tuple[ConversationHistoryFilter, str, tuple[str, ...]], ...] = (
-        ("running", "", ("act-1",)),
-        ("approval_pending", "", ("suggestion-message",)),
-        ("idle", "", ("action-terminal", "suggestion-invalid")),
-        ("all", " 100%_DONE ", ("act-1",)),
-        ("all", "carefully", ("act-1",)),
-        ("all", "café", ("act-1",)),
-        ("all", "terminal needle", ("action-terminal",)),
-        ("all", "résumé", ("action-terminal",)),
-        ("all", "standalone 1000xdone", ("suggestion-message",)),
-        ("all", "über", ("suggestion-message",)),
-        ("all", "raw secret needle", ()),
-        ("all", "linked answer", ()),
+def test_search_contract(history_connection: sqlite3.Connection) -> None:
+    cases: tuple[tuple[str, tuple[str, ...]], ...] = (
+        (" 100%_DONE ", ("act-1",)),
+        ("carefully", ("act-1",)),
+        ("café", ("act-1",)),
+        ("terminal needle", ("action-terminal",)),
+        ("résumé", ("action-terminal",)),
+        ("standalone 1000xdone", ("suggestion-message",)),
+        ("über", ("suggestion-message",)),
+        ("raw secret needle", ()),
+        ("linked answer", ()),
     )
-    for status, search_text, expected in cases:
-        page = _read(history_connection, status=status, search_text=search_text)
+    for search_text, expected in cases:
+        page = _read(history_connection, search_text=search_text)
         assert tuple(item.stable_id for item in page.candidates) == expected
 
 
@@ -197,14 +191,13 @@ def test_large_lanes_filter_and_seek_before_bounded_outer_sort(
         suggestion_rows,
     )
 
-    cases: tuple[tuple[ConversationHistoryFilter, str, str], ...] = (
-        ("running", "", "act-1"),
-        ("all", "terminal needle", "action-terminal"),
-        ("all", "standalone", "suggestion-message"),
+    cases: tuple[tuple[str, str], ...] = (
+        ("terminal needle", "action-terminal"),
+        ("standalone", "suggestion-message"),
     )
-    for status, search_text, expected in cases:
+    for search_text, expected in cases:
         candidate = _read(
-            history_connection, status=status, search_text=search_text, limit=1
+            history_connection, search_text=search_text, limit=1
         ).candidates[0]
         assert candidate.stable_id == expected
 
@@ -214,7 +207,6 @@ def test_large_lanes_filter_and_seek_before_bounded_outer_sort(
             "EXPLAIN QUERY PLAN " + _candidate_query(cursor_bound=True),
             {
                 "user_id": "user-1",
-                "status": "all",
                 "search_text": "",
                 "search_pattern": "%%",
                 "hidden_step_name": ACTION_RESUME_STEP_NAME,

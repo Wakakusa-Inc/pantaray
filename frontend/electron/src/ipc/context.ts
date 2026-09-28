@@ -185,7 +185,6 @@ export type MainContext = {
 
   update: {
     getReadyNotice: () => UpdateReadyNotice | null;
-    dismissReadyNotice: () => void;
     /** The same restart the app and tray menus' "Restart to update" makes. */
     restartToUpdate: () => void;
   };

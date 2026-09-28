@@ -6,10 +6,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, TypeAdapter
 from pydantic_core import PydanticCustomError
 
 from pantaray_agents.schema.action_conversation import ActionConversationIdentity
-from pantaray_agents.schema.conversation_history import (
-    ConversationHistoryFilter,
-    ConversationHistoryTimestamp,
-)
+from pantaray_agents.schema.conversation_history import ConversationHistoryTimestamp
 
 from .cursor_codec import decode_opaque_cursor, encode_opaque_cursor
 
@@ -37,7 +34,6 @@ class ConversationHistoryCursor(BaseModel):
     )
 
     user_id: ActionConversationIdentity
-    status: ConversationHistoryFilter
     search_text: _NormalizedSearchText
     updated_at: ConversationHistoryTimestamp
     kind: Literal["conversation", "suggestion"]

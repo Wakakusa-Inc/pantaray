@@ -12,7 +12,6 @@ from pantaray_agents.agents.artifact_react import (
     ReactToolRegistry,
     ToolCallEnvelope,
 )
-from pantaray_agents.agents.suggestion_agent.react import SUGGESTION_TOOL_IDS
 from pantaray_agents.local_runtime.memory_catalog.artifact_domain_publication import (
     FactArtifactPublication,
     LongTermInsightArtifactPublication,
@@ -931,13 +930,13 @@ def test_suggestion_research_tool_set_is_read_only(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     )
 
     definitions = runtime.build_tool_definitions(
         user_id="user-1",
         run_id="suggestion-1",
     )
-    assert tuple(definition.name for definition in definitions) == SUGGESTION_TOOL_IDS
     names = {definition.name for definition in definitions}
 
     assert names == {
@@ -949,10 +948,12 @@ def test_suggestion_research_tool_set_is_read_only(
         "grep",
         "web_search",
         "web_extract",
+        "zanei_timeline",
+        "zanei_query",
     }
     assert names.isdisjoint({"thinking", "apply_patch", "bash", "run_python"})
     for definition in definitions:
-        required = definition.request_schema.get("required")
+        required = definition.request_schema.get("required", [])
         assert isinstance(required, list)
         assert "hypothesis" not in required
         assert "evidence_goal" not in required
@@ -971,6 +972,7 @@ def test_suggestion_research_tool_build_uses_preloaded_snapshot(
         db_path=tmp_path / "unavailable.db",
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=snapshot,
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
 
     assert {definition.name for definition in definitions} >= {
@@ -1046,6 +1048,7 @@ async def test_suggestion_memory_search_keeps_prior_handles_available(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     registry = ReactToolRegistry(definitions)
 
@@ -1117,6 +1120,7 @@ async def test_suggestion_memory_search_uses_snapshot_revision(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=snapshot,
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     search_tool = next(
         definition for definition in definitions if definition.name == "memory_search"
@@ -1190,6 +1194,7 @@ async def test_suggestion_memory_search_content_can_be_read_to_completion(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     registry = ReactToolRegistry(definitions)
 
@@ -1263,6 +1268,7 @@ async def test_suggestion_web_search_returns_shared_client_response(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         snapshot=_snapshot(db_path=db_path),
+        activity_start=None,
     ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     tools = {definition.name: definition for definition in definitions}
 
@@ -1328,6 +1334,7 @@ async def test_suggestion_web_search_pages_structured_results_from_one_snapshot(
             db_path=db_path,
             busy_timeout_ms=BUSY_TIMEOUT_MS,
             snapshot=_snapshot(db_path=db_path),
+            activity_start=None,
         ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     )
 
@@ -1398,6 +1405,7 @@ async def test_suggestion_web_extract_pages_content_from_one_snapshot(
             db_path=db_path,
             busy_timeout_ms=BUSY_TIMEOUT_MS,
             snapshot=_snapshot(db_path=db_path),
+            activity_start=None,
         ).build_tool_definitions(user_id="user-1", run_id="suggestion-1")
     )
     common_args = {

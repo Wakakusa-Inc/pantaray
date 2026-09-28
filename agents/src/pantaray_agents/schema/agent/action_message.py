@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Callable
 from typing import Annotated, Literal, Self
 
 from pydantic import (
@@ -9,6 +11,8 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    NonNegativeInt,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -23,6 +27,14 @@ ACTION_MESSAGE_ID_MAX_CODEPOINTS = 128
 ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS = 32_000
 ACTION_MESSAGE_SUPPLEMENT_MAX_CODEPOINTS = 8_000
 ACTION_MESSAGE_MAX_IMAGES = 32
+# A runaway guard, not a product rule: one message naming this many projects is
+# already far past what a person types.
+ACTION_MESSAGE_MAX_PROJECT_REFS = 32
+ACTION_PROJECT_REF_MAX_PATHS = 32
+# The workspace settings IPC bounds (frontend/electron/src/ipc/schemas/limits.ts)
+# for a project name and a folder path; a reference copies those values.
+ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS = 200
+ACTION_PROJECT_REF_PATH_MAX_CODEPOINTS = 4096
 
 
 def _bounded_text(value: str, *, limit: int) -> str:
@@ -79,20 +91,103 @@ type ActionMessageValidationReason = Literal[
 type ActionMessageValidationUnit = Literal["unicode_code_points"]
 
 
-def _bounded_images(value: object) -> object:
-    """Bound the raw image count before any item is validated."""
+def _bounded_items(*, limit: int, unit: str) -> Callable[[object], object]:
+    """Bound a raw item count before any item is validated."""
 
-    if not isinstance(value, (list, tuple)):
-        return value
-    if len(value) > ACTION_MESSAGE_MAX_IMAGES:
+    def validate(value: object) -> object:
+        if not isinstance(value, (list, tuple)):
+            return value
+        if len(value) > limit:
+            raise PydanticCustomError(
+                "action_message_too_many",
+                "value contains too many items",
+                {"limit": limit, "unit": unit},
+            )
+        # strict モデルは JSON 配列をそのまま tuple として受け取らないため、
+        # before バリデータで正規化しておく。
+        return tuple(value)
+
+    return validate
+
+
+_bounded_images = _bounded_items(
+    limit=ACTION_MESSAGE_MAX_IMAGES, unit="image_references"
+)
+_bounded_project_refs = _bounded_items(
+    limit=ACTION_MESSAGE_MAX_PROJECT_REFS, unit="project_references"
+)
+
+
+def _bounded_project_name(value: str) -> str:
+    return _bounded_text(value, limit=ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS)
+
+
+def _absolute_project_path(value: str) -> str:
+    if len(value) > ACTION_PROJECT_REF_PATH_MAX_CODEPOINTS:
         raise PydanticCustomError(
-            "action_message_too_many",
-            "message contains too many image references",
-            {"limit": ACTION_MESSAGE_MAX_IMAGES, "unit": "image_references"},
+            "action_message_too_long",
+            "value exceeds the Unicode code-point limit",
+            {
+                "limit": ACTION_PROJECT_REF_PATH_MAX_CODEPOINTS,
+                "unit": "unicode_code_points",
+            },
         )
-    # strict モデルは JSON 配列をそのまま tuple として受け取らないため、
-    # before バリデータで正規化しておく。
-    return tuple(value)
+    if not os.path.isabs(value):
+        raise PydanticCustomError(
+            "action_message_invalid", "project folder path must be absolute"
+        )
+    return value
+
+
+class ActionProjectRef(BaseModel):
+    """A workspace project the user named in their text, copied at send time.
+
+    ``start`` and ``end`` are Unicode code-point offsets into the trimmed text the
+    reference belongs to. The name and folders are the ones the project had when
+    the message was sent; a later rename or deletion does not rewrite the message.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    project_id: str
+    display_name: str
+    paths: tuple[Annotated[str, AfterValidator(_absolute_project_path)], ...]
+    start: NonNegativeInt
+    end: NonNegativeInt
+
+    _validate_project_id = field_validator("project_id")(_bounded_id)
+    _validate_display_name = field_validator("display_name")(_bounded_project_name)
+    _validate_paths = field_validator("paths", mode="before")(
+        _bounded_items(limit=ACTION_PROJECT_REF_MAX_PATHS, unit="project_paths")
+    )
+
+
+def _require_project_ref_spans(
+    refs: tuple[ActionProjectRef, ...], info: ValidationInfo, *, text_field: str
+) -> tuple[ActionProjectRef, ...]:
+    """Check each reference names its own span of the text, in order.
+
+    A text that failed its own validation is absent from ``info.data``; its error
+    is the one reported.
+    """
+
+    if not refs or text_field not in info.data:
+        return refs
+    text = info.data[text_field]
+    if text is None:
+        raise PydanticCustomError(
+            "action_message_not_allowed",
+            "project references require the text they point into",
+        )
+    previous_end = 0
+    for ref in refs:
+        if ref.start < previous_end or text[ref.start : ref.end] != ref.display_name:
+            raise PydanticCustomError(
+                "action_message_invalid",
+                "project reference does not name its span of the text",
+            )
+        previous_end = ref.end
+    return refs
 
 
 class SuggestionApprovalInput(BaseModel):
@@ -122,9 +217,29 @@ class ActionUserMessageInput(BaseModel):
     language: Literal["en", "ja"] | None = None
     suggestion_approval: SuggestionApprovalInput | None = None
     supplement: Annotated[str, AfterValidator(_non_blank_text)] | None = None
+    # Each list points into the one text it names: ``content`` or ``supplement``.
+    project_refs: tuple[ActionProjectRef, ...] = ()
+    supplement_project_refs: tuple[ActionProjectRef, ...] = ()
 
     _validate_message_id = field_validator("message_id")(_non_blank_text)
     _validate_content = field_validator("content")(_non_blank_text)
+    _bound_project_refs = field_validator(
+        "project_refs", "supplement_project_refs", mode="before"
+    )(_bounded_project_refs)
+
+    @field_validator("project_refs")
+    @classmethod
+    def _validate_project_refs(
+        cls, refs: tuple[ActionProjectRef, ...], info: ValidationInfo
+    ) -> tuple[ActionProjectRef, ...]:
+        return _require_project_ref_spans(refs, info, text_field="content")
+
+    @field_validator("supplement_project_refs")
+    @classmethod
+    def _validate_supplement_project_refs(
+        cls, refs: tuple[ActionProjectRef, ...], info: ValidationInfo
+    ) -> tuple[ActionProjectRef, ...]:
+        return _require_project_ref_spans(refs, info, text_field="supplement")
 
     @model_validator(mode="after")
     def _require_suggestion_approval_for_supplement(self) -> Self:
@@ -181,9 +296,23 @@ class ActionMessageHttpMessage(_ActionMessageHttpModel):
         Field(json_schema_extra={"maxItems": ACTION_MESSAGE_MAX_IMAGES}),
     ]
     language: Literal["en", "ja"] | None = None
+    project_refs: Annotated[
+        tuple[ActionProjectRef, ...],
+        Field(json_schema_extra={"maxItems": ACTION_MESSAGE_MAX_PROJECT_REFS}),
+    ] = ()
 
     _validate_content = field_validator("content")(_bounded_content)
     _validate_images = field_validator("images", mode="before")(_bounded_images)
+    _bound_project_refs = field_validator("project_refs", mode="before")(
+        _bounded_project_refs
+    )
+
+    @field_validator("project_refs")
+    @classmethod
+    def _validate_project_refs(
+        cls, refs: tuple[ActionProjectRef, ...], info: ValidationInfo
+    ) -> tuple[ActionProjectRef, ...]:
+        return _require_project_ref_spans(refs, info, text_field="content")
 
     @field_validator("version", mode="before")
     @classmethod
@@ -291,7 +420,11 @@ __all__ = [
     "ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS",
     "ACTION_MESSAGE_ID_MAX_CODEPOINTS",
     "ACTION_MESSAGE_MAX_IMAGES",
+    "ACTION_MESSAGE_MAX_PROJECT_REFS",
     "ACTION_MESSAGE_SUPPLEMENT_MAX_CODEPOINTS",
+    "ACTION_PROJECT_REF_MAX_PATHS",
+    "ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS",
+    "ACTION_PROJECT_REF_PATH_MAX_CODEPOINTS",
     "ActionMessageFailureType",
     "ActionMessageHttpConflictFailure",
     "ActionMessageHttpDeferredResponse",
@@ -310,6 +443,7 @@ __all__ = [
     "ActionMessageValidationError",
     "ActionMessageValidationReason",
     "ActionMessageValidationUnit",
+    "ActionProjectRef",
     "ActionResumeHttpRequest",
     "ActionUserMessageInput",
     "SuggestionApprovalInput",

@@ -62,7 +62,7 @@ describe('useSuggestionHistory', () => {
     delete window.electron;
   });
 
-  it('最初のページを取得し、filter変更で検索上限付きの取り直しをする', async () => {
+  it('最初のページを取得し、検索語の変更で検索上限付きの取り直しをする', async () => {
     const second = deferred<HistoryFetchResult>();
     const fetch = vi
       .fn<HistoryBridge['fetch']>()
@@ -76,14 +76,9 @@ describe('useSuggestionHistory', () => {
     expect(fetch).toHaveBeenCalledWith({
       cursor: null,
       limit: 25,
-      filters: { status: 'all', searchText: '' },
+      filters: { searchText: '' },
     });
-    act(() =>
-      result.current.setFilters((current) => ({
-        ...current,
-        searchText: `${'😀'.repeat(256)}x`,
-      }))
-    );
+    act(() => result.current.setSearchText(`${'😀'.repeat(256)}x`));
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
     expect(result.current.loading).toBe(true);
     expect(fetch.mock.calls[1][0].filters.searchText).toBe('😀'.repeat(256));
@@ -91,7 +86,22 @@ describe('useSuggestionHistory', () => {
     expect(result.current.loading).toBe(false);
   });
 
-  it('filter変更は予約済みのrealtime refreshを捨てる', async () => {
+  it('同じ検索語を送り直しても読み込み中の取得を捨てない', async () => {
+    const first = deferred<HistoryFetchResult>();
+    const fetch = vi.fn<HistoryBridge['fetch']>().mockReturnValueOnce(first.promise);
+    installHistoryBridge(fetch);
+    const { result } = renderHook(() => useSuggestionHistory(), { wrapper: Wrapper });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+    act(() => result.current.setSearchText(''));
+    await act(async () => first.resolve(historyResult([CURRENT_ITEM], null)));
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.items).toEqual([CURRENT_ITEM]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('検索語の変更は予約済みのrealtime refreshを捨てる', async () => {
     const fetch = vi.fn<HistoryBridge['fetch']>(async () => historyResult([], null));
     const onChanged = installHistoryBridge(fetch);
     const { result } = renderHook(() => useSuggestionHistory(), { wrapper: Wrapper });
@@ -99,13 +109,13 @@ describe('useSuggestionHistory', () => {
 
     act(() => onChanged.mock.calls[0][0]({}));
     expect(result.current.isRealtimeSyncing).toBe(true);
-    // The scheduled refresh carries the filters it was scheduled with, and would land
+    // The scheduled refresh carries the search it was scheduled with, and would land
     // after the new query and replace it.
-    act(() => result.current.setFilters((current) => ({ ...current, status: 'running' })));
+    act(() => result.current.setSearchText('needle'));
     await act(() => new Promise((resolve) => setTimeout(resolve, 200)));
 
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(fetch.mock.calls[1][0].filters.status).toBe('running');
+    expect(fetch.mock.calls[1][0].filters.searchText).toBe('needle');
     expect(result.current.isRealtimeSyncing).toBe(false);
   });
 
@@ -136,7 +146,7 @@ describe('useSuggestionHistory', () => {
     expect(fetch.mock.calls[3][0]).toEqual({
       cursor: 'next',
       limit: 25,
-      filters: { status: 'all', searchText: '' },
+      filters: { searchText: '' },
     });
     act(() => onChanged.mock.calls[0][0]({}));
     await act(() => new Promise((resolve) => setTimeout(resolve, 200)));

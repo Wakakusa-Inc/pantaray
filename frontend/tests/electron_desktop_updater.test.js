@@ -200,9 +200,5 @@ test('a downloaded update becomes the main window notice and restarts through th
     trayMenu.template.find((item) => item.label === 'Restart to update').click();
     updateUi.restartToUpdate();
     assert.deepEqual(calls, ['quitRequested', 'quitAndInstall', 'quitRequested', 'quitAndInstall']);
-
-    // "Later" holds for the app run, so a reopened main window reads no notice either.
-    updateUi.dismissReadyNotice();
-    assert.equal(updateUi.getReadyNotice(), null);
   });
 });

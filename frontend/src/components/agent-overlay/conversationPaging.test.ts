@@ -106,6 +106,7 @@ describe('conversation paging', () => {
           accepted_sequence: id,
           content: `pending ${id}`,
           images: [],
+          project_refs: [],
           status: 'pending',
         },
       ],
@@ -265,6 +266,7 @@ describe('conversation paging', () => {
         accepted_sequence: 3,
         content: 'Sent while running',
         images: [],
+        project_refs: [],
         status: 'pending',
       },
     ];

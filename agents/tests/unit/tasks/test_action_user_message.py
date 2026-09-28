@@ -10,10 +10,12 @@ from pantaray_agents.schema.agent.action import (
     ActionUserMessageInput,
     SuggestionApprovalInput,
 )
+from pantaray_agents.schema.agent.action_message import ActionProjectRef
 from pantaray_agents.schema.agent.action_message_codec import (
     parse_action_user_message as parse_action_user_message_codec,
 )
 from pantaray_agents.schema.agent.action_message_codec import (
+    parse_stored_action_user_message,
     render_action_user_visible_text,
 )
 from pantaray_agents.schema.agent.image import ImageInput
@@ -66,6 +68,73 @@ def test_action_user_message_round_trip_preserves_typed_approval_and_images() ->
         "Apply the approved change\n\n"
         "Additional user conditions:\n"
         "Run the focused regression before finishing."
+    )
+
+
+def test_project_refs_render_one_line_per_project_and_round_trip() -> None:
+    demo = ActionProjectRef(
+        project_id="project-1",
+        display_name="Demo App",
+        paths=("/workspace/demo-app", "/workspace/demo-api"),
+        start=0,
+        end=8,
+    )
+    message = ActionUserMessageInput(
+        message_id="message-1",
+        content="Apply the approved change",
+        supplement="Demo App first, then Notes and Demo App again",
+        supplement_project_refs=(
+            demo,
+            ActionProjectRef(
+                project_id="project-2",
+                display_name="Notes",
+                paths=(),
+                start=21,
+                end=26,
+            ),
+            demo.model_copy(update={"start": 31, "end": 39}),
+        ),
+        suggestion_approval=SuggestionApprovalInput(
+            suggestion_id="suggestion-1", approved_at="2026-08-16T00:00:00Z"
+        ),
+    )
+
+    request_text = render_action_user_request_text(message)
+
+    assert request_text.endswith(
+        "- Approved at: 2026-08-16T00:00:00Z\n\n"
+        "Referenced workspace projects:\n"
+        "- Demo App: /workspace/demo-app, /workspace/demo-api\n"
+        "- Notes: no folders registered"
+    )
+    assert (
+        parse_stored_action_user_message(
+            message_id="message-1",
+            message_json=serialize_action_user_message(message),
+            user_request_text=request_text,
+        )
+        == message
+    )
+
+
+def test_supplement_project_refs_require_a_supplement() -> None:
+    with pytest.raises(ValidationError) as captured:
+        ActionUserMessageInput(
+            message_id="message-1",
+            content="Demo App",
+            supplement_project_refs=(
+                ActionProjectRef(
+                    project_id="project-1",
+                    display_name="Demo App",
+                    paths=(),
+                    start=0,
+                    end=8,
+                ),
+            ),
+        )
+
+    assert captured.value.errors(include_url=False)[0]["type"] == (
+        "action_message_not_allowed"
     )
 
 

@@ -173,6 +173,7 @@ function withUserMessage(
     accepted_sequence: 1,
     content,
     images: [],
+    project_refs: [],
     status,
   });
   return update;
@@ -193,6 +194,7 @@ function withApprovedSuggestion(
       accepted_sequence: 1,
       content: comment,
       images: [],
+      project_refs: [],
       status: 'adopted',
       approved_suggestion: { suggestion_id: 'sug-1', content },
     },
@@ -466,6 +468,7 @@ describe('AgentOverlay broader E2E', () => {
         content: 'Continue',
         images: [],
         language: 'en',
+        project_refs: [],
       },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
@@ -730,6 +733,7 @@ describe('AgentOverlay broader E2E', () => {
         content: 'Use the current run',
         images: [],
         language: 'en',
+        project_refs: [],
       },
     });
   });
@@ -1231,6 +1235,7 @@ describe('AgentOverlay broader E2E', () => {
         content: 'Do it then',
         images: [],
         language: 'en',
+        project_refs: [],
       },
     });
 
@@ -1248,6 +1253,7 @@ describe('AgentOverlay broader E2E', () => {
         accepted_sequence: 1,
         content: 'Do it then',
         images: [],
+        project_refs: [],
         status: 'adopted',
       },
       {
@@ -1322,6 +1328,7 @@ describe('AgentOverlay broader E2E', () => {
       suggestionId: 'sug-comment',
       commandId: null,
       supplement: 'Use this image',
+      supplementProjectRefs: [],
       approvalMode: 'always_allow',
       images: [{ kind: 'image', storage_path: storagePath }],
     });
@@ -1458,6 +1465,7 @@ describe('AgentOverlay broader E2E', () => {
         accepted_sequence: 2,
         content: accepted.snapshot.suggestionText,
         images: [],
+        project_refs: [],
         status: 'adopted',
         approved_suggestion: null,
       });
@@ -1704,7 +1712,7 @@ describe('AgentOverlay broader E2E', () => {
       // prettier-ignore
       { step_kind: 'tool', step_id: 'step-2', step_number: 2, label: 'Read file', status: 'success', outcome: 'completed', output_available: false, images: [], subject: null, output_preview: null },
       // prettier-ignore
-      { step_kind: 'user', approved_suggestion: null, step_id: 'step-1', step_number: 1, message_id: '00000000-0000-4000-8000-000000000044', accepted_sequence: 1, content: 'Do the thing', images: [], status: 'adopted' }
+      { step_kind: 'user', approved_suggestion: null, step_id: 'step-1', step_number: 1, message_id: '00000000-0000-4000-8000-000000000044', accepted_sequence: 1, content: 'Do the thing', images: [], project_refs: [], status: 'adopted' }
     );
     await act(async () => snapshotListener?.(createResumedSnapshot()));
     await act(async () => conversationListener?.(update));
