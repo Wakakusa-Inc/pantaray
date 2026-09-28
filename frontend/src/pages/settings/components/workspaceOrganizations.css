@@ -101,6 +101,7 @@
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
   color: var(--text-primary);
   display: grid;
+  gap: 6px;
   padding: 12px;
   position: absolute;
   right: 0;
@@ -109,15 +110,19 @@
   z-index: 6;
 }
 
+/* Option text sits 9px in (8px padding + 1px border), so the heading and the new-organization
+   field start their text at the same column. */
+.workspace-project-organization-popover .workspace-organization-select legend {
+  padding: 0 9px;
+}
+
+.workspace-project-organization-popover .workspace-input {
+  padding: 0 9px;
+}
+
 .workspace-project-organization-popover:focus {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: 2px;
-}
-
-.workspace-organization-picker-empty {
-  color: var(--text-muted);
-  font-size: 11px;
-  margin: 0;
 }
 
 .workspace-organization-remove[aria-busy='true'],

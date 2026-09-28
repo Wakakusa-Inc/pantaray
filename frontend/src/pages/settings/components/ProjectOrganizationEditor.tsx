@@ -1,9 +1,11 @@
 import { Plus, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 import type { Translate } from '../types';
 import { useDismissablePopover } from '../useDismissablePopover';
 import { OrganizationSelect } from './OrganizationSelect';
+import { InlineTextForm } from './WorkspaceSettingsFormControls';
 import {
   resolveProjectOrganizations,
   successorFocusKey,
@@ -15,9 +17,11 @@ import {
 
 interface ProjectOrganizationEditorProps {
   busy: boolean;
+  createBusy: boolean;
   organizations: WorkspaceOrganization[];
   project: WorkspaceProject;
   t: Translate;
+  onCreateOrganization: (displayName: string) => Promise<string | null>;
   onUpdate: (projectId: string, organizationIds: string[], focus: FocusRequest) => Promise<boolean>;
 }
 
@@ -50,6 +54,11 @@ export function ProjectOrganizationEditor(props: ProjectOrganizationEditorProps)
       ),
       onFailure: workspaceFocusId.projectOrganizationAdd(props.project.project_id),
     });
+  };
+
+  const createOrganization = async (displayName: string) => {
+    const organizationId = await props.onCreateOrganization(displayName);
+    if (organizationId) await selectOrganization(organizationId);
   };
 
   const removeOrganization = async (organizationId: string) => {
@@ -92,6 +101,11 @@ export function ProjectOrganizationEditor(props: ProjectOrganizationEditorProps)
               aria-label={props.t('settings.workspace.projectOrganization.remove', {
                 name: organization.display_name,
               })}
+              onKeyDown={(event) => {
+                // Choosing or creating an organization with Enter moves focus here, so the
+                // repeats of a held Enter must not remove the organization just added.
+                if (event.key === 'Enter' && event.repeat) event.preventDefault();
+              }}
               onClick={() => void removeOrganization(organization.organization_id)}
             >
               <X size={9} strokeWidth={3} aria-hidden="true" />
@@ -123,20 +137,84 @@ export function ProjectOrganizationEditor(props: ProjectOrganizationEditorProps)
           aria-label={pickerLabel}
           tabIndex={-1}
         >
-          {props.organizations.length > 0 ? (
-            <OrganizationSelect
-              organizations={props.organizations}
-              selectedOrganizationId={null}
-              t={props.t}
-              onSelect={(organizationId) => void selectOrganization(organizationId)}
-            />
-          ) : (
-            <p className="workspace-organization-picker-empty">
-              {props.t('settings.workspace.projectOrganization.empty')}
-            </p>
-          )}
+          <OrganizationPicker
+            createBusy={props.createBusy}
+            organizations={props.organizations}
+            t={props.t}
+            onCreate={createOrganization}
+            onSelect={(organizationId) => void selectOrganization(organizationId)}
+          />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+interface OrganizationPickerProps {
+  createBusy: boolean;
+  organizations: WorkspaceOrganization[];
+  t: Translate;
+  onCreate: (displayName: string) => Promise<void>;
+  onSelect: (organizationId: string) => void;
+}
+
+// Mounted only while the popover is open, so an abandoned draft is discarded with it.
+function OrganizationPicker(props: OrganizationPickerProps) {
+  const createOptionRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // `null` is the list; a string is the name being typed for a new organization.
+  const [draftName, setDraftName] = useState<string | null>(null);
+
+  // The control that should take focus only exists after the swap renders.
+  const startCreating = () => {
+    flushSync(() => setDraftName(''));
+    inputRef.current?.focus();
+  };
+  const cancelCreating = () => {
+    flushSync(() => setDraftName(null));
+    createOptionRef.current?.focus();
+  };
+
+  if (draftName === null) {
+    return (
+      <>
+        <OrganizationSelect
+          organizations={props.organizations}
+          selectedOrganizationId={null}
+          t={props.t}
+          onSelect={props.onSelect}
+        />
+        <button
+          ref={createOptionRef}
+          type="button"
+          className="workspace-organization-create-option"
+          onClick={startCreating}
+        >
+          {props.t('settings.workspace.addOrganization')}
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <div
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        // Escape leaves the draft, not the popover, whose own listener sits on the document.
+        event.stopPropagation();
+        cancelCreating();
+      }}
+    >
+      <InlineTextForm
+        buttonLabel={props.t('settings.workspace.addOrganization')}
+        busy={props.createBusy}
+        disabled={!draftName.trim()}
+        onSubmit={() => void props.onCreate(draftName)}
+        placeholder={props.t('settings.workspace.organizationPlaceholder')}
+        value={draftName}
+        onChange={setDraftName}
+        inputRef={inputRef}
+      />
     </div>
   );
 }
