@@ -10,10 +10,7 @@ from pantaray_agents.local_runtime.runtime.action_message_models import (
     ACTION_RESUME_STEP_NAME,
 )
 from pantaray_agents.local_runtime.storage.migrations import MigrationError
-from pantaray_agents.schema.conversation_history import (
-    ConversationHistoryFilter,
-    ConversationHistoryStatus,
-)
+from pantaray_agents.schema.conversation_history import ConversationHistoryStatus
 
 from .cursor_codec import OpaqueCursorError
 from .history_cursor import (
@@ -252,14 +249,12 @@ WITH action_source AS (
         AND reply.source_suggestion_id=suggestion.suggestion_id)
 ), action_lane AS (
   SELECT * FROM action_evidence
-  WHERE (:status='all' OR status_hint=:status)
-    AND (:search_text='' OR search_match)
+  WHERE (:search_text='' OR search_match)
     {cursor_predicate}
   ORDER BY raw_updated_at DESC,stable_id LIMIT :fetch_limit
 ), suggestion_lane AS (
   SELECT * FROM suggestion_evidence
-  WHERE (:status='all' OR status_hint=:status)
-    AND (:search_text='' OR search_match)
+  WHERE (:search_text='' OR search_match)
     {cursor_predicate}
   ORDER BY raw_updated_at DESC,stable_id LIMIT :fetch_limit
 ), candidates AS (
@@ -284,7 +279,6 @@ def read_conversation_history_candidates_in_connection(
     *,
     connection: sqlite3.Connection,
     user_id: str,
-    status: ConversationHistoryFilter,
     search_text: str,
     cursor: str | None,
     limit: int,
@@ -298,9 +292,7 @@ def read_conversation_history_candidates_in_connection(
     normalized_search = search_text.strip().casefold()
     anchor = decode_conversation_history_cursor(cursor) if cursor is not None else None
     if anchor is not None and (
-        anchor.user_id != user_id
-        or anchor.status != status
-        or anchor.search_text != normalized_search
+        anchor.user_id != user_id or anchor.search_text != normalized_search
     ):
         raise OpaqueCursorError("cursor is bound to another history query")
     escaped_search = (
@@ -310,7 +302,6 @@ def read_conversation_history_candidates_in_connection(
         _candidate_query(cursor_bound=anchor is not None),
         {
             "user_id": user_id,
-            "status": status,
             "search_text": normalized_search,
             "search_pattern": f"%{escaped_search}%",
             "hidden_step_name": ACTION_RESUME_STEP_NAME,
@@ -327,7 +318,6 @@ def read_conversation_history_candidates_in_connection(
         next_cursor = encode_conversation_history_cursor(
             ConversationHistoryCursor(
                 user_id=user_id,
-                status=status,
                 search_text=normalized_search,
                 updated_at=last.updated_at,
                 kind=last.kind,

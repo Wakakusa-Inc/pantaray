@@ -16,7 +16,6 @@ const canonicalTimestampSchema = z
   }, 'Invalid canonical timestamp.');
 
 export const ConversationHistoryStatusSchema = z.enum(['running', 'approval_pending', 'idle']);
-const ConversationHistoryFilterSchema = z.enum(['all', 'running', 'approval_pending', 'idle']);
 
 export const ConversationHistoryRequestSchema = z
   .object({
@@ -24,7 +23,6 @@ export const ConversationHistoryRequestSchema = z
     limit: z.number().int().min(1).max(HISTORY_MAX_PAGE_SIZE),
     filters: z
       .object({
-        status: ConversationHistoryFilterSchema,
         searchText: z
           .string()
           .refine(

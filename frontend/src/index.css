@@ -816,47 +816,10 @@ body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
-/* ---- History Filter Bar ---- */
-.history-filter-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.history-filter-row {
-  align-items: end;
-  display: grid;
-  gap: var(--space-sm);
-  grid-template-columns: minmax(280px, 520px) 180px 1fr max-content;
-}
-
-.history-filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.history-filter-field--search {
-  min-width: 0;
-}
-
-.history-filter-field--status {
-  min-width: 0;
-}
-
-.history-filter-label {
-  font-size: var(--text-meta-size);
-  font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: var(--ui-label-tracking);
-  text-transform: var(--ui-label-transform);
-}
-
+/* Text fields shared by the history search and the settings page. */
 .history-filter-input,
 .history-filter-select {
   box-sizing: border-box;
@@ -899,15 +862,10 @@ body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
   padding-right: 24px;
 }
 
-#history-status-filter {
-  width: 100%;
-}
-
 .history-filter-button {
   align-items: center;
   box-sizing: border-box;
   display: inline-flex;
-  grid-column: 4;
   height: 34px;
   justify-content: center;
   padding: var(--space-xs) var(--space-md);
@@ -935,32 +893,6 @@ body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
 }
 
 .history-filter-button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.history-filter-actions {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-}
-
-.history-filter-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: var(--text-meta-size);
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.history-filter-link:hover:not(:disabled) {
-  color: var(--text-secondary);
-}
-
-.history-filter-link:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -1002,7 +934,7 @@ body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
   overflow-y: auto;
   flex: 1;
   padding-bottom: 116px;
-  padding-top: var(--space-xl);
+  padding-top: var(--space-sm);
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
@@ -1188,14 +1120,6 @@ body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
 }
 
 @media (max-width: 767px) {
-  .history-filter-row {
-    grid-template-columns: 1fr;
-  }
-
-  .history-filter-button {
-    grid-column: auto;
-  }
-
   .history-item-status {
     align-items: flex-start;
   }

@@ -28,10 +28,7 @@ from pantaray_agents.local_runtime.storage.migrations.connection import (
     configure_connection,
 )
 from pantaray_agents.schema.agent.base import ErrorType
-from pantaray_agents.schema.conversation_history import (
-    ConversationHistoryFilter,
-    ConversationHistoryPage,
-)
+from pantaray_agents.schema.conversation_history import ConversationHistoryPage
 
 CONVERSATION_HISTORY_DEFAULT_PAGE_SIZE = 25
 CONVERSATION_HISTORY_MAX_PAGE_SIZE = 100
@@ -48,7 +45,6 @@ def list_conversation_history(
         ge=1,
         le=CONVERSATION_HISTORY_MAX_PAGE_SIZE,
     ),
-    status_filter: ConversationHistoryFilter = Query(default="all", alias="status"),
     search_text: str = Query(
         default="",
         max_length=CONVERSATION_HISTORY_MAX_SEARCH_CODE_POINTS,
@@ -65,7 +61,6 @@ def list_conversation_history(
             return read_conversation_history_page_in_connection(
                 connection=connection,
                 user_id=user_id,
-                status=status_filter,
                 search_text=search_text,
                 cursor=cursor,
                 limit=limit,

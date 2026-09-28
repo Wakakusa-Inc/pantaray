@@ -65,7 +65,6 @@ def test_history_reads_configured_snapshot_and_returns_strict_page(
                 kwargs["user_id"],
                 kwargs["cursor"],
                 kwargs["limit"],
-                kwargs["status"],
                 kwargs["search_text"],
             )
         )
@@ -82,7 +81,6 @@ def test_history_reads_configured_snapshot_and_returns_strict_page(
             params={
                 "cursor": "cursor-1",
                 "limit": 100,
-                "status": "idle",
                 "search_text": "😀" * 256,
             },
             headers={"Authorization": "Bearer token"},
@@ -91,8 +89,8 @@ def test_history_reads_configured_snapshot_and_returns_strict_page(
     assert default_response.json() == _PAGE.model_dump(mode="json")
     assert emoji_response.status_code == 200
     assert requests == [
-        ("user-123", None, 25, "all", ""),
-        ("user-123", "cursor-1", 100, "idle", "😀" * 256),
+        ("user-123", None, 25, ""),
+        ("user-123", "cursor-1", 100, "😀" * 256),
     ]
 
 
@@ -107,7 +105,6 @@ def test_history_rejects_invalid_query_before_database(
             {"search_text": "😀" * 257},
             {"limit": 0},
             {"limit": 101},
-            {"status": "pending"},
         ):
             response = client.get(
                 _PATH,
@@ -145,7 +142,6 @@ def test_history_maps_fixed_public_failures(
         history_router.list_conversation_history(
             cursor=None,
             limit=25,
-            status_filter="all",
             search_text="",
             user_id="user-123",
         )
