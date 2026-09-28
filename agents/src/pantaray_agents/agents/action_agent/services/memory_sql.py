@@ -40,6 +40,7 @@ MEMORY_SQL_ALLOWED_TABLES = frozenset(
         "agent_facts",
         "agent_insights",
         "agent_suggestions",
+        "source_records",
     }
 )
 
@@ -51,6 +52,7 @@ _MEMORY_SQL_USER_SCOPED_TABLES = frozenset(
         "agent_facts",
         "agent_insights",
         "agent_suggestions",
+        "source_records",
     }
 )
 

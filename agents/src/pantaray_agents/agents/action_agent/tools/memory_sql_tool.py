@@ -29,10 +29,13 @@ _TABLE_GUIDE = "\n".join(
         "- activity_logs: time-series activity descriptions; key columns log_id, user_id, period_start, period_end, description, status. "
         "period_start/period_end label the 15-minute job window that wrote the row, not the time the activity was observed; the activity "
         "is usually observed before period_start, and further before when recording stopped or the job was delayed. When a question "
-        "needs the exact time something was observed rather than the rows of a window, use memory_search, whose source_records "
-        "results give each quote's time on its Observed: line.",
+        "needs the exact time something was observed, use source_records.",
         "- activity_summaries: aggregated activity summaries; key columns summary_id, summary_type, period_start, period_end, summary, status. "
         f"summary_type is one of {', '.join(get_args(SummaryType))}.",
+        "- source_records: verbatim screen quotes checked against the recording; key columns record_id, run_id "
+        "(the activity_logs.log_id that wrote it), observed_at (when the screen showed it), app_name, window_title, source "
+        "(the displayed document, page, or conversation header), speaker, shown_time (the time displayed with the quote, "
+        "or empty), quote. It has no status column.",
         "status is the state of the job that wrote the row (processing, success, error, canceled, timeout; agent_actions also queued). "
         "success marks rows that finished normally; error and canceled rows have also finished, so when counting finished work, decide "
         "from each table's statuses which ones count.",
@@ -76,7 +79,7 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                 "statements, or tables outside the documented memory allowlist. "
                 "Do not add account-scope authorization filters; the executor "
                 "applies the action's memory scope automatically. These tables do "
-                "not include source records, agent experience, or long-term insight "
+                "not include agent experience or long-term insight "
                 "fragments, so an empty result does not mean nothing is remembered. "
                 "Use memory_search to find memories by words or meaning when no "
                 "structural filter "

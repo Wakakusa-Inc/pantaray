@@ -262,6 +262,48 @@ def test_execute_memory_sql_scopes_rows_to_current_user(tmp_path: Path) -> None:
     ]
 
 
+def test_execute_memory_sql_scopes_source_records_to_current_user(
+    tmp_path: Path,
+) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """INSERT INTO activity_logs(log_id, user_id, period_start, period_end,
+            status, description, prompt_name, prompt_version, created_at, updated_at)
+            VALUES ('log-2', 'user-2', '2026-04-01T00:00:00Z', '2026-04-01T00:05:00Z',
+            'success', 'other', 'prompt', 'v1', '2026-04-01T00:05:00Z',
+            '2026-04-01T00:05:00Z')"""
+        )
+        for record_id, user_id, run_id, quote in (
+            ("record-1", "user-1", "log-1", "current user quote"),
+            ("record-2", "user-2", "log-2", "other user quote"),
+        ):
+            connection.execute(
+                """INSERT INTO source_records(record_id, user_id, run_id, event_id,
+                observed_at, source, speaker, shown_time, quote, created_at)
+                VALUES (?, ?, ?, 'event-1', '2026-04-01T00:02:00Z', 'Doc', '', '',
+                ?, '2026-04-01T00:05:00Z')""",
+                (record_id, user_id, run_id, quote),
+            )
+
+    result = execute_memory_sql(
+        db_path=str(db_path),
+        busy_timeout_ms=BUSY_TIMEOUT_MS,
+        user_id="user-1",
+        sql=(
+            "SELECT record_id, quote FROM source_records "
+            "WHERE observed_at >= '2026-04-01T00:00:00Z' ORDER BY observed_at"
+        ),
+        limit=20,
+    )
+
+    assert result.error is None
+    assert result.data is not None
+    assert result.data["rows"] == [
+        {"record_id": "record-1", "quote": "current user quote"}
+    ]
+
+
 def test_execute_memory_sql_rejects_main_table_bypass(tmp_path: Path) -> None:
     db_path = _bootstrap_db(tmp_path)
 

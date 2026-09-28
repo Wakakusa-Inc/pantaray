@@ -171,7 +171,8 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                 "happened in a window, or rows of memory_sql's tables must be "
                 "ordered or counted, use memory_sql. For the exact time something "
                 "was observed, use the Observed: line of each quote in source_records "
-                "results; the result's observed_at is the latest time in its run."
+                "results, or memory_sql's source_records table; the result's "
+                "observed_at is the latest time in its run."
             ),
             pitfalls=(
                 "Do not treat one source as complete by itself. Stock knowledge can be "
