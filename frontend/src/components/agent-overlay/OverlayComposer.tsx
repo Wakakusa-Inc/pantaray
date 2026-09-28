@@ -9,6 +9,8 @@ import {
   buildActionImageUrl,
 } from '../../../electron/src/protocol/imageStoragePath';
 import { ApprovalModeMenu } from './ApprovalModeMenu';
+import { ComposerMessageField } from './ComposerMessageField';
+import type { ComposerMention } from './composerMentions';
 import type { ActionApprovalModeControl } from './useActionApprovalMode';
 import type { ComposerState } from './useOverlayComposerController';
 
@@ -37,39 +39,9 @@ const ComposerForm = styled.form`
    * 枠そのものが持つ。行の操作（追加・権限・送信）は各自の輪郭を出すため、
    * :focus-within ではなく本文欄だけを見る。
    */
-  &:has(> textarea:focus-visible) {
+  &:has(textarea:focus-visible) {
     outline: 2px solid rgba(255, 255, 255, 0.7);
     outline-offset: -1px;
-  }
-`;
-
-/**
- * 1 行で始まり、入力に合わせて上へ伸びる本文欄。
- *
- * 伸長はブラウザの `field-sizing: content` に任せる。JS で scrollHeight を測って
- * height を書き戻す実装と違い、送信後の空文字・折り返し・フォント差での再計算が
- * すべてレイアウト側で完結する（Chromium 実測: 空 1 行、5 行入力で 5 行、
- * 上限超過で内部スクロール）。上限を超えた分は max-height が内部スクロールに回す。
- *
- * 伸びた分は composer が固定されているパネル下端から上へ広がり、会話側
- * （`ScrollableContent`, flex 0 1 auto）が縮んで場所を譲る。
- */
-const ComposerTextarea = styled.textarea`
-  box-sizing: border-box;
-  width: 100%;
-  field-sizing: content;
-  /* 本文 8 行 + padding(4px×2) */
-  max-height: calc(8lh + 8px);
-  overflow-y: auto;
-  resize: none;
-  padding: 4px;
-  border: 0;
-  color: var(--text-primary);
-  background: transparent;
-  font: inherit;
-
-  &:focus-visible {
-    outline: none;
   }
 `;
 
@@ -232,6 +204,7 @@ const ScreenReaderOnly = styled.label`
 type OverlayComposerProps = {
   approvalMode: ActionApprovalModeControl;
   draft: string;
+  mentions: readonly ComposerMention[];
   /** Keep the unconfirmed message selectable while its exact request is retried. */
   submissionControls: ReactNode;
   retryAcceptance: boolean;
@@ -250,7 +223,7 @@ type OverlayComposerProps = {
   resumeFailed: boolean;
   canResume: boolean;
   textareaRef: RefObject<HTMLTextAreaElement>;
-  onDraftChange: (value: string) => void;
+  onDraftChange: (value: string, mentions: ComposerMention[]) => void;
   onAttachFiles: (files: readonly File[]) => void;
   onRemoveAttachment: (storagePath: string) => void;
   onSubmit: () => void;
@@ -340,6 +313,7 @@ export function ComposerSubmissionStatus({
 export function OverlayComposer({
   approvalMode,
   draft,
+  mentions,
   submissionControls,
   retryAcceptance,
   attachments,
@@ -378,22 +352,20 @@ export function OverlayComposer({
       <ScreenReaderOnly htmlFor={MESSAGE_FIELD_ID}>
         {t(action === 'accept' ? 'overlay.supplement.label' : 'overlay.composer.label')}
       </ScreenReaderOnly>
-      <ComposerTextarea
+      <ComposerMessageField
         id={MESSAGE_FIELD_ID}
-        ref={textareaRef}
-        rows={1}
+        textareaRef={textareaRef}
         value={draft}
+        mentions={mentions}
         readOnly={isReadOnly}
         placeholder={t(
           action === 'accept' ? 'overlay.supplement.placeholder' : 'overlay.composer.placeholder'
         )}
-        aria-invalid={validationFailed}
-        aria-describedby={validationFailed ? MESSAGE_ERROR_ID : undefined}
-        onChange={(event) => onDraftChange(event.target.value)}
+        invalid={validationFailed}
+        describedBy={validationFailed ? MESSAGE_ERROR_ID : undefined}
+        onChange={onDraftChange}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' || event.shiftKey) return;
-          // かな漢字変換中の Enter は変換の確定であって送信ではない。
-          if (event.nativeEvent.isComposing) return;
           // 改行は Shift+Enter だけが入れる。送れない状態でも Enter で改行させない。
           event.preventDefault();
           if (canSend) onSubmit();
