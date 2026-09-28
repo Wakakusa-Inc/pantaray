@@ -55,6 +55,14 @@
   white-space: pre-wrap;
 }
 
+/*
+ * The accent blue the app already uses for workspace project text. The deeper #7dabdc
+ * falls near 3:1 on the overlay panel; this one stays above 4.5:1 on its brightest area.
+ */
+.action-conversation__project-ref {
+  color: #bcd3ec;
+}
+
 .action-conversation__state {
   display: inline-block;
   margin-top: var(--space-xs);
