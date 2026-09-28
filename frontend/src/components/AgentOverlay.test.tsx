@@ -468,6 +468,7 @@ describe('AgentOverlay broader E2E', () => {
         content: 'Continue',
         images: [],
         language: 'en',
+        project_refs: [],
       },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
@@ -732,6 +733,7 @@ describe('AgentOverlay broader E2E', () => {
         content: 'Use the current run',
         images: [],
         language: 'en',
+        project_refs: [],
       },
     });
   });
@@ -1233,6 +1235,7 @@ describe('AgentOverlay broader E2E', () => {
         content: 'Do it then',
         images: [],
         language: 'en',
+        project_refs: [],
       },
     });
 

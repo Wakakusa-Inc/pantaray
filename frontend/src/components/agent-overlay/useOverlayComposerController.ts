@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActionMessageRequestSchema,
+  codePointSpanInTrimmedText,
   type ActionConversationPage,
   type ActionMessageRequest,
+  type ActionProjectRef,
 } from '../../../electron/src/actions/actionContracts';
 import type {
   ActionConversationPageChain,
@@ -20,6 +22,7 @@ import {
 import { ACTION_CONVERSATION_PAGE_LIMIT } from './conversationPaging';
 import { isActionSupplementWithinLimit, normalizeActionSupplement } from '@/types/websocket';
 import type { ActionApprovalMode } from './useActionApprovalMode';
+import type { ComposerMention } from './composerMentions';
 
 /** Why the composer refused an image; `failed` covers a broken IPC round trip. */
 type AttachmentFailure = ActionImageAttachRejectionReason | 'too_many' | 'failed';
@@ -29,6 +32,8 @@ function isActionImageMimeType(value: string): value is ActionImageMimeType {
 }
 export type ComposerState = {
   draft: string;
+  /** Workspace projects named in `draft`, in text order. */
+  mentions: readonly ComposerMention[];
   /** Images already written to the artifact root, referenced by logical storage path. */
   attachments: readonly { storagePath: string }[];
   /** Attach round trips still running. Sending is blocked while any is outstanding. */
@@ -56,6 +61,7 @@ export type ComposerState = {
 export function initialComposerState(initialActionId: string | null): ComposerState {
   return {
     draft: '',
+    mentions: [],
     attachments: [],
     attachmentsInFlight: 0,
     attachmentFailure: null,
@@ -96,6 +102,7 @@ export function reconcileCanonicalSubmission(
     ? {
         ...settled,
         draft: '',
+        mentions: [],
         attachments: [],
         submission: null,
         failureKind: null,
@@ -220,6 +227,14 @@ export function useOverlayComposerController({
     kind: 'image' as const,
     storage_path: storagePath,
   }));
+  // The same draft is either the message content or the approval supplement; both are trimmed
+  // before sending, so one conversion serves both.
+  const projectRefs: ActionProjectRef[] = composer.mentions.map((mention) => ({
+    project_id: mention.projectId,
+    display_name: mention.displayName,
+    paths: [...mention.paths],
+    ...codePointSpanInTrimmedText(composer.draft, mention.start, mention.end),
+  }));
   const supplement = normalizeActionSupplement(composer.draft);
   const supplementInvalid = supplement !== null && !isActionSupplementWithinLimit(supplement);
   const submitDraft = (
@@ -257,6 +272,7 @@ export function useOverlayComposerController({
         content: composer.draft,
         images,
         language,
+        project_refs: projectRefs,
       },
     });
     if (!parsed.success) {
@@ -426,6 +442,7 @@ export function useOverlayComposerController({
   return {
     composer,
     images,
+    projectRefs,
     supplement,
     supplementInvalid,
     setComposer,
