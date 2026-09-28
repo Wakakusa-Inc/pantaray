@@ -36,11 +36,15 @@ _TABLE_GUIDE = "\n".join(
         "- agent_insights: short-term insight rows; key columns insight_id, source_activity_summary_id, short_term_insight_data, status, created_at, updated_at.",
         "- agent_facts: structured fact generation rows; key columns fact_id, user_id, facts_profile_brief, structured_fact_sha256, status, created_at, updated_at.",
         "- activity_logs: time-series activity descriptions; key columns log_id, user_id, period_start, period_end, description, status. "
-        "period_start/period_end label the 15-minute job window that wrote the row; the described activity can have been observed up to "
-        "about 20 minutes before period_start, so include rows starting up to that long after a requested range when its edges matter.",
+        "period_start/period_end label the 15-minute job window that wrote the row, not the time the activity was observed; the activity "
+        "is usually observed before period_start, and further before when recording stopped or the job was delayed. When a question "
+        "needs the exact time something was observed rather than the rows of a window, use memory_search, whose source_records "
+        "results carry observed_at.",
         "- activity_summaries: aggregated activity summaries; key columns summary_id, summary_type, period_start, period_end, summary, status. "
         f"summary_type is one of {', '.join(get_args(SummaryType))}.",
-        "status is the state of the job that wrote the row (processing, success, error, canceled, timeout; agent_actions also queued); completed rows have status 'success'.",
+        "status is the state of the job that wrote the row (processing, success, error, canceled, timeout; agent_actions also queued). "
+        "success marks rows that finished normally; error and canceled rows have also finished, so when counting finished work, decide "
+        "from each table's statuses which ones count.",
         "Time columns hold UTC ISO8601 strings ending in Z. For the user's local date use date(col, 'localtime'); to filter by local times, convert the boundaries to UTC first.",
     ]
 )
@@ -51,8 +55,8 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
         name="Memory SQL",
         description=(
             "Run a read-only SQLite SELECT against memory-related local tables. "
-            "Use this to narrow memory by time range, source type, ordering, "
-            "counts, IDs, or neighboring rows."
+            "Use this to strictly filter, order, or count rows of the memory "
+            "tables by time range, source type, IDs, or neighboring rows."
         ),
         guide=ToolGuideSpec(
             what=(
@@ -66,19 +70,24 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                 + _TABLE_GUIDE
             ),
             when=(
-                "Use when the lookup is bounded by structure rather than wording: "
-                "a time range (a given day or morning, the last few days, last "
-                "week), a source type, ordering, counts or totals, joins, IDs, "
-                "statuses, or neighboring rows. It can be used directly, or after "
-                "memory_search returns useful IDs or timestamps."
+                "Use when rows of the readable memory tables must be strictly "
+                "filtered by time range or type, ordered, counted or totaled, joined, "
+                "or looked up by ID, status, or neighboring rows, for example every "
+                "activity description in a time range or the project that took "
+                "the most time last week. When the question also names a topic, find "
+                "candidates with memory_search and its time_hint first. It can "
+                "also follow up on IDs or timestamps that memory_search returned."
             ),
             pitfalls=(
                 "Only SELECT / WITH ... SELECT is accepted. Do not use PRAGMA, "
                 "INSERT, UPDATE, DELETE, DDL, ATTACH, temp tables, multiple "
                 "statements, or tables outside the documented memory allowlist. "
                 "Do not add account-scope authorization filters; the executor "
-                "applies the action's memory scope automatically. Use memory_search "
-                "to find memories by words or meaning when no structural filter "
+                "applies the action's memory scope automatically. These tables do "
+                "not include source records, agent experience, or long-term insight "
+                "fragments, so an empty result does not mean nothing is remembered. "
+                "Use memory_search to find memories by words or meaning when no "
+                "structural filter "
                 "applies, and get_memory_reference for explicit fragment links."
             ),
         ),

@@ -139,9 +139,10 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
         description=(
             "Search current active Memory Catalog fragments with exact, lexical, and "
             "semantic retrieval. "
-            "Use this for broad recall by words and meaning across stock "
-            "knowledge, flow knowledge, and prior agent work. To narrow by time "
-            "range, source type, ordering, or counts, use memory_sql."
+            "Use this for recall by words and meaning across stock knowledge, "
+            "flow knowledge, and prior agent work, including a topic tied to a "
+            "time, which goes in time_hint. Use memory_sql only to strictly "
+            "filter, order, or count rows of its tables."
         ),
         guide=ToolGuideSpec(
             what=(
@@ -164,16 +165,20 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                 "context, and focus='all' when the same topic may span both. If "
                 "a result contains a note-bearing ref, use get_memory_reference with "
                 "that result's context_handle to follow the exact immutable link. "
-                "When the question is bounded by a time range, source type, "
-                "ordering, or counts rather than by a topic, use memory_sql."
+                "When a question names both a topic and a time, such as the "
+                "estimate document seen yesterday, search here with time_hint to "
+                "find candidates. When it is bounded only by time, such as what "
+                "happened in a window, or rows of memory_sql's tables must be "
+                "ordered or counted, use memory_sql. For the exact time something "
+                "was observed, use the observed_at of source_records results."
             ),
             pitfalls=(
                 "Do not treat one source as complete by itself. Stock knowledge can be "
                 "stale; flow knowledge is fresher but noisier and less organized. "
                 "When context matters, reconcile stock and flow evidence. time_hint "
                 "only ranks results near a time and does not filter them; to "
-                "restrict results to a time range or source type, use memory_sql. "
-                "Write the query with concrete names, IDs, "
+                "strictly restrict rows of memory_sql's tables to a time range or "
+                "type, use memory_sql. Write the query with concrete names, IDs, "
                 "paths, errors, and both Japanese/English terms when useful."
             ),
         ),
