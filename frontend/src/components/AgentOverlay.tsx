@@ -15,7 +15,6 @@ import { useI18n } from '@/context/useI18n';
 import { useOverlayHeaderDrag } from './agent-overlay/useOverlayHeaderDrag';
 import { ActionConversationView } from './action-conversation/ActionConversationView';
 import { projectActionConversationView } from '../../electron/src/actions/actionConversationModel';
-import { ACTION_IMAGE_MAX_PER_MESSAGE } from '../../electron/src/ipc/schemas/actionImages';
 import type {
   ActionLiveSnapshot,
   ActionTransientToolStep,
@@ -64,6 +63,8 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
   const {
     composer,
     images,
+    files,
+    canAttach,
     projectRefs: supplementProjectRefs,
     supplement,
     supplementInvalid,
@@ -444,7 +445,13 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
     permissionsReady && composer.attachmentsInFlight === 0 && !supplementInvalid;
   const acceptSuggestion = () => {
     if (!canDecide || !canAcceptSuggestion || approvalMode.mode === null) return;
-    ctrl.onAccept({ supplement, supplementProjectRefs, approvalMode: approvalMode.mode, images });
+    ctrl.onAccept({
+      supplement,
+      supplementProjectRefs,
+      approvalMode: approvalMode.mode,
+      images,
+      files,
+    });
   };
   const composerContent =
     toolOutputLoader &&
@@ -457,15 +464,9 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
         submissionControls={submissionControls}
         retryAcceptance={canDecide && ctrl.acceptFailed}
         attachments={composer.attachments}
-        attachmentErrorMessage={
-          composer.attachmentFailure
-            ? t(`overlay.composer.attachFailed.${composer.attachmentFailure}`, {
-                limit: ACTION_IMAGE_MAX_PER_MESSAGE,
-              })
-            : null
-        }
+        attachmentFailure={composer.attachmentFailure}
         validationFailed={canDecide ? supplementInvalid : composer.validationFailed}
-        canAttach={composer.attachments.length < ACTION_IMAGE_MAX_PER_MESSAGE}
+        canAttach={canAttach}
         action={canDecide ? 'accept' : composerAction}
         canSend={
           canDecide

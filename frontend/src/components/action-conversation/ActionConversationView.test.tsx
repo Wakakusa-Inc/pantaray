@@ -1019,6 +1019,36 @@ describe('ActionConversationView', () => {
     expect(thumbnail).toHaveFocus();
   });
 
+  it('shows the documents a message carried, sent or still sending, without an open control', () => {
+    const sent = canonicalUser('sent', '');
+    sent.entry.content = null;
+    sent.entry.files = [
+      { name: '見積書.pdf', byte_size: 1_258_291 },
+      { name: '見積書.pdf', byte_size: 512 },
+    ];
+    const sending: ActionConversationUserItem = {
+      kind: 'user',
+      source: 'optimistic',
+      key: 'sending',
+      visibility: 'always',
+      // prettier-ignore
+      submission: { state: 'submitting', request: { target: { kind: 'existing', action_id: 'action-1', expected_process_id: null }, message: { version: 1, message_id: 'sending', content: '要約して', images: [], files: [{ attachment_id: '22222222-2222-4222-8222-222222222222', name: 'analysis.ipynb', byte_size: 2048 }] } } },
+    };
+    renderView(viewWith([sent, sending]), 'ja');
+
+    const [sentBubble, sendingBubble] = screen.getAllByRole('article', { name: 'あなた' });
+    const sentFiles = within(sentBubble).getByRole('list', { name: '添付ファイル 2 件' });
+    expect(
+      within(sentFiles)
+        .getAllByRole('listitem')
+        .map((item) => item.textContent)
+    ).toEqual(['見積書.pdf1.2 MB', '見積書.pdf512 B']);
+    expect(
+      within(sendingBubble).getByRole('list', { name: '添付ファイル 1 件' })
+    ).toHaveTextContent('analysis.ipynb2 KB');
+    expect(within(sentBubble).queryByRole('button')).toBeNull();
+  });
+
   it('renders attached images as counted thumbnails served over the image scheme', () => {
     renderView(viewWith([withImages('images', STORED_IMAGES)]));
 
