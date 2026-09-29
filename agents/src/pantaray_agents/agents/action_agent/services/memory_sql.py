@@ -40,6 +40,7 @@ MEMORY_SQL_ALLOWED_TABLES = frozenset(
         "agent_facts",
         "agent_insights",
         "agent_suggestions",
+        "source_records",
     }
 )
 
@@ -51,6 +52,7 @@ _MEMORY_SQL_USER_SCOPED_TABLES = frozenset(
         "agent_facts",
         "agent_insights",
         "agent_suggestions",
+        "source_records",
     }
 )
 
@@ -104,7 +106,6 @@ def run_local_memory_sql(
     *,
     user_id: str,
     sql: str,
-    params: list[JSONValue] | None,
     limit: int,
 ) -> RepositoryResult[MemorySqlPayload]:
     db_path, busy_timeout_ms = read_local_runtime_db_config()
@@ -113,7 +114,6 @@ def run_local_memory_sql(
         busy_timeout_ms=busy_timeout_ms,
         user_id=user_id,
         sql=sql,
-        params=params,
         limit=limit,
     )
 
@@ -124,7 +124,6 @@ def execute_memory_sql(
     busy_timeout_ms: int,
     user_id: str,
     sql: str,
-    params: list[JSONValue] | None,
     limit: int,
 ) -> RepositoryResult[MemorySqlPayload]:
     normalized_user_id = user_id.strip()
@@ -134,9 +133,6 @@ def execute_memory_sql(
     validated_sql = _validate_sql(normalized_sql)
     if isinstance(validated_sql, str):
         return _validation_error(validated_sql)
-    normalized_params = _normalize_params(params or [])
-    if isinstance(normalized_params, str):
-        return _validation_error(normalized_params)
     normalized_limit = _normalize_limit(limit)
 
     notes: list[str] = []
@@ -167,7 +163,7 @@ def execute_memory_sql(
                 _progress_handler,
                 MEMORY_SQL_PROGRESS_HANDLER_OPCODES,
             )
-            cursor = conn.execute(normalized_sql, tuple(normalized_params))
+            cursor = conn.execute(normalized_sql)
             columns = [description[0] for description in cursor.description or ()]
             raw_rows = cursor.fetchmany(normalized_limit + 1)
             if not observed_base_reads:
@@ -391,15 +387,6 @@ def _extract_referenced_memory_tables(sql: str) -> frozenset[str]:
         for table_name in MEMORY_SQL_ALLOWED_TABLES
         if table_name.casefold() in identifiers
     )
-
-
-def _normalize_params(params: list[JSONValue]) -> list[JSONValue] | str:
-    normalized: list[JSONValue] = []
-    for param in params:
-        if isinstance(param, (list, dict)):
-            return "memory_sql: params may only contain scalar JSON values."
-        normalized.append(param)
-    return normalized
 
 
 def _normalize_limit(limit: int) -> int:
