@@ -108,6 +108,17 @@ const TOOL_DISPLAY_NAMES = {
     enDone: 'Unlinked {subject}',
     enRunning: 'Unlinking {subject}',
   },
+  remember: {
+    agentName: 'Remember',
+    icon: Brain,
+    // 忘れて・直しての依頼もメモとして残るので、「覚えました」とは言わない。
+    ja: '記憶にメモ',
+    en: 'Note in memory',
+    jaDone: '記憶にメモしました {subject}',
+    jaRunning: '記憶にメモしています {subject}',
+    enDone: 'Noted in memory: {subject}',
+    enRunning: 'Noting in memory: {subject}',
+  },
   web_search: {
     agentName: 'Web Search',
     icon: Search,

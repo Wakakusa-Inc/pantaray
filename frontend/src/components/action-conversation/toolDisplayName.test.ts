@@ -14,6 +14,7 @@ const REGISTERED_TOOL_IDS = [
   'get_memory_reference',
   'link_memory',
   'unlink_memory',
+  'remember',
   'web_search',
   'web_extract',
   'web_crawl',
