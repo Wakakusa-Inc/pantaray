@@ -241,13 +241,6 @@ describe('AgentOverlay broader E2E', () => {
     decision: 'approved_once',
     accepted: true,
   }));
-  const captureShareCard = vi.fn<NonNullable<ElectronBridge['share']>['captureShareCard']>(
-    async () => ({
-      ok: true,
-      clipboardOk: true,
-      downloadOk: true,
-    })
-  );
   const sendOrchestration = vi.fn();
   const acceptAction = vi.fn();
   const resizeOverlay = vi.fn();
@@ -275,7 +268,6 @@ describe('AgentOverlay broader E2E', () => {
   Object.assign(olderPage.runs[0], { run_id: 'run-0', final_output: 'older final output' });
 
   beforeEach(() => {
-    captureShareCard.mockClear();
     submitApprovalDecision.mockClear();
     submitMessage.mockReset();
     resumeAction.mockReset();
@@ -379,9 +371,6 @@ describe('AgentOverlay broader E2E', () => {
             };
           },
         },
-        share: {
-          captureShareCard,
-        },
       },
     });
   });
@@ -397,9 +386,9 @@ describe('AgentOverlay broader E2E', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
       this: HTMLElement
     ) {
-      const height = this.parentElement?.hasAttribute('data-sharecard-scroll')
+      const height = this.parentElement?.hasAttribute('data-overlay-scroll')
         ? 800
-        : this.hasAttribute('data-sharecard-scroll')
+        : this.hasAttribute('data-overlay-scroll')
           ? 64
           : 40;
       return {
@@ -976,7 +965,7 @@ describe('AgentOverlay broader E2E', () => {
       </UiLanguageProvider>
     );
     await act(async () => snapshotListener?.(createResumedSnapshot()));
-    const scroll = container.querySelector<HTMLDivElement>('[data-sharecard-scroll]')!;
+    const scroll = container.querySelector<HTMLDivElement>('[data-overlay-scroll]')!;
     Object.defineProperties(scroll, {
       scrollHeight: { value: 1000 },
       clientHeight: { value: 200 },
@@ -1073,10 +1062,6 @@ describe('AgentOverlay broader E2E', () => {
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Copy answer to clipboard' }));
     expect(writeText).toHaveBeenCalledWith('older final output\n\ncanonical final output');
-    fireEvent.click(screen.getByRole('button', { name: 'Share Screenshot' }));
-    expect(captureShareCard.mock.calls[0][0].actionText).toBe(
-      'older final output\n\ncanonical final output'
-    );
     expect(screen.getByText('older final output')).toBeInTheDocument();
 
     await act(async () => conversationListener?.({ kind: 'reset' }));
@@ -1410,20 +1395,6 @@ describe('AgentOverlay broader E2E', () => {
       const bubble = screen.queryByRole('article', { name: language === 'ja' ? 'あなた' : 'You' });
       if (comment === null) expect(bubble).toBeNull();
       else expect(bubble).toHaveTextContent(comment);
-      await act(async () => {
-        fireEvent.click(
-          screen.getByRole('button', {
-            name: language === 'ja' ? 'スクリーンショットを共有' : 'Share Screenshot',
-          })
-        );
-      });
-      expect(captureShareCard).toHaveBeenCalledWith(
-        expect.objectContaining({
-          suggestionText: '[Review the changes](https://example.com)',
-          isSuggestionStreamFinished: true,
-          isSuggestionAccepted: true,
-        })
-      );
     }
   );
 
@@ -1734,7 +1705,7 @@ describe('AgentOverlay broader E2E', () => {
       </UiLanguageProvider>
     );
     await act(async () => snapshotListener?.(createResumedSnapshot()));
-    const scroll = container.querySelector<HTMLDivElement>('[data-sharecard-scroll]')!;
+    const scroll = container.querySelector<HTMLDivElement>('[data-overlay-scroll]')!;
     const scrollHeight = { value: 1000, configurable: true };
     Object.defineProperties(scroll, { scrollHeight, clientHeight: { value: 200 } });
     const userScrollsTo = (top: number) => {

@@ -253,7 +253,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
   const { endRef: completionEndRef, failed: completionReadFailed } = useCompletionViewed(
     conversationActionId,
     completionEventId,
-    (entryMode === 'standalone' || (state.isOverlayVisible && ctrl.isContentVisible)) &&
+    (entryMode === 'standalone' || state.isOverlayVisible) &&
       (state.historyExpandOverride ?? state.isExpanded)
   );
   const failureFallbackText =
@@ -522,7 +522,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
   return (
     <AgentOverlayShell
       isVisible={entryMode === 'standalone' || state.isOverlayVisible}
-      isContentVisible={entryMode === 'standalone' || ctrl.isContentVisible}
+      isContentVisible={entryMode === 'standalone' || state.isOverlayVisible}
       isExpanded={
         state.historyExpandOverride !== null ? state.historyExpandOverride : state.isExpanded
       }
@@ -552,8 +552,6 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
       copyStatusAnswer={ctrl.copyStatusAnswer}
       showBusyIndicator={showBusyIndicator}
       showThinking={showThinking}
-      isSharing={ctrl.isSharing}
-      shareToast={ctrl.shareToast}
       showFooterActions={approvalUiState === 'hidden' && canDecide}
       fadeDurationMs={600}
       onToggleExpand={ctrl.onToggleExpand}
@@ -581,7 +579,6 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
       }
       onOpenWorkspaceSettings={window.electron?.agentOverlay?.openWorkspaceSettings}
       onCopyAnswer={canonicalPlaintext ? () => ctrl.onCopyAnswer(canonicalPlaintext) : undefined}
-      onShareScreenshot={() => ctrl.onShareScreenshot(canonicalPlaintext, suggestionDisplay)}
       onHeaderPointerDown={headerDrag.onHeaderPointerDown}
       onHeaderPointerMove={headerDrag.onHeaderPointerMove}
       onHeaderPointerUp={headerDrag.onHeaderPointerUp}

@@ -192,7 +192,7 @@ export function ApprovalPanel({
         ) : null}
       </ApprovalDetailGroup>
       {approvalErrorMessage ? <ApprovalErrorText>{approvalErrorMessage}</ApprovalErrorText> : null}
-      <ApprovalActionRow data-sharecard-hide="true">
+      <ApprovalActionRow>
         {onDecide
           ? DECISION_OPTIONS.map(({ decision, variant }) => {
               const labelKey = display.decisionLabelKeys[decision];
@@ -211,7 +211,7 @@ export function ApprovalPanel({
           : null}
       </ApprovalActionRow>
       {display.outsideWorkspace && onOpenWorkspaceSettings ? (
-        <ApprovalHint data-sharecard-hide="true">
+        <ApprovalHint>
           {t('overlay.approvalRequired.outsideWorkspace.hint')}{' '}
           <ApprovalHintLink type="button" onClick={onOpenWorkspaceSettings}>
             {t('overlay.approvalRequired.outsideWorkspace.openSettings')}
