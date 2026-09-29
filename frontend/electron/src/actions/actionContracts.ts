@@ -238,8 +238,11 @@ const ToolEntrySchema = z
     // Whether the tool did what it was called for. A denied approval and a read taken
     // while recording is off are successful steps that never ran, and a call a Stop
     // reached before it was issued is an error step that never ran, so the status alone
-    // cannot say. A tool step recorded before the outcome existed did run.
-    outcome: z.enum(['completed', 'denied', 'unavailable', 'not_executed']).default('completed'),
+    // cannot say. A page render whose renderer is still being set up succeeds without
+    // drawing anything. A tool step recorded before the outcome existed did run.
+    outcome: z
+      .enum(['completed', 'denied', 'unavailable', 'not_executed', 'preparing'])
+      .default('completed'),
     // The one argument the step acted on, and the head of its result when it has none.
     // A tool step recorded before the row said what it did carries neither.
     subject: NonBlankTextSchema.nullable().default(null),

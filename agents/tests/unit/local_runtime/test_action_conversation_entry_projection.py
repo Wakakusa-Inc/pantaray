@@ -534,6 +534,49 @@ def test_projects_what_the_tool_actually_did(
     assert (entry.status, entry.outcome) == ("success", expected)
 
 
+_RENDERER_PREPARING_BODY = {
+    "kind": "renderer_preparing",
+    "path": "slides.pptx",
+    "message": "Continue with read and try again later.",
+}
+
+
+@pytest.mark.parametrize(
+    ("status", "output", "expected"),
+    [
+        pytest.param("success", _RENDERER_PREPARING_BODY, "preparing", id="preparing"),
+        pytest.param(
+            "error",
+            _RENDERER_PREPARING_BODY,
+            "completed",
+            id="failed-step-is-not-preparing",
+        ),
+        pytest.param(
+            "success",
+            {**_RENDERER_PREPARING_BODY, "kind": "pdf_pages"},
+            "completed",
+            id="drawn-pages",
+        ),
+    ],
+)
+def test_projects_a_page_render_waiting_for_its_renderer(
+    status: ActionStepStatus, output: object, expected: str
+) -> None:
+    entry = project_action_tool_entry(
+        ActionHistoryToolRow(
+            "step-1",
+            1,
+            "render_pdf_page",
+            status,
+            _tool_output(status=status, output=output),
+            '{"tool_id":"render_pdf_page","args":{"path":"slides.pptx","pages":[1]}}',
+            "run-1",
+        )
+    )
+
+    assert (entry.outcome, entry.subject) == (expected, "slides.pptx")
+
+
 def test_projects_a_denied_approval_the_gated_tool_actually_persists() -> None:
     """The denial the runtime writes must read as denied, field names included."""
 

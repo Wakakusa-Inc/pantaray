@@ -162,8 +162,8 @@ const TOOL_DISPLAY_NAMES = {
   render_pdf_page: {
     agentName: 'Look At PDF Pages',
     icon: FileText,
-    ja: 'PDF のページを見る',
-    en: 'Look at a PDF page',
+    ja: 'ページを見る',
+    en: 'Look at pages',
     jaDone: '{subject} のページを見ました',
     jaRunning: '{subject} のページを見ています',
     enDone: 'Looked at pages of {subject}',
@@ -409,6 +409,12 @@ const NOT_EXECUTED_LINES = {
   },
 } as const;
 
+/** ページを描く準備がまだ済んでいない。失敗ではなく、準備が済めば見られる。 */
+const PREPARING_LINES = {
+  ja: '{subject} を表示する準備をしています',
+  en: 'Preparing to show {subject}',
+} as const;
+
 /** 未登録のツールでも生の snake_case は出さず、読める語に均す。 */
 function humanizeToolLabel(label: string): string {
   const spaced = label.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -443,6 +449,9 @@ export function resolveToolLine(
     if (subject === null) return { text: lines.bare, mono: false };
     // subject は記録されたままの文字列。置換文字列として解釈させない。
     return { text: lines.subject.replace(SUBJECT_SLOT, () => subject), mono: false };
+  }
+  if (outcome === 'preparing' && subject !== null) {
+    return { text: PREPARING_LINES[language].replace(SUBJECT_SLOT, () => subject), mono: false };
   }
   const entry = lookup(label);
   if (entry === undefined) return { text: humanizeToolLabel(label), mono: false };
