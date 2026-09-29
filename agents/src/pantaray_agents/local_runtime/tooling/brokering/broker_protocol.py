@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
 
 from pantaray_agents.local_runtime.tooling.documents.page_render import (
     MAX_RENDERED_PAGES,
@@ -177,13 +177,35 @@ class RenderedPdfPageAttachment(BaseModel):
     byte_size: int
 
 
-class RenderPdfPageOutput(BaseModel):
+class RenderedPdfPagesOutput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     kind: Literal["pdf_pages"]
     path: str
     message: str
+    page_count: int
     attachments: list[RenderedPdfPageAttachment]
+
+
+class RendererPreparingOutput(BaseModel):
+    """No pages yet: the Office renderer is still being installed."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    kind: Literal["renderer_preparing"]
+    path: str
+    message: str
+
+
+class RenderPdfPageOutput(
+    RootModel[
+        Annotated[
+            RenderedPdfPagesOutput | RendererPreparingOutput,
+            Field(discriminator="kind"),
+        ]
+    ]
+):
+    model_config = ConfigDict(strict=True)
 
 
 class DiscoveryEntry(BaseModel):

@@ -3,13 +3,16 @@
 Electron main stages each file under the artifact root before the send. The
 submit transaction hard-links it into ``attachments/{attachment_id}/{name}``
 inside the Action's scratch workspace, where the read tools already reach, and
-the staged name is unlinked only after the USER row commits.
+the staged name is unlinked only after the USER row commits. A committed Word,
+PowerPoint or Excel file also starts getting the Office renderer ready, so its
+pages can be drawn by the time the model asks for them.
 """
 
 from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -36,9 +39,12 @@ from pantaray_agents.schema.agent.action_message import (
 )
 
 from .action_message_models import ActionMessageSubmissionError
+from .office_runtime import OFFICE_RUNTIME
 
 # Electron main's attach IPC writes `{attachment_id}{ext}` here, per user.
 STAGED_ATTACHMENT_DIRECTORY = "generated/attachments"
+# The formats the page render tool draws by converting them with LibreOffice.
+_OFFICE_EXTENSIONS = frozenset({".docx", ".pptx", ".xlsx"})
 
 
 class ActionFileAttachmentUnavailableError(ActionMessageSubmissionError):
@@ -139,6 +145,22 @@ class ActionFileAttachmentLinks:
                 names=tuple(_staged_name(file) for file in files),
             ),
         )
+        if any(file.extension in _OFFICE_EXTENSIONS for file in files):
+            register_after_commit(
+                connection=connection,
+                callback=partial(_prepare_office_renderer, paths.storage_base),
+            )
+
+
+def _prepare_office_renderer(storage_base: Path) -> None:
+    # Discovery can wait on Spotlight, so the submit does not wait for it; the
+    # install it may start already runs on a thread of its own.
+    threading.Thread(
+        target=OFFICE_RUNTIME.ensure_available,
+        args=(storage_base,),
+        name="office-runtime-ensure",
+        daemon=True,
+    ).start()
 
 
 def _staged_name(attachment: FileAttachmentInput) -> str:

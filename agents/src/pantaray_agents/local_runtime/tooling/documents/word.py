@@ -30,7 +30,8 @@ _DOCX_NOTES: Final = (
     "embedded pictures are not listed.",
     "List numbering is not resolved, so a numbered item carries the same "
     "marker as a bullet.",
-    "A page count is unavailable without rendering the document.",
+    "Pages are not counted here; render_pdf_page draws the laid-out pages "
+    "and reports the page count.",
 )
 
 
