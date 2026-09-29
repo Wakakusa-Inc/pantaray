@@ -19,6 +19,7 @@ from pantaray_agents.agents.action_agent.tools import (
     CAPTURE_SCREEN_TOOL_ID,
     DRAFT_FINAL_ANSWER_TOOL_ID,
     READ_ACTION_PLAN_TOOL_ID,
+    REMEMBER_TOOL_ID,
     SEND_MESSAGE_TO_SUBAGENT_TOOL_ID,
     SPAWN_SUBAGENT_TOOL_ID,
     SUBMIT_FINAL_ANSWER_TOOL_ID,
@@ -72,6 +73,7 @@ from .memory_links import (
 from .memory_search import run_memory_search_tool
 from .memory_sql import run_memory_sql_tool
 from .plan_document import run_action_plan_tool
+from .remember import run_remember_tool
 from .request_identity import resolve_tool_request_id
 from .shared import (
     ApprovalDeniedToolControl,
@@ -260,6 +262,14 @@ async def run_validated_tool_impl(
             tool_def=tool_def,
             args=args,
             state=state,
+        )
+    elif tool_def.tool_id == REMEMBER_TOOL_ID:
+        result = await run_remember_tool(
+            step_id=resolved_step_id,
+            tool_def=tool_def,
+            args=args,
+            state=state,
+            actor=actor,
         )
     elif tool_def.tool_id == "memory_sql":
         result = await run_memory_sql_tool(

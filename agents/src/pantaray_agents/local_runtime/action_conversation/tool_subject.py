@@ -111,6 +111,7 @@ _TOOL_SUBJECTS: dict[str, _ArgsSubject] = {
     "get_memory_reference": _text("source_handle", "local_ref_id"),
     "link_memory": _text("target_handle"),
     "unlink_memory": _text("local_ref_id"),
+    "remember": _text("note"),
     "history_fetch": _joined("refs"),
     "zanei_query": _text("event_id"),
     "spawn_subagent": _text("task"),
