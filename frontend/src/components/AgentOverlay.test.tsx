@@ -2037,6 +2037,114 @@ describe('AgentOverlay broader E2E', () => {
         ],
       })
     );
+    // The accepted snapshot replaces the composer; the document now belongs to the Action.
+    const accepted = createPendingSnapshot();
+    accepted.snapshot.suggestionId = 'sug-comment';
+    await act(async () => snapshotListener?.(accepted));
+    expect(discardAttachment).not.toHaveBeenCalled();
+  });
+
+  it('discards staged documents when the next suggestion replaces the composer', async () => {
+    render(
+      <UiLanguageProvider initialLanguage="en">
+        <AgentOverlay />
+      </UiLanguageProvider>
+    );
+    const snapshot = createCommentOnlySnapshot();
+    await act(async () => snapshotListener?.(snapshot));
+    fireEvent.click(screen.getByRole('button', { name: 'Reply to this suggestion' }));
+    await act(async () => {
+      fireEvent.change(document.querySelector('input[type="file"]')!, {
+        target: { files: [documentFile('notes.pdf')] },
+      });
+    });
+    await screen.findByRole('button', { name: 'Remove notes.pdf' });
+
+    snapshot.snapshot.suggestionId = 'sug-next';
+    await act(async () => snapshotListener?.(snapshot));
+    expect(discardAttachment).toHaveBeenCalledWith({
+      attachmentId: '12222222-2222-4222-8222-222222222222',
+    });
+
+    // A document still being staged when the composer is replaced is discarded when it lands.
+    fireEvent.click(screen.getByRole('button', { name: 'Reply to this suggestion' }));
+    let finishAttach!: (result: unknown) => void;
+    attachFile.mockReturnValueOnce(new Promise((resolve) => (finishAttach = resolve)));
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [documentFile('late.pdf')] },
+    });
+    await waitFor(() => expect(attachFile).toHaveBeenCalledTimes(2));
+    snapshot.snapshot.suggestionId = 'sug-third';
+    await act(async () => snapshotListener?.(snapshot));
+    const lateId = '33333333-3333-4333-8333-333333333333';
+    await act(async () => finishAttach({ attachmentId: lateId, name: 'late.pdf', byteSize: 4 }));
+    expect(discardAttachment).toHaveBeenLastCalledWith({ attachmentId: lateId });
+    expect(discardAttachment).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves a document that went out with a reply to the backend when the composer is replaced', async () => {
+    submitMessage.mockReturnValue(new Promise(() => {}));
+    render(
+      <UiLanguageProvider initialLanguage="en">
+        <AgentOverlay />
+      </UiLanguageProvider>
+    );
+    const snapshot = createCommentOnlySnapshot();
+    await act(async () => snapshotListener?.(snapshot));
+    fireEvent.click(screen.getByRole('button', { name: 'Reply to this suggestion' }));
+    await act(async () => {
+      fireEvent.change(document.querySelector('input[type="file"]')!, {
+        target: { files: [documentFile('notes.pdf')] },
+      });
+    });
+    await screen.findByRole('button', { name: 'Remove notes.pdf' });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'Read this' },
+    });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(submitMessage.mock.calls[0][0].message.files).toHaveLength(1);
+
+    snapshot.snapshot.suggestionId = 'sug-next';
+    await act(async () => snapshotListener?.(snapshot));
+    expect(discardAttachment).not.toHaveBeenCalled();
+  });
+
+  it('discards the documents a concurrent batch pushes past the per-message limit', async () => {
+    const composer = await openComposer();
+    let finishFirst!: (result: unknown) => void;
+    attachFile.mockReturnValueOnce(new Promise((resolve) => (finishFirst = resolve)));
+    const batch = (prefix: string) =>
+      Array.from({ length: 6 }, (_, index) => documentFile(`${prefix}${index}.pdf`));
+
+    await act(async () => {
+      fireEvent.paste(composer, { clipboardData: { files: batch('first-') } });
+    });
+    await act(async () => {
+      fireEvent.paste(composer, { clipboardData: { files: batch('second-') } });
+    });
+    expect(await screen.findByRole('list', { name: 'Attachments, 6' })).toBeVisible();
+    await act(async () =>
+      finishFirst({
+        attachmentId: '44444444-4444-4444-8444-444444444444',
+        name: 'first-0.pdf',
+        byteSize: 4,
+      })
+    );
+
+    expect(await screen.findByRole('list', { name: 'Attachments, 10' })).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Up to 10 files can be sent in one message.'
+    );
+    expect(screen.queryByText('first-4.pdf')).toBeNull();
+    expect(screen.queryByText('first-5.pdf')).toBeNull();
+    const dropped = attachFile.mock.results.slice(-2).map(async (result) => {
+      const { attachmentId } = await (result.value as Promise<{ attachmentId: string }>);
+      return { attachmentId };
+    });
+    expect(discardAttachment.mock.calls.map(([request]) => request)).toEqual(
+      await Promise.all(dropped)
+    );
   });
 
   it('discards a removed document and keeps keyboard focus in the composer', async () => {

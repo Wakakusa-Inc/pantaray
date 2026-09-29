@@ -69,6 +69,20 @@ function countAttachments(
 
 type ComposerActions = NonNullable<NonNullable<typeof window.electron>['actions']>;
 
+/**
+ * Removes staged documents that will never be sent. A staged file left behind only takes disk
+ * space until the planned sweep, so a failed discard is not reported to the user.
+ */
+function discardDocuments(
+  actions: ComposerActions | undefined,
+  attachments: readonly ComposerAttachment[]
+): void {
+  for (const attachment of attachments) {
+    if (attachment.kind !== 'file') continue;
+    actions?.discardAttachment({ attachmentId: attachment.attachmentId }).catch(() => undefined);
+  }
+}
+
 /** Writes one file through Electron main; an image the main process declines yields its reason. */
 async function writeAttachment(
   actions: ComposerActions,
@@ -201,6 +215,25 @@ export function useOverlayComposerController({
     // Pending image writes must not cross into a replacement composer.
     composerGenerationRef.current += 1;
   }, [suggestionId, suggestionAccepted, initialActionId]);
+  // The composer as last committed. A scope change replaces it above during render, so the
+  // documents it drops are read from here once the change commits. Documents that went out with
+  // a message or with the approval are the backend's to move, so they are left alone.
+  const committedRef = useRef({ scope, attachments: composer.attachments, sent: false });
+  useEffect(() => {
+    const previous = committedRef.current;
+    const approved =
+      previous.scope.suggestionId === scope.suggestionId &&
+      !previous.scope.suggestionAccepted &&
+      scope.suggestionAccepted;
+    if (previous.scope !== scope && !previous.sent && !approved) {
+      discardDocuments(actions, previous.attachments);
+    }
+    committedRef.current = {
+      scope,
+      attachments: composer.attachments,
+      sent: composer.submission !== null,
+    };
+  });
   const sendRequest = (request: ActionMessageRequest) => {
     if (!actions) return;
     const messageId = request.message.message_id;
@@ -422,7 +455,7 @@ export function useOverlayComposerController({
       // A replaced composer already starts at zero attachments in flight, so the result is
       // dropped rather than decrementing a counter it never incremented. Its staged documents
       // will never be sent.
-      accepted.forEach((attachment) => discardDocument(attachment));
+      discardDocuments(actions, accepted);
       return;
     }
     setComposer((current) => {
@@ -435,6 +468,8 @@ export function useOverlayComposerController({
           attachments = [...attachments, attachment];
         } else {
           attachmentFailure = limit.failure;
+          // Discarding by id is idempotent, so a repeated updater call does no harm.
+          discardDocuments(actions, [attachment]);
         }
       }
       return {
@@ -445,13 +480,8 @@ export function useOverlayComposerController({
       };
     });
   };
-  const discardDocument = (attachment: ComposerAttachment) => {
-    if (attachment.kind === 'file') {
-      void actions?.discardAttachment({ attachmentId: attachment.attachmentId });
-    }
-  };
   const removeAttachment = (removed: ComposerAttachment) => {
-    discardDocument(removed);
+    discardDocuments(actions, [removed]);
     setComposer((current) => ({
       ...current,
       attachments: current.attachments.filter(
