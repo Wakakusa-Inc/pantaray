@@ -28,7 +28,7 @@ from pantaray_agents.local_runtime.memory_catalog.document_rendering import (
 )
 from pantaray_agents.local_runtime.memory_catalog.memory_run_binding import (
     derived_experience_ids,
-    distinct_action_terminals,
+    merged_action_terminals,
 )
 from pantaray_agents.local_runtime.memory_catalog.models import (
     MemoryDocument,
@@ -141,9 +141,7 @@ def prepare_memory_update_run(
         # An Action deleted from history since the run was queued is skipped.
         terminals = tuple(
             terminal
-            for terminal in distinct_action_terminals(
-                tuple(payload["action_terminals"])
-            )
+            for terminal in merged_action_terminals(tuple(payload["action_terminals"]))
             if connection.execute(
                 "SELECT 1 FROM agent_actions WHERE user_id = ? AND action_id = ?",
                 (user_id, terminal["action_id"]),
