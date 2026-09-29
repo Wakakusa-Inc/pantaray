@@ -373,6 +373,71 @@ async def test_every_turn_one_run_coalesced_for_an_action_stays_readable(
     )
 
 
+async def test_a_later_turn_starts_at_its_new_steps_and_reaches_back_to_step_1(
+    tmp_path: Path,
+) -> None:
+    # "Remember this" in a later turn only makes sense against the request
+    # that started the Action, which an earlier memory run already recorded.
+    runtime = _runtime(tmp_path)
+    _bootstrap(runtime.db_path)
+    with sqlite3.connect(runtime.db_path) as connection, connection:
+        connection.execute(
+            """
+            INSERT INTO processes(
+                process_id, user_id, kind, status, action_id, next_event_seq,
+                started_at, updated_at, heartbeat_at
+            ) VALUES ('action-process', ?, 'action', 'running', 'action-1', 1,
+                      ?, ?, ?)
+            """,
+            (USER_ID, NOW, NOW, NOW),
+        )
+    for step_number, text in (
+        (1, "Draft the launch plan"),
+        (4, "Remember to keep the launch plan short"),
+        (7, "Launch plan follow-up still in progress"),
+    ):
+        _insert_user_step(runtime.db_path, step_number=step_number, text=text)
+    payload = _payload()
+    payload["action_terminals"] = [_turn(4, 6, "rev-2")]
+
+    with MemoryRunWorkspaceScope() as scope:
+        prepared = prepare_memory_update_run(
+            runtime=runtime, payload=payload, workspace_scope=scope
+        )
+
+    assert ", steps 4-6, " in prepared.context.action_turns
+    tools = {definition.name: definition for definition in prepared.tool_definitions}
+
+    async def refs(name: str, key: str, **args: JSONValue) -> list[JSONValue]:
+        result = await tools[name].execute(
+            _tool_call(name, action_id="action-1", **args), 1
+        )
+        assert isinstance(result.output, dict)
+        items = result.output[key]
+        assert isinstance(items, list)
+        return [item["short_step_id"] for item in items if isinstance(item, dict)]
+
+    # The run starts at the steps it records; step 7 is past the bound.
+    assert await refs("list_action_steps", "steps") == ["S-4-USER"]
+    assert await refs("search_action_steps", "matches", query="launch") == ["S-4-USER"]
+    assert await refs("list_action_steps", "steps", from_step=1) == [
+        "S-1-USER",
+        "S-4-USER",
+    ]
+    assert await refs(
+        "search_action_steps", "matches", query="launch", from_step=1
+    ) == ["S-1-USER", "S-4-USER"]
+    fetched = await tools["history_fetch"].execute(
+        _tool_call("history_fetch", action_id="action-1", refs=["S-1-USER"]), 1
+    )
+    assert fetched.status == "success"
+    assert "Draft the launch plan" in json.dumps(fetched.output)
+    beyond = await tools["history_fetch"].execute(
+        _tool_call("history_fetch", action_id="action-1", refs=["S-7-USER"]), 1
+    )
+    assert beyond.status == "error"
+
+
 @pytest.mark.parametrize(
     ("revisions", "expected"),
     [
