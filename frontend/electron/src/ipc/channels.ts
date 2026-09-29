@@ -20,8 +20,6 @@ export const validSendChannels = [
   'overlay:openWorkspaceSettings',
   'history:openOverlay',
   'open-external-url',
-  // Share card capture (main-rendered)
-  'sharecard:ready',
   // WebSocket bridge (connect/disconnect は main に統一のため未公開)
   'ws:send',
 ] as const;
@@ -105,9 +103,6 @@ export const validInvokeChannels = [
   'recording:getGateState',
   'recording:dismissIntro',
   'recording:openPermissionSettings',
-  // Share card (AgentOverlay share screenshot)
-  'share:savePng',
-  'share:captureShareCard',
   'ws:getStatus',
   // UI language (SSOT)
   'ui:getLanguage',

@@ -138,9 +138,7 @@ describe('AgentOverlayShell', () => {
     expect(screen.getByRole('button', { name: 'Expand' })).toHaveFocus();
     toolOutput.focus();
     expect(toolOutput).toHaveFocus();
-    expect(conversationAction.closest('[data-sharecard-scroll="true"]')).not.toHaveAttribute(
-      'inert'
-    );
+    expect(conversationAction.closest('[data-overlay-scroll="true"]')).not.toHaveAttribute('inert');
     await act(async () => enableStatefulControl());
     expect(screen.getByRole('button', { name: 'Stateful conversation action' })).toBeDisabled();
     await act(async () => revealLateControl());
@@ -219,9 +217,9 @@ describe('AgentOverlayShell', () => {
 
     const shell = within(container);
     expect(
-      shell.getByText('long conversation').closest('[data-sharecard-scroll="true"]')
+      shell.getByText('long conversation').closest('[data-overlay-scroll="true"]')
     ).not.toBeNull();
-    expect(shell.getByLabelText('Message').closest('[data-sharecard-scroll="true"]')).toBeNull();
+    expect(shell.getByLabelText('Message').closest('[data-overlay-scroll="true"]')).toBeNull();
 
     // 停止は入力欄の主ボタンが担う。ヘッダは実行中であることだけを示す。
     expect(shell.queryByRole('button', { name: 'Stop' })).toBeNull();
@@ -264,7 +262,7 @@ describe('AgentOverlayShell', () => {
 
     const shell = within(container);
     const approval = shell.getByText('Approval required');
-    expect(approval.closest('[data-sharecard-scroll="true"]')).toBeNull();
+    expect(approval.closest('[data-overlay-scroll="true"]')).toBeNull();
     expect(
       shell.getByText('long conversation').compareDocumentPosition(approval) &
         Node.DOCUMENT_POSITION_FOLLOWING
@@ -312,9 +310,7 @@ describe('AgentOverlayShell', () => {
         </UiLanguageProvider>
       );
       const shell = within(container);
-      const conversation = shell
-        .getByText('conversation')
-        .closest('[data-sharecard-scroll="true"]');
+      const conversation = shell.getByText('conversation').closest('[data-overlay-scroll="true"]');
       const dock = shell.getByLabelText('Message').parentElement;
 
       // 取り違えを防ぐため、styled-components の宣言が実際に解決できていることを先に確かめる。

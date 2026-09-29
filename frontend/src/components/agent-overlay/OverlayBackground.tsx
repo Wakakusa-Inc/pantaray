@@ -113,7 +113,6 @@ export const PopupContainer = styled.div<{
   &::before {
     content: '';
     position: absolute;
-    /* ShareCard capture overrides parent clipping, so this layer owns its rounded edge. */
     inset: -${TINT_BLEED_PX}px;
     clip-path: inset(${TINT_BLEED_PX}px round ${PANEL_RADIUS_PX}px);
     mask-image: ${edgeFadeMask(TINT_BLEED_PX)};

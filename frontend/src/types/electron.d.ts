@@ -170,36 +170,6 @@ declare global {
         /** OS 権限を今すぐ読み直す合図（main がこのウィンドウを前面に出したとき） */
         onGateStateChanged?: (callback: () => void) => () => void;
       };
-      share?: {
-        /**
-         * 共有スクリーンショット画像（PNG）を Downloads に保存する。
-         * main 側で保存先は固定し、ファイル名は `pantaray-YYYYMMDD-HHMMSS.png` のみ許可される。
-         */
-        savePng: (payload: {
-          pngBytes: Uint8Array | number[] | ArrayBuffer;
-          filename: string;
-        }) => Promise<{ ok: boolean; path?: string; error?: string }>;
-        /**
-         * 共有カードを main 側で「実描画キャプチャ」して、クリップボード + Downloads 保存まで行う。
-         * 出力サイズは main 側で統一（例: 幅1600px、高さ上限6000px）。
-         */
-        captureShareCard: (payload: {
-          content: string | null;
-          suggestionText: string;
-          isSuggestionStreamFinished: boolean;
-          isSuggestionAccepted: boolean;
-          actionText: string;
-          isActionStreamFinished: boolean;
-          isActionPhase: boolean;
-        }) => Promise<{
-          ok: boolean;
-          clipboardOk?: boolean;
-          downloadOk?: boolean;
-          filename?: string;
-          path?: string;
-          error?: string;
-        }>;
-      };
       window: {
         getPosition: () => Promise<{ x: number; y: number }>;
         move: (position: { x: number; y: number }) => void;

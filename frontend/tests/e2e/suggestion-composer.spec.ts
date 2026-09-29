@@ -127,7 +127,7 @@ async function capture(page: Page, info: TestInfo, name: string) {
         .map((animation) => animation.finished)
     );
   });
-  const panel = page.locator('[data-sharecard-root]');
+  const panel = page.locator('[data-overlay-panel]');
   await expect
     .poll(async () => Number(await page.locator('html').getAttribute('data-overlay-height')))
     .toBeGreaterThanOrEqual(Math.ceil((await panel.boundingBox())!.height));
@@ -140,13 +140,13 @@ test('comment: quiet entry, keyboard reveal, resize and reply', async ({ page },
   await expect(page.getByRole('textbox')).toHaveCount(0);
   const reply = page.getByRole('button', { name: 'この提案に返信' });
   await capture(page, info, 'comment-collapsed');
-  const initialHeight = (await page.locator('[data-sharecard-root]').boundingBox())!.height;
+  const initialHeight = (await page.locator('[data-overlay-panel]').boundingBox())!.height;
   await reply.focus();
   await page.keyboard.press('Enter');
   const input = page.getByRole('textbox', { name: 'メッセージ', exact: true });
   await expect(input).toBeFocused();
   await capture(page, info, 'comment-expanded');
-  expect((await page.locator('[data-sharecard-root]').boundingBox())!.height).toBeGreaterThan(
+  expect((await page.locator('[data-overlay-panel]').boundingBox())!.height).toBeGreaterThan(
     initialHeight
   );
   await input.fill('決めたいことを3つに整理して');
