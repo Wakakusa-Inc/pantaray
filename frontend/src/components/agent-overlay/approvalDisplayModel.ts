@@ -1,4 +1,5 @@
 import type { MessageKey } from '@/i18n/types';
+import { formatBytes } from '@/lib/formatBytes';
 import type { ActionApprovalBlocker } from '../../../electron/src/actions/actionLiveCore';
 
 export type ApprovalDetail = {
@@ -49,10 +50,6 @@ function readStringArrayValue(record: Record<string, unknown>, key: string): str
   const value = record[key];
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
-}
-
-function formatBytes(bytes: number, t: ApprovalDisplayTranslator): string {
-  return t('overlay.approvalRequired.bytes', { bytes });
 }
 
 function buildGenericPrimaryValue(summary: Record<string, unknown>): string {
@@ -149,7 +146,7 @@ function buildToolApprovalDisplay(
           ? [
               {
                 labelKey: 'overlay.approvalRequired.size' as MessageKey,
-                value: formatBytes(codeSizeBytes, t),
+                value: formatBytes(codeSizeBytes),
               },
             ]
           : []),
