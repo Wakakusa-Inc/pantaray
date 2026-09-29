@@ -193,6 +193,13 @@ class UserEntryProjectRef(_ActionConversationModel):
     end: NonNegativeInt
 
 
+class UserEntryFile(_ActionConversationModel):
+    """A document attached to the message, as it was named when sent."""
+
+    name: NonBlankText
+    byte_size: PositiveInt
+
+
 class UserEntry(_ActionConversationModel):
     step_kind: Literal["user"]
     step_id: ActionConversationIdentity
@@ -203,6 +210,7 @@ class UserEntry(_ActionConversationModel):
     approved_suggestion: ApprovedSuggestion | None
     images: tuple[ImageInput, ...]
     project_refs: tuple[UserEntryProjectRef, ...]
+    files: tuple[UserEntryFile, ...]
     status: UserEntryStatus
 
     @model_validator(mode="after")
