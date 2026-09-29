@@ -111,15 +111,12 @@ async def run_render_pdf_page_executor(
     if renderable == "pdf":
         pdf_path = target.real_path
     else:
-        libreoffice_app = await _office_renderer(context)
-        if libreoffice_app is None:
-            return _preparing(target)
-        pdf_path = await _office_pdf(
-            context=context,
-            target=target,
-            office_format=renderable,
-            libreoffice_app=libreoffice_app,
+        office_pdf = await _office_pdf(
+            context=context, target=target, office_format=renderable
         )
+        if office_pdf is None:
+            return _preparing(target)
+        pdf_path = office_pdf
     drawn = await _draw(target=target, pdf_path=pdf_path, pages=request.pages)
     stored = [
         _store(user_id=context.execution_session.user_id, page=page)
@@ -267,9 +264,13 @@ async def _office_pdf(
     context: BrokerContext,
     target: ReadTarget,
     office_format: OfficeFormat,
-    libreoffice_app: Path,
-) -> Path:
-    """The PDF of one Office file, converted on the first call and kept after."""
+) -> Path | None:
+    """The PDF of one Office file, converted on the first call and kept after.
+
+    A kept PDF is drawn without asking for LibreOffice at all, whatever state
+    its install is in. None when there is none yet and LibreOffice is still
+    being installed.
+    """
 
     rendered_documents = (
         resolve_action_storage_paths(
@@ -288,6 +289,9 @@ async def _office_pdf(
     cached = rendered_documents / f"{hashlib.sha256(payload).hexdigest()}.pdf"
     if cached.is_file():
         return cached
+    libreoffice_app = await _office_renderer(context)
+    if libreoffice_app is None:
+        return None
     # LibreOffice converts a copy of the bytes just hashed, so the PDF kept
     # under the digest is theirs however the file changes meanwhile.
     handle, source = tempfile.mkstemp(

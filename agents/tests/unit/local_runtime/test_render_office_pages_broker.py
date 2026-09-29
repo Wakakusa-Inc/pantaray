@@ -168,7 +168,8 @@ async def test_an_office_file_is_converted_once_and_drawn_from_the_kept_pdf(
     assert conversions[0]["source"] == source.read_bytes()
     assert conversions[0]["destination"] == kept
     assert asked["pdf_path"] == kept
-    assert len(runtime.ensured) == 2
+    # Only the conversion asked for LibreOffice; the kept PDF did not.
+    assert len(runtime.ensured) == 1
     # Only the kept PDF remains: the copy that was converted is gone.
     assert [path.name for path in rendered_documents(db_path).iterdir()] == [kept.name]
     for outcome in (first, second):
@@ -193,6 +194,38 @@ async def test_an_office_file_is_converted_once_and_drawn_from_the_kept_pdf(
     )
 
     assert not kept.exists()
+
+
+@pytest.mark.parametrize(
+    "state",
+    [OfficeRuntimePreparing(), OfficeRuntimeUnavailable(reason="download_failed")],
+    ids=["preparing", "unavailable"],
+)
+async def test_a_kept_pdf_is_drawn_whatever_state_libreoffice_is_in(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, state: OfficeRuntimeSnapshot
+) -> None:
+    db_path, context = setup_workspace(tmp_path, monkeypatch)
+    source = context.workspace_path / "deck.pptx"
+    kept = rendered_documents(db_path) / (
+        hashlib.sha256(source.read_bytes()).hexdigest() + ".pdf"
+    )
+    kept.parent.mkdir()
+    kept.write_bytes(b"%PDF-1.7 converted earlier")
+    runtime = use_runtime(monkeypatch, FakeOfficeRuntime(state))
+    conversions = stub_converter(monkeypatch)
+    asked = stub_renderer(
+        monkeypatch,
+        pages=(RenderedPage(number=1, width_px=10, height_px=10, payload=_WEBP),),
+    )
+
+    outcome = await render_pages(
+        db_path=db_path, context=context, args={"path": "deck.pptx", "pages": [1]}
+    )
+
+    assert outcome.output["kind"] == "pdf_pages"
+    assert asked["pdf_path"] == kept
+    # No discovery, no install attempt and no conversion for a kept PDF.
+    assert runtime.ensured == [] and conversions == []
 
 
 async def test_a_render_while_libreoffice_installs_says_it_is_preparing(
