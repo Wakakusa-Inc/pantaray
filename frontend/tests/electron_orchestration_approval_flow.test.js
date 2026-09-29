@@ -36,7 +36,6 @@ function createManagerHarness(overrides = {}) {
       setOverlaySnapshot: (id, payload) => {
         overlayPayloads.set(String(id), payload);
       },
-      getNotificationWindow: () => null,
       sendToAllOverlays: () => {},
       sendResetToAllOverlays: () => {},
       dispatchEventToOverlay: () => false,

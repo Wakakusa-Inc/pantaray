@@ -23,8 +23,7 @@ import type {
 type ExecPromise = (command: string) => Promise<{ stdout: string; stderr?: string }>;
 type CaptureActiveWindowInfoFn = (
   execPromise: ExecPromise,
-  mainWindow: BrowserWindow | null,
-  notificationWindow: BrowserWindow | null
+  mainWindow: BrowserWindow | null
 ) => Promise<{ name: string; title: string } | null>;
 
 type GetActiveBrowserUrlFn = (
@@ -57,7 +56,6 @@ export function createScreenshotSyncManager(params: {
   isMac: boolean;
   userDataDir: string;
   getMainWindow: () => BrowserWindow | null;
-  getNotificationWindow: () => BrowserWindow | null;
   isBackendRuntimeReady: () => boolean;
   capturePrivacy: CapturePrivacyManager;
   screenshotLib: ScreenshotLib;
@@ -428,8 +426,7 @@ export function createScreenshotSyncManager(params: {
     return (
       (await params.screenshotLib.captureActiveWindowInfo?.(
         params.execPromise,
-        params.getMainWindow(),
-        params.getNotificationWindow()
+        params.getMainWindow()
       )) ?? null
     );
   }

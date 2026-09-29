@@ -216,7 +216,6 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
     isMac: process.platform === 'darwin',
     userDataDir: app.getPath('userData'),
     getMainWindow: params.getMainWindow,
-    getNotificationWindow: () => safely(orchestration.getNotificationWindowOrNull, null),
     isBackendRuntimeReady: () => params.supabaseWiring.getLocalOwnerId() !== null,
     getManifestPath: params.desktopRuntime.getAppRuntimeManifestPath,
     requestPermissions: requestCapturePermissions,

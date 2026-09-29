@@ -61,7 +61,6 @@ export type OrchestrationManager = {
   sendFromRenderer: (message: unknown) => Promise<void>;
   acceptAction: (request: AcceptActionRequest) => Promise<OverlaySnapshot | null>;
   enqueueResumeRequest: (req: ResumeProcessRequest) => void;
-  getNotificationWindowOrNull: () => BrowserWindow | null;
   getOverlaySnapshot: (suggestionId: string) => OverlaySnapshot | null;
   refreshActionConversation: (actionId: string) => void;
   refreshAndResumeActionConversation: (actionId: string) => void;
@@ -483,7 +482,6 @@ export function createOrchestrationManager(params: {
       requireOwner();
       enqueueResumeRequest(request);
     },
-    getNotificationWindowOrNull: rendererBridge.getNotificationWindowOrNull,
     getOverlaySnapshot: rendererBridge.getOverlaySnapshot,
     refreshActionConversation: rendererBridge.refreshActionConversation,
     refreshAndResumeActionConversation: rendererBridge.refreshAndResumeActionConversation,

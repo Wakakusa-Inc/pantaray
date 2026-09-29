@@ -78,14 +78,10 @@ test('captureActiveWindowInfo preserves the longer AXTitle for advisory consumer
     },
   });
 
-  const result = await captureActiveWindowInfo(
-    async (command) => {
-      commands.push(command);
-      return { stdout: 'Slack\tgeneral (Workspace) - Slack\n' };
-    },
-    null,
-    null
-  );
+  const result = await captureActiveWindowInfo(async (command) => {
+    commands.push(command);
+    return { stdout: 'Slack\tgeneral (Workspace) - Slack\n' };
+  }, null);
 
   assert.deepEqual(result, {
     name: 'Slack',
