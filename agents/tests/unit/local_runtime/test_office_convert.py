@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import os
 import signal
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 import pytest
@@ -179,15 +180,45 @@ async def test_no_pdf_is_an_unreadable_document_whatever_the_exit_status(
     assert not Path(cwd_file.read_text(encoding="utf-8").strip()).exists()
 
 
+_PLANTED_OUTPUTS = {
+    "symlink": 'ln -s "$outside/private.pdf" "$outdir/input.pdf"\n',
+    "hard_link": 'ln "$outside/private.pdf" "$outdir/input.pdf"\n',
+    "linked_directory": 'rmdir "$outdir" && ln -s "$outside" "$outdir"\n',
+    "fifo": 'mkfifo "$outdir/input.pdf"\n',
+}
+
+
+@pytest.mark.parametrize("planted", sorted(_PLANTED_OUTPUTS))
+async def test_an_output_that_is_not_its_own_regular_file_is_never_handed_over(
+    tmp_path: Path, planted: str
+) -> None:
+    """Everything under the work dir was writable by the sandboxed process."""
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "private.pdf").write_bytes(b"%PDF-1.7 not the conversion's to give")
+    app = fake_libreoffice(
+        tmp_path, f'outside="{outside}"\n{_PLANTED_OUTPUTS[planted]}'
+    )
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    destination = cache / "rendered.pdf"
+    destination.write_bytes(b"previous")
+
+    with pytest.raises(OfficeDocumentUnreadableError):
+        await convert(app, write_source(tmp_path), destination)
+
+    assert destination.read_bytes() == b"previous"
+    assert [path.name for path in cache.iterdir()] == ["rendered.pdf"]
+
+
 async def test_a_conversion_past_its_time_is_killed_with_everything_it_started(
     tmp_path: Path,
 ) -> None:
     pid_file = tmp_path / "pids"
     app = fake_libreoffice(
         tmp_path,
-        # Its own streams, so a child the kill missed is caught by the check
-        # below rather than holding the stderr pipe open and hanging the call.
-        "( while :; do :; done ) </dev/null >/dev/null 2>&1 &\n"
+        "( while :; do :; done ) &\n"
         f'printf "%s %s\\n" "$!" "$(pwd)" > "{pid_file}"\n'
         "wait\n",
     )
@@ -198,12 +229,48 @@ async def test_a_conversion_past_its_time_is_killed_with_everything_it_started(
         )
 
     child_pid, work_dir = pid_file.read_text(encoding="utf-8").split()
-    try:
+    async with _killed_after(int(child_pid)):
         assert not Path(work_dir).exists()
         assert await _reaped(int(child_pid))
+
+
+@pytest.mark.parametrize(
+    "child_streams",
+    [
+        pytest.param("", id="child_keeps_stderr"),
+        pytest.param("</dev/null >/dev/null 2>&-", id="child_closes_stderr"),
+    ],
+)
+async def test_what_soffice_leaves_running_after_it_exits_is_killed(
+    tmp_path: Path, child_streams: str
+) -> None:
+    """A finished conversion neither waits for its descendants nor leaves them."""
+
+    pid_file = tmp_path / "pid"
+    app = fake_libreoffice(
+        tmp_path,
+        f"( while :; do :; done ) {child_streams} &\n"
+        f'echo "$!" > "{pid_file}"\n'
+        'printf "%%PDF-1.7\\n" > "$outdir/input.pdf"\n',
+    )
+    destination = tmp_path / "rendered.pdf"
+
+    await convert(app, write_source(tmp_path), destination, timeout_seconds=10)
+
+    async with _killed_after(int(pid_file.read_text(encoding="utf-8"))) as child:
+        assert destination.read_bytes() == b"%PDF-1.7\n"
+        assert await _reaped(child)
+
+
+@contextlib.asynccontextmanager
+async def _killed_after(pid: int) -> AsyncIterator[int]:
+    """``pid``, killed once the test is done with it, should the code under test not."""
+
+    try:
+        yield pid
     finally:
         with contextlib.suppress(ProcessLookupError):
-            os.kill(int(child_pid), signal.SIGKILL)
+            os.kill(pid, signal.SIGKILL)
 
 
 async def _reaped(pid: int) -> bool:
