@@ -76,7 +76,7 @@ class MemoryUpdateAgent(LlmToolUseMixin, ToolLlmRunner):
     """ReAct editor for one user's Fact, Insight and Agent Experience memory."""
 
     PROMPT_NAME = "memory_update"
-    PROMPT_VERSION = "1.3"
+    PROMPT_VERSION = "1.4"
     TOOL_IDS = (
         READ_FILE_TOOL_NAME,
         SEARCH_FILES_TOOL_NAME,

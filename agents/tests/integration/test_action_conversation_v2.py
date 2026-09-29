@@ -492,15 +492,15 @@ async def test_success_then_followup_projects_two_runs_and_one_history_item(
     )
     if reply:
         with sqlite3.connect(db_path) as connection:
-            start, end = connection.execute(
-                "SELECT turn_start_step_number,turn_end_step_number FROM memory_agent_triggers WHERE action_id=?",
+            (end,) = connection.execute(
+                "SELECT turn_end_step_number FROM memory_agent_triggers WHERE action_id=?",
                 (first_result["action_id"],),
             ).fetchone()
         memory_tools = AgentExperienceActionHistoryTools(
             db_path=db_path,
             busy_timeout_ms=BUSY_TIMEOUT_MS,
             user_id=USER_ID,
-            turns=(ActionTurnWindow(first_result["action_id"], start, end),),
+            turns=(ActionTurnWindow(first_result["action_id"], end),),
         )
         call = ReactToolCall(
             tool_name="history_fetch",

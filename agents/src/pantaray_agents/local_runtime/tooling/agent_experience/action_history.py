@@ -37,19 +37,20 @@ HISTORY_FETCH_TOOL_NAME = "history_fetch"
 
 @dataclass(frozen=True, slots=True)
 class ActionTurnWindow:
-    """The steps of one Action the run may read: every turn it completed here."""
+    """The steps of one Action the run may read.
+
+    Reading starts at the Action's first step, so the turns a run records are
+    read against the request that started the Action, and ends with the newest
+    turn the run completed, so a turn still in progress stays out.
+    """
 
     action_id: str
-    turn_start_step_number: int
     turn_end_step_number: int
 
     def __post_init__(self) -> None:
         if not self.action_id.strip():
             raise ValueError("Action history identity must not be empty")
-        if (
-            self.turn_start_step_number < 1
-            or self.turn_end_step_number < self.turn_start_step_number
-        ):
+        if self.turn_end_step_number < 1:
             raise ValueError("Action history turn step range is invalid")
 
 
@@ -148,7 +149,6 @@ class AgentExperienceActionHistoryTools:
                     (
                         self.user_id,
                         turn.action_id,
-                        turn.turn_start_step_number,
                         turn.turn_end_step_number,
                         limit + 1,
                         offset,
@@ -180,7 +180,6 @@ class AgentExperienceActionHistoryTools:
                     (
                         self.user_id,
                         turn.action_id,
-                        turn.turn_start_step_number,
                         turn.turn_end_step_number,
                         query,
                         limit + 1,
@@ -214,7 +213,6 @@ class AgentExperienceActionHistoryTools:
                     (
                         self.user_id,
                         turn.action_id,
-                        turn.turn_start_step_number,
                         turn.turn_end_step_number,
                         *refs,
                     ),
@@ -324,7 +322,7 @@ WITH ranked_steps AS (
     FROM agent_action_steps
     WHERE user_id = ?
       AND action_id = ?
-      AND step_number BETWEEN ? AND ?
+      AND step_number <= ?
       AND short_step_id IS NOT NULL
 )
 SELECT
@@ -374,7 +372,7 @@ WITH ranked_steps AS (
     FROM agent_action_steps
     WHERE user_id = ?
       AND action_id = ?
-      AND step_number BETWEEN ? AND ?
+      AND step_number <= ?
       AND short_step_id IS NOT NULL
 )
 SELECT
@@ -439,7 +437,7 @@ WITH ranked_steps AS (
     FROM agent_action_steps
     WHERE user_id = ?
       AND action_id = ?
-      AND step_number BETWEEN ? AND ?
+      AND step_number <= ?
       AND short_step_id IN ({placeholders})
 )
 SELECT

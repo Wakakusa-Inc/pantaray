@@ -109,13 +109,7 @@ def _tools(db_path: Path) -> AgentExperienceActionHistoryTools:
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
-        turns=(
-            ActionTurnWindow(
-                action_id=ACTION_ID,
-                turn_start_step_number=1,
-                turn_end_step_number=1,
-            ),
-        ),
+        turns=(ActionTurnWindow(action_id=ACTION_ID, turn_end_step_number=1),),
     )
 
 
@@ -327,7 +321,7 @@ async def test_assistant_history_keeps_public_speech_and_proposal_origin(
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
-        turns=(ActionTurnWindow(ACTION_ID, 1, 2),),
+        turns=(ActionTurnWindow(ACTION_ID, 2),),
     )
     fetched = await tools.fetch_history(
         _call("history_fetch", action_id=ACTION_ID, refs=["S-2-ASSISTANT"]), 1
@@ -393,7 +387,7 @@ async def test_capture_tool_evidence_excludes_image_references_in_fetch_and_sear
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
-        turns=(ActionTurnWindow(ACTION_ID, 1, 2),),
+        turns=(ActionTurnWindow(ACTION_ID, 2),),
     )
     fetched = await tools.fetch_history(
         _call("history_fetch", action_id=ACTION_ID, refs=["S-2-TOOL"]), 1

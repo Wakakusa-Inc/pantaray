@@ -373,6 +373,61 @@ async def test_every_turn_one_run_coalesced_for_an_action_stays_readable(
     )
 
 
+async def test_a_later_turn_reads_the_action_from_its_first_step(
+    tmp_path: Path,
+) -> None:
+    # "Remember this" in a later turn only makes sense against the request
+    # that started the Action, which an earlier memory run already recorded.
+    runtime = _runtime(tmp_path)
+    _bootstrap(runtime.db_path)
+    with sqlite3.connect(runtime.db_path) as connection, connection:
+        connection.execute(
+            """
+            INSERT INTO processes(
+                process_id, user_id, kind, status, action_id, next_event_seq,
+                started_at, updated_at, heartbeat_at
+            ) VALUES ('action-process', ?, 'action', 'running', 'action-1', 1,
+                      ?, ?, ?)
+            """,
+            (USER_ID, NOW, NOW, NOW),
+        )
+    for step_number, text in (
+        (1, "Draft the launch plan"),
+        (4, "Remember to keep it short"),
+        (7, "in progress"),
+    ):
+        _insert_user_step(runtime.db_path, step_number=step_number, text=text)
+    payload = _payload()
+    payload["action_terminals"] = [_turn(4, 6, "rev-2")]
+
+    with MemoryRunWorkspaceScope() as scope:
+        prepared = prepare_memory_update_run(
+            runtime=runtime, payload=payload, workspace_scope=scope
+        )
+
+    assert ", steps 4-6, " in prepared.context.action_turns
+    tools = {definition.name: definition for definition in prepared.tool_definitions}
+    listed = await tools["list_action_steps"].execute(
+        _tool_call("list_action_steps", action_id="action-1"), 1
+    )
+    assert isinstance(listed.output, dict)
+    steps = listed.output["steps"]
+    assert isinstance(steps, list)
+    assert [step["short_step_id"] for step in steps] == ["S-1-USER", "S-4-USER"]
+    found = await tools["search_action_steps"].execute(
+        _tool_call("search_action_steps", action_id="action-1", query="launch"), 1
+    )
+    assert isinstance(found.output, dict)
+    matches = found.output["matches"]
+    assert isinstance(matches, list)
+    assert [match["short_step_id"] for match in matches] == ["S-1-USER"]
+    fetched = await tools["history_fetch"].execute(
+        _tool_call("history_fetch", action_id="action-1", refs=["S-1-USER"]), 1
+    )
+    assert fetched.status == "success"
+    assert "Draft the launch plan" in json.dumps(fetched.output)
+
+
 @pytest.mark.parametrize(
     ("revisions", "expected"),
     [

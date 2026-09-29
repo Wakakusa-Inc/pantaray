@@ -76,14 +76,14 @@ def merged_action_terminals(
     """One terminal per Action whose step window spans all its turns in this run.
 
     Turns are independent step ranges, not cumulative states, so a run that
-    coalesced several turns of one Action must be able to read every one of
-    them. They become one window because an Action carries exactly one evidence
-    ref and one revision. The window keeps the newest turn's identity but the
+    coalesced several turns of one Action must record every one of them. They
+    become one window because an Action carries exactly one evidence ref and
+    one revision. The window keeps the newest turn's identity but the
     revision of the newest turn that published one: an error or cancel turn
     publishes nothing, so the Action's current revision is still the one an
     earlier successful turn published. Dispatch takes pending triggers oldest
     first and never re-queues one, so the turns of an Action inside one run are
-    consecutive, and the span reaches no turn another run reads.
+    consecutive, and the span reaches no turn another run records.
     """
 
     turns_by_action: dict[str, list[MemoryUpdateActionTerminal]] = {}
