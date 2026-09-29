@@ -6,7 +6,6 @@ import type { AcceptActionRequest } from '@/types/websocket';
 type SuggestionAcceptance = Omit<AcceptActionRequest, 'suggestionId' | 'commandId'>;
 import { getCollapsedPreviewHeightPx, shouldExpandScrollableContent } from './layoutMetrics';
 
-const COPY_STATUS_RESET_DELAY_MS = 1500;
 const RESIZE_EXPAND_THRESHOLD_PX = 4;
 const ACTION_RESIZE_BUFFER_PX = 32;
 const SUGGESTION_RESIZE_BUFFER_PX = 18;
@@ -15,7 +14,6 @@ const REQUEST_STATE_REQUESTING: AgentOverlayState['requestState'] = 'requesting'
 
 export type AgentOverlayController = {
   state: AgentOverlayState;
-  copyStatusAnswer: boolean;
   // refs
   headerRef: React.RefObject<HTMLDivElement>;
   scrollableContentRef: React.RefObject<HTMLDivElement>;
@@ -31,7 +29,6 @@ export type AgentOverlayController = {
   acceptFailed: boolean;
   onReject: () => void;
   onStop: (processId?: string) => void;
-  onCopyAnswer: (canonicalPlaintext: string) => void;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -64,9 +61,7 @@ export function useAgentOverlayController(isStandalone: boolean): AgentOverlayCo
   const composerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [copyStatusAnswer, setCopyStatusAnswer] = useState<boolean>(false);
   const [failedSuggestionId, setFailedSuggestionId] = useState<string | null>(null);
-  const copyStatusTimerRef = useRef<number | null>(null);
   const manualResizeRef = useRef<boolean>(false);
   const isActionPhaseRef = useRef<boolean>(false);
 
@@ -315,15 +310,6 @@ export function useAgentOverlayController(isStandalone: boolean): AgentOverlayCo
     };
   }, []);
 
-  // タイマーのアンマウント時クリーンアップ
-  useEffect(() => {
-    return () => {
-      if (copyStatusTimerRef.current) {
-        window.clearTimeout(copyStatusTimerRef.current);
-      }
-    };
-  }, []);
-
   const onToggleExpand = useCallback(() => {
     manualResizeRef.current = true;
     dispatch({ type: 'TOGGLE_EXPAND' });
@@ -338,23 +324,6 @@ export function useAgentOverlayController(isStandalone: boolean): AgentOverlayCo
       setTimeout(finalizeResize, 0);
     }
   }, [measureAndResize]);
-
-  const onCopyAnswer = useCallback(async (canonicalPlaintext: string) => {
-    if (!canonicalPlaintext) return;
-    try {
-      await navigator.clipboard.writeText(canonicalPlaintext);
-      setCopyStatusAnswer(true);
-      if (copyStatusTimerRef.current) {
-        window.clearTimeout(copyStatusTimerRef.current);
-      }
-      copyStatusTimerRef.current = window.setTimeout(() => {
-        setCopyStatusAnswer(false);
-        copyStatusTimerRef.current = null;
-      }, COPY_STATUS_RESET_DELAY_MS);
-    } catch {
-      // no-op
-    }
-  }, []);
 
   const onReject = useCallback(() => {
     if (decisionLockedRef.current) return;
@@ -422,7 +391,6 @@ export function useAgentOverlayController(isStandalone: boolean): AgentOverlayCo
 
   return {
     state,
-    copyStatusAnswer,
     headerRef,
     scrollableContentRef,
     contentInnerRef,
@@ -436,6 +404,5 @@ export function useAgentOverlayController(isStandalone: boolean): AgentOverlayCo
     acceptFailed: failedSuggestionId !== null && failedSuggestionId === state.suggestionId,
     onReject,
     onStop,
-    onCopyAnswer,
   };
 }

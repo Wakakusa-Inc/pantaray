@@ -8,6 +8,7 @@ import {
   EMPTY_CONVERSATION_PAGING,
 } from './agent-overlay/conversationPaging';
 import { useConversationScroll } from './agent-overlay/useConversationScroll';
+import { useConversationCopy } from './agent-overlay/conversationCopy';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import AgentOverlayShell from './agent-overlay/AgentOverlayShell';
 import { useAgentOverlayController } from './agent-overlay/useAgentOverlayController';
@@ -288,7 +289,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
     if (visiblePages !== null)
       setComposer((current) => visiblePages.reduce(reconcileCanonicalSubmission, current));
   }, [visiblePages, setComposer]);
-  const canonicalPlaintext = currentView ? currentView.output.plaintext : '';
+  const conversationCopy = useConversationCopy(actions, currentView?.action?.action_id ?? null);
   const canDecide =
     state.interactionContract === 'action_offer' &&
     state.reactionState === null &&
@@ -549,7 +550,6 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
       approvalBlockers={approvalBlockers}
       isSubmittingApproval={approval.isSubmittingApproval}
       approvalErrorMessage={approval.approvalErrorMessage}
-      copyStatusAnswer={ctrl.copyStatusAnswer}
       showBusyIndicator={showBusyIndicator}
       showThinking={showThinking}
       showFooterActions={approvalUiState === 'hidden' && canDecide}
@@ -578,7 +578,7 @@ const AgentOverlay: React.FC<AgentOverlayProps> = ({
           : undefined
       }
       onOpenWorkspaceSettings={window.electron?.agentOverlay?.openWorkspaceSettings}
-      onCopyAnswer={canonicalPlaintext ? () => ctrl.onCopyAnswer(canonicalPlaintext) : undefined}
+      conversationCopy={conversationCopy}
       onHeaderPointerDown={headerDrag.onHeaderPointerDown}
       onHeaderPointerMove={headerDrag.onHeaderPointerMove}
       onHeaderPointerUp={headerDrag.onHeaderPointerUp}

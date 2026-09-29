@@ -19,7 +19,6 @@ describe('AgentOverlayShell', () => {
           actionText=""
           isActionStreamFinished={false}
           approvalUiState="hidden"
-          copyStatusAnswer={false}
           showBusyIndicator={true}
           showFooterActions={true}
         />
@@ -27,33 +26,6 @@ describe('AgentOverlayShell', () => {
     );
 
     expect(screen.queryByText('承認')).toBeNull();
-  });
-
-  it('enables the copy answer action when action text is visible', () => {
-    const onCopyAnswer = vi.fn();
-    render(
-      <UiLanguageProvider initialLanguage="en">
-        <AgentOverlayShell
-          isVisible={true}
-          isContentVisible={true}
-          isExpanded={true}
-          content={null}
-          suggestionText="Generated suggestion"
-          isSuggestionStreamFinished={true}
-          actionText="completed result"
-          isActionStreamFinished={true}
-          approvalUiState="hidden"
-          copyStatusAnswer={false}
-          showBusyIndicator={false}
-          showFooterActions={false}
-          onCopyAnswer={onCopyAnswer}
-        />
-      </UiLanguageProvider>
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: 'Copy answer to clipboard' }));
-
-    expect(onCopyAnswer).toHaveBeenCalledTimes(1);
   });
 
   it('removes collapsed conversation controls from tab order without hiding the preview', async () => {
@@ -93,7 +65,6 @@ describe('AgentOverlayShell', () => {
           actionText=""
           isActionStreamFinished={false}
           approvalUiState="hidden"
-          copyStatusAnswer={false}
           showBusyIndicator={false}
           showFooterActions={false}
           conversationContent={
@@ -178,7 +149,6 @@ describe('AgentOverlayShell', () => {
           actionText=""
           isActionStreamFinished={false}
           approvalUiState="hidden"
-          copyStatusAnswer={false}
           showBusyIndicator={true}
           showFooterActions={false}
         />
@@ -206,7 +176,6 @@ describe('AgentOverlayShell', () => {
           actionText=""
           isActionStreamFinished={false}
           approvalUiState="hidden"
-          copyStatusAnswer={false}
           showBusyIndicator={true}
           showFooterActions={false}
           conversationContent={<p>long conversation</p>}
@@ -251,7 +220,6 @@ describe('AgentOverlayShell', () => {
               commandSummary: { summary_kind: 'bash', command: 'rm -- a.png', cwd: '/tmp' },
             },
           ]}
-          copyStatusAnswer={false}
           showBusyIndicator={false}
           showFooterActions={false}
           conversationContent={<p>long conversation</p>}
@@ -301,7 +269,6 @@ describe('AgentOverlayShell', () => {
             actionText=""
             isActionStreamFinished={false}
             approvalUiState="hidden"
-            copyStatusAnswer={false}
             showBusyIndicator={false}
             showFooterActions={false}
             conversationContent={<p>conversation</p>}
@@ -335,7 +302,6 @@ describe('AgentOverlayShell', () => {
           actionText=""
           isActionStreamFinished={true}
           approvalUiState="hidden"
-          copyStatusAnswer={false}
           showBusyIndicator={false}
           showFooterActions={false}
           onClose={onClose}
