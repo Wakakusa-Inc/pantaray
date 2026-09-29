@@ -184,21 +184,19 @@ def test_action_prompts_treat_request_summary_as_handoff_note() -> None:
 
 
 # Rebuilt on every THINK, so they must sit behind the append-only history body
-# for the prefix to stay byte-stable and hit the provider prompt cache.
-# - linkable_persisted_memory: memory_context_epoch, extended by memory_search /
-#   get_memory_reference mid-run.
-# - memory_source_coverage: carries evaluated_at.
+# for the prefix to stay byte-stable and hit the provider prompt cache. Every
+# THINK appends its own copy, so nothing large belongs here.
 # - supervisor_pending_final_answer: replaced by draft_final_answer / link_memory.
 # - current_time: wall clock.
 _TURN_TAIL_PROMPT_FIELDS = frozenset(
     {
-        "linkable_persisted_memory",
-        "memory_source_coverage",
         "supervisor_pending_final_answer",
         "current_time",
     }
 )
 # On ordinary turns, action_history grows at the end of the cacheable prefix.
+# linkable_persisted_memory and memory_source_coverage are the snapshots taken at
+# init; memory found mid-run reaches the model as its tool result.
 _PREFIX_PROMPT_FIELDS = frozenset(
     {
         "workspace_path_contract",
@@ -211,6 +209,8 @@ _PREFIX_PROMPT_FIELDS = frozenset(
         "insight_data",
         "structured_fact_data",
         "memory_artifact_references",
+        "linkable_persisted_memory",
+        "memory_source_coverage",
         "action_history",
     }
 )
@@ -236,10 +236,12 @@ def test_every_executing_prompt_field_is_classified_as_prefix_or_turn_tail() -> 
     )
 
 
-def test_turn_tail_sections_are_rendered_after_action_history() -> None:
+def test_each_section_sits_on_its_side_of_action_history() -> None:
     template = _executing_prompt_template()
     boundary = template.index("{action_history}")
 
+    for field in sorted(_PREFIX_PROMPT_FIELDS - {"action_history"}):
+        assert template.index("{" + field + "}") < boundary
     for field in sorted(_TURN_TAIL_PROMPT_FIELDS):
         assert template.index("{" + field + "}") > boundary
 

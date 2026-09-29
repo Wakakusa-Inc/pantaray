@@ -174,6 +174,8 @@ class ActionAgentContext(TypedDict, total=False):
     # 完了した Goal の成果物リスト（Supervisor への引き継ぎ用）
     # memory_search 対象 source の存在統計（初期化時スナップショット）
     memory_source_coverage: MemorySourceCoverageSnapshot
+    # memory_context_epoch as rendered at init; it stays put as tools extend the epoch.
+    linkable_persisted_memory: str
     analysis_summary: dict[str, JSONValue]
     prompt_name: str
     prompt_version: str

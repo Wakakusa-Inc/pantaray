@@ -102,6 +102,17 @@ prompt: |
   ## Linked Memory Artifacts
   {memory_artifact_references}
 
+  ## Linkable Persisted Memory
+  Each `ctx_...` handle identifies one exact persisted fragment: those shown here,
+  and those returned by `memory_search` or `get_memory_reference`. Use a handle
+  only as `link_memory.target_handle`. The relationship itself belongs in
+  `link_memory.note`.
+
+  {linkable_persisted_memory}
+
+  ## Memory Source Coverage
+  {memory_source_coverage}
+
   ## Action History
   Assistant Message blocks with phase `commentary` are your previous user-visible progress messages. They are not final answers or tool results.
   One chronological block per call contains your `step_note`, arguments, result body, runtime result line, tool, and History Ref. Calls from the same turn retain their requested order. Completed blocks remain unchanged on ordinary turns. At a context-capacity boundary, only older result bodies are omitted, in whole batches; notes, arguments, requests, attachment references and the latest batch remain. Use `history_fetch` to retrieve omitted results.
@@ -111,16 +122,6 @@ prompt: |
   Action History contains prior requests, user-visible commentary, and internal tool notes/results. Do not restate its internal details in the final answer unless the user explicitly asks for them.
 
   Everything below is rebuilt every turn.
-
-  ## Linkable Persisted Memory
-  Each `ctx_...` handle identifies the exact persisted fragment shown here. Use it
-  only as `link_memory.target_handle` while this fragment remains in the current
-  context. The relationship itself belongs in `link_memory.note`.
-
-  {linkable_persisted_memory}
-
-  ## Memory Source Coverage
-  {memory_source_coverage}
 
   ## Pending Final Answer Draft
   {supervisor_pending_final_answer}

@@ -117,6 +117,8 @@ async def test_initialize_context_uses_profile_briefs_for_action_prompt(
     assert isinstance(coverage["evaluated_at"], str)
     assert len(coverage["slots"]) == len(MEMORY_SOURCE_ORDER)
     assert {slot["source"] for slot in coverage["slots"]} == set(MEMORY_SOURCE_ORDER)
+    # The run's memory snapshot is fixed here, not re-rendered on every THINK.
+    assert ctx["linkable_persisted_memory"] == "N/A"
 
 
 @pytest.mark.asyncio
