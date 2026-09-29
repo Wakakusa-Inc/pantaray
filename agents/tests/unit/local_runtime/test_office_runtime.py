@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Literal
 
 import httpx2
 import pytest
@@ -17,6 +18,7 @@ from pantaray_agents.local_runtime.runtime.office_runtime import (
     INSTALLED_MARKER_NAME,
     LIBREOFFICE_BUNDLE_ID,
     OFFICE_RENDERER_DIRNAME,
+    CommandRunner,
     OfficeRelease,
     OfficeRuntime,
     OfficeRuntimePreparing,
@@ -50,33 +52,48 @@ def _make_app(
 class FakeCommands:
     """Plays hdiutil, ditto and mdfind against a fake mounted volume."""
 
-    def __init__(self, *, ditto_exit: int = 0, spotlight: Sequence[Path] = ()) -> None:
+    def __init__(
+        self,
+        *,
+        ditto_exit: int = 0,
+        spotlight: Sequence[Path] = (),
+        times_out: Literal["mdfind", "attach", "ditto"] | None = None,
+        on_spotlight: Callable[[], None] | None = None,
+    ) -> None:
         self.calls: list[list[str]] = []
+        self.detached: list[Path] = []
         self._ditto_exit = ditto_exit
         self._spotlight = spotlight
+        self._times_out = times_out
+        self._on_spotlight = on_spotlight
 
-    def __call__(self, args: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+    def __call__(
+        self, args: Sequence[str], *, timeout: float | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
         argv = list(args)
         self.calls.append(argv)
+        assert argv[0] == "mdfind" or timeout is not None, f"{argv[:2]} has no timeout"
+        step = "attach" if argv[:2] == ["hdiutil", "attach"] else argv[0]
         stdout = b""
         exit_code = 0
         if argv[0] == "mdfind":
+            assert timeout is not None, "mdfind must run with a timeout"
+            if self._on_spotlight is not None:
+                self._on_spotlight()
             stdout = "".join(f"{path}\n" for path in self._spotlight).encode()
-        elif argv[:2] == ["hdiutil", "attach"]:
+        elif step == "attach":
             volume = Path(argv[argv.index("-mountrandom") + 1]) / "volume"
             _make_app(volume / "LibreOffice.app")
-            stdout = plistlib.dumps(
-                {
-                    "system-entities": [
-                        {"content-hint": "GUID"},
-                        {"mount-point": str(volume)},
-                    ]
-                }
-            )
+            stdout = plistlib.dumps({"system-entities": [{"mount-point": str(volume)}]})
+        elif argv[:2] == ["hdiutil", "detach"]:
+            self.detached.append(Path(argv[2]))
+            shutil.rmtree(argv[2])
         elif argv[0] == "ditto":
             exit_code = self._ditto_exit
-            if exit_code == 0:
+            if exit_code == 0 or self._times_out == "ditto":
                 shutil.copytree(argv[1], argv[2])
+        if step == self._times_out:
+            raise subprocess.TimeoutExpired(argv, timeout or 0)
         return subprocess.CompletedProcess(argv, exit_code, stdout, b"")
 
     def ran(self, *prefix: str) -> bool:
@@ -98,8 +115,7 @@ def _runtime(
     tmp_path: Path,
     *,
     transport: httpx2.BaseTransport,
-    commands: Callable[[Sequence[str]], subprocess.CompletedProcess[bytes]]
-    | None = None,
+    commands: CommandRunner | None = None,
     app_roots: Sequence[Path] = (),
 ) -> OfficeRuntime:
     return OfficeRuntime(
@@ -296,3 +312,61 @@ def test_failed_copy_still_detaches_the_image(tmp_path: Path) -> None:
     assert _settle(runtime) == OfficeRuntimeUnavailable("install_failed")
     assert commands.ran("hdiutil", "detach")
     assert list((storage / OFFICE_RENDERER_DIRNAME).iterdir()) == []
+
+
+def test_stuck_spotlight_falls_through_to_install(tmp_path: Path) -> None:
+    storage = tmp_path / "storage"
+    commands = FakeCommands(times_out="mdfind")
+    runtime = _runtime(tmp_path, transport=_serving(), commands=commands)
+
+    assert runtime.ensure_available(storage) == OfficeRuntimePreparing()
+    assert _settle(runtime) == OfficeRuntimeReady(
+        _version_dir(storage) / "LibreOffice.app"
+    )
+
+
+@pytest.mark.parametrize("step", ["attach", "ditto"])
+def test_timed_out_image_step_detaches_and_leaves_nothing(
+    tmp_path: Path, step: Literal["attach", "ditto"]
+) -> None:
+    storage = tmp_path / "storage"
+    commands = FakeCommands(times_out=step)
+    runtime = _runtime(tmp_path, transport=_serving(), commands=commands)
+
+    runtime.ensure_available(storage)
+
+    assert _settle(runtime) == OfficeRuntimeUnavailable("install_failed")
+    assert [path.name for path in commands.detached] == ["volume"]
+    assert list((storage / OFFICE_RENDERER_DIRNAME).iterdir()) == []
+
+
+def test_install_finishing_during_discovery_keeps_the_new_copy(tmp_path: Path) -> None:
+    storage = tmp_path / "storage"
+    bundle = _version_dir(storage) / "LibreOffice.app"
+    release = threading.Event()
+    requests: list[httpx2.Request] = []
+
+    def gated(request: httpx2.Request) -> httpx2.Response:
+        requests.append(request)
+        assert release.wait(10)
+        return httpx2.Response(200, content=DMG_BYTES)
+
+    spotlight_runs: list[None] = []
+
+    def finish_install_meanwhile() -> None:
+        spotlight_runs.append(None)
+        if len(spotlight_runs) == 2:
+            release.set()
+            _settle(runtime)
+
+    runtime = _runtime(
+        tmp_path,
+        transport=httpx2.MockTransport(gated),
+        commands=FakeCommands(on_spotlight=finish_install_meanwhile),
+    )
+
+    assert runtime.ensure_available(storage) == OfficeRuntimePreparing()
+    assert runtime.ensure_available(storage) == OfficeRuntimeReady(bundle)
+    assert _settle(runtime) == OfficeRuntimeReady(bundle)
+    assert is_supported_bundle(bundle)
+    assert len(requests) == 1

@@ -17,10 +17,10 @@ import shutil
 import subprocess
 import tempfile
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final, Literal, Protocol
 
 import httpx2
 
@@ -40,6 +40,13 @@ _INSTALLED_APP_BYTES: Final = 800 * 1024 * 1024
 _FREE_SPACE_MARGIN_BYTES: Final = 512 * 1024 * 1024
 _DOWNLOAD_CHUNK_BYTES: Final = 1024 * 1024
 _DOWNLOAD_TIMEOUT_SECONDS: Final = 30.0
+# Discovery runs on the render path; a stuck Spotlight must not block it.
+_SPOTLIGHT_TIMEOUT_SECONDS: Final = 5.0
+# Generous bounds so a wedged disk-image tool cannot keep the install preparing
+# forever; a normal attach takes seconds and the ~800 MiB copy under a minute.
+_ATTACH_TIMEOUT_SECONDS: Final = 120.0
+_COPY_TIMEOUT_SECONDS: Final = 600.0
+_DETACH_TIMEOUT_SECONDS: Final = 60.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,11 +102,17 @@ OfficeRuntimeSnapshot = (
     | OfficeRuntimeUnavailable
 )
 
-CommandRunner = Callable[[Sequence[str]], subprocess.CompletedProcess[bytes]]
+
+class CommandRunner(Protocol):
+    def __call__(
+        self, args: Sequence[str], *, timeout: float | None = None
+    ) -> subprocess.CompletedProcess[bytes]: ...
 
 
-def _run_command(args: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(args, capture_output=True, check=False)
+def _run_command(
+    args: Sequence[str], *, timeout: float | None = None
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(args, capture_output=True, check=False, timeout=timeout)
 
 
 class _InstallFailure(Exception):
@@ -167,6 +180,9 @@ class OfficeRuntime:
         with self._lock:
             if isinstance(self._state, OfficeRuntimePreparing):
                 return self._state
+            # An install may have finished after discovery ran; starting another
+            # would delete the copy it just completed.
+            bundle = bundle or self._own_copy(storage_base)
             if bundle is not None:
                 self._state = OfficeRuntimeReady(bundle_path=bundle)
                 return self._state
@@ -182,25 +198,41 @@ class OfficeRuntime:
     def _version_dir(self, storage_base: Path) -> Path:
         return storage_base / OFFICE_RENDERER_DIRNAME / self._release.version
 
+    def _own_copy(self, storage_base: Path) -> Path | None:
+        version_dir = self._version_dir(storage_base)
+        bundle = version_dir / LIBREOFFICE_APP_NAME
+        if (version_dir / INSTALLED_MARKER_NAME).is_file() and is_supported_bundle(
+            bundle
+        ):
+            return bundle
+        return None
+
     def _discover(self, storage_base: Path) -> Path | None:
         # Our own copy is checked before Spotlight: mdfind is a subprocess, and
         # the .noindex directory keeps our copy out of its results anyway.
-        version_dir = self._version_dir(storage_base)
-        candidates = [root / LIBREOFFICE_APP_NAME for root in self._app_roots]
-        if (version_dir / INSTALLED_MARKER_NAME).is_file():
-            candidates.append(version_dir / LIBREOFFICE_APP_NAME)
-        for candidate in candidates:
-            if is_supported_bundle(candidate):
-                return candidate
+        for root in self._app_roots:
+            if is_supported_bundle(root / LIBREOFFICE_APP_NAME):
+                return root / LIBREOFFICE_APP_NAME
+        own = self._own_copy(storage_base)
+        if own is not None:
+            return own
         for candidate in self._spotlight_candidates():
             if is_supported_bundle(candidate):
                 return candidate
         return None
 
     def _spotlight_candidates(self) -> list[Path]:
-        result = self._run_command(
-            ["mdfind", f"kMDItemCFBundleIdentifier == '{LIBREOFFICE_BUNDLE_ID}'"]
-        )
+        try:
+            result = self._run_command(
+                ["mdfind", f"kMDItemCFBundleIdentifier == '{LIBREOFFICE_BUNDLE_ID}'"],
+                timeout=_SPOTLIGHT_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "mdfind timed out after %s s; skipping Spotlight",
+                _SPOTLIGHT_TIMEOUT_SECONDS,
+            )
+            return []
         # A non-zero exit means Spotlight is off or unavailable: no candidates.
         if result.returncode != 0:
             return []
@@ -292,41 +324,60 @@ class OfficeRuntime:
 
     def _copy_app_from_dmg(self, dmg_path: Path, bundle: Path) -> None:
         mount_parent = Path(tempfile.mkdtemp(prefix="pantaray-office-mount-"))
-        attach = self._run_command(
-            [
-                "hdiutil",
-                "attach",
-                "-nobrowse",
-                "-readonly",
-                "-noautoopen",
-                "-mountrandom",
-                str(mount_parent),
-                "-plist",
-                str(dmg_path),
-            ]
-        )
-        if attach.returncode != 0:
-            mount_parent.rmdir()
-            raise _InstallFailure(
-                "install_failed", f"hdiutil attach: {attach.stderr!r}"
-            )
-        mount_point = _mount_point(attach.stdout)
         try:
-            partial = bundle.with_name(f"{bundle.name}.partial")
-            copy = self._run_command(
-                ["ditto", str(mount_point / LIBREOFFICE_APP_NAME), str(partial)]
+            attach_output = self._run_install_step(
+                [
+                    "hdiutil",
+                    "attach",
+                    "-nobrowse",
+                    "-readonly",
+                    "-noautoopen",
+                    "-mountrandom",
+                    str(mount_parent),
+                    "-plist",
+                    str(dmg_path),
+                ],
+                timeout=_ATTACH_TIMEOUT_SECONDS,
             )
-            if copy.returncode != 0:
-                raise _InstallFailure("install_failed", f"ditto: {copy.stderr!r}")
+            partial = bundle.with_name(f"{bundle.name}.partial")
+            self._run_install_step(
+                [
+                    "ditto",
+                    str(_mount_point(attach_output) / LIBREOFFICE_APP_NAME),
+                    str(partial),
+                ],
+                timeout=_COPY_TIMEOUT_SECONDS,
+            )
             partial.rename(bundle)
         finally:
-            detach = self._run_command(["hdiutil", "detach", str(mount_point)])
-            if detach.returncode == 0:
+            # Detach whatever is mounted here, including an image that mounted
+            # before a timed-out attach was killed.
+            detached = [self._detach(path) for path in mount_parent.iterdir()]
+            if all(detached):
                 shutil.rmtree(mount_parent, ignore_errors=True)
-            else:
-                logger.warning(
-                    "hdiutil detach %s failed: %r", mount_point, detach.stderr
-                )
+
+    def _run_install_step(self, args: list[str], *, timeout: float) -> bytes:
+        try:
+            result = self._run_command(args, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            raise _InstallFailure(
+                "install_failed", f"{args[:2]} timed out after {timeout} s"
+            ) from error
+        if result.returncode != 0:
+            raise _InstallFailure("install_failed", f"{args[:2]}: {result.stderr!r}")
+        return result.stdout
+
+    def _detach(self, mount_point: Path) -> bool:
+        args = ["hdiutil", "detach", str(mount_point)]
+        try:
+            result = self._run_command(args, timeout=_DETACH_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            logger.warning("hdiutil detach %s timed out", mount_point)
+            return False
+        if result.returncode != 0:
+            logger.warning("hdiutil detach %s failed: %r", mount_point, result.stderr)
+            return False
+        return True
 
 
 def _mount_point(attach_plist: bytes) -> Path:
