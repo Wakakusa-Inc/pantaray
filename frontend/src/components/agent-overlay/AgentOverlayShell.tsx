@@ -17,10 +17,11 @@ import {
 } from './ContentLayout';
 import { MarkdownBlock } from './MarkdownRenderer';
 import { HeaderIconButton } from './IconButton';
-import { Check, ChevronDown, ChevronUp, Clipboard, Minus } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, CircleAlert, Clipboard, Minus } from 'lucide-react';
 import styled, { keyframes } from 'styled-components';
 import type { ActionApprovalBlocker } from '../../../electron/src/actions/actionLiveCore';
 import { useCollapsedFocusBoundary } from './useCollapsedFocusBoundary';
+import type { ClipboardCopyStatus } from './useClipboardCopy';
 import { SuggestionDecisionControls, type SuggestionDecision } from './SuggestionDecisionControls';
 
 const SuggestionAcceptedStatus = styled.span`
@@ -69,7 +70,7 @@ const BusyDot = styled.span`
   }
 `;
 
-const BusyLabel = styled.span`
+const VisuallyHidden = styled.span`
   position: absolute;
   width: 1px;
   height: 1px;
@@ -135,7 +136,6 @@ type AgentOverlayShellProps = {
   approvalBlockers?: readonly ActionApprovalBlocker[];
   isSubmittingApproval?: boolean;
   approvalErrorMessage?: string | null;
-  copyStatusAnswer: boolean;
   showBusyIndicator: boolean;
   showThinking?: boolean;
   showFooterActions?: boolean;
@@ -146,7 +146,8 @@ type AgentOverlayShellProps = {
   onReject?: () => void;
   onDecideApproval?: (decision: ApprovalDecision, blocker: ActionApprovalBlocker) => void;
   onOpenWorkspaceSettings?: () => void;
-  onCopyAnswer?: () => void;
+  /** Present while a conversation is shown; copies the whole conversation. */
+  conversationCopy?: Readonly<{ status: ClipboardCopyStatus; copy: () => void }>;
   onHeaderPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
   onHeaderPointerMove?: (event: PointerEvent<HTMLDivElement>) => void;
   onHeaderPointerUp?: (event: PointerEvent<HTMLDivElement>) => void;
@@ -178,7 +179,6 @@ const AgentOverlayShell = ({
   approvalBlockers = [],
   isSubmittingApproval = false,
   approvalErrorMessage = null,
-  copyStatusAnswer,
   showBusyIndicator,
   showThinking = false,
   showFooterActions = true,
@@ -189,7 +189,7 @@ const AgentOverlayShell = ({
   onReject,
   onDecideApproval,
   onOpenWorkspaceSettings,
-  onCopyAnswer,
+  conversationCopy,
   onHeaderPointerDown,
   onHeaderPointerMove,
   onHeaderPointerUp,
@@ -208,6 +208,8 @@ const AgentOverlayShell = ({
   useCollapsedFocusBoundary(resolvedScrollableRef, !isExpanded, expandButtonRef);
   const { t } = useI18n();
   const showApprovalPanel = approvalUiState === 'approval_pending' && approvalBlockers.length > 0;
+  const copyConversationFailed =
+    conversationCopy?.status === 'failed' ? t('overlay.copyConversationFailed') : null;
   const suppressNextCloseClickRef = useRef(false);
   const scrollIndicatorHideTimeoutRef = useRef<number | null>(null);
   const handleCloseMouseDown = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -270,22 +272,33 @@ const AgentOverlayShell = ({
       >
         {showBusyIndicator && (
           <BusyIndicator role="status">
-            <BusyLabel>{t('overlay.actioning')}</BusyLabel>
+            <VisuallyHidden>{t('overlay.actioning')}</VisuallyHidden>
             {BUSY_DOT_DELAYS_S.map((delay) => (
               <BusyDot key={delay} style={{ animationDelay: `${delay}s` }} aria-hidden />
             ))}
           </BusyIndicator>
         )}
         <HeaderButtonGroup>
-          {onCopyAnswer && (
-            <HeaderIconButton
-              $visible={isVisible}
-              onClick={onCopyAnswer}
-              aria-label={t('overlay.copyAnswerToClipboard')}
-              title={t('overlay.copyAnswer')}
-            >
-              {copyStatusAnswer ? <Check strokeWidth={1.75} /> : <Clipboard strokeWidth={1.75} />}
-            </HeaderIconButton>
+          {conversationCopy && (
+            <>
+              <HeaderIconButton
+                $visible={isVisible}
+                onClick={conversationCopy.copy}
+                aria-label={t('overlay.copyConversation')}
+                title={copyConversationFailed ?? t('overlay.copyConversation')}
+              >
+                {conversationCopy.status === 'copied' ? (
+                  <Check strokeWidth={1.75} />
+                ) : conversationCopy.status === 'failed' ? (
+                  <CircleAlert strokeWidth={1.75} />
+                ) : (
+                  <Clipboard strokeWidth={1.75} />
+                )}
+              </HeaderIconButton>
+              {copyConversationFailed ? (
+                <VisuallyHidden role="alert">{copyConversationFailed}</VisuallyHidden>
+              ) : null}
+            </>
           )}
           {onToggleExpand && (
             <HeaderIconButton

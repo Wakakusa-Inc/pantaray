@@ -426,6 +426,102 @@ describe('AgentOverlay broader E2E', () => {
     await waitFor(() => expect(resizeOverlay.mock.lastCall?.[0]).toBeGreaterThan(500));
   });
 
+  describe('conversation copy', () => {
+    /** One turn of a page chain: the newest page is `cursor: null`, each points to the next older. */
+    const turn = (index: number, sequence: number, nextCursor: string | null) => {
+      const page = createConversationUpdate(nextCursor).snapshot.page;
+      page.action.approved_suggestion = { suggestion_id: 'sug-1', content: 'Tidy the notes' };
+      Object.assign(page.runs[0], {
+        run_id: `run-${index}`,
+        final_output: index === 0 ? 'canonical final output' : `answer ${index}`,
+        entries: [
+          {
+            step_kind: 'user',
+            step_id: `ask-${index}`,
+            step_number: sequence,
+            message_id: `message-${index}`,
+            accepted_sequence: sequence,
+            content: sequence === 1 ? 'Keep it short' : `question ${index}`,
+            images:
+              sequence === 1
+                ? [{ kind: 'image', storage_path: 'user-1/2026-09-29/approval.png' }]
+                : [],
+            project_refs: [],
+            status: 'adopted',
+            approved_suggestion:
+              sequence === 1 ? { suggestion_id: 'sug-1', content: 'Tidy the notes' } : null,
+          },
+        ],
+      });
+      return page;
+    };
+    const chain = [turn(0, 4, 'c1'), turn(1, 3, 'c2'), turn(2, 2, 'c3'), turn(3, 1, null)];
+    const TRANSCRIPT = [
+      'Pantaray\nTidy the notes',
+      'You\nKeep it short\n(1 image)',
+      'Pantaray\nanswer 3',
+      'You\nquestion 2',
+      'Pantaray\nanswer 2',
+      'You\nquestion 1',
+      'Pantaray\nanswer 1',
+      'You\nquestion 0',
+      'Pantaray\ncanonical final output',
+    ].join('\n\n');
+
+    async function showConversation() {
+      readConversationPage.mockImplementation(async ({ cursor }: { cursor: string | null }) =>
+        cursor === null ? chain[0] : chain[Number(cursor.slice(1))]
+      );
+      render(
+        <UiLanguageProvider initialLanguage="en">
+          <AgentOverlay />
+        </UiLanguageProvider>
+      );
+      await act(async () => snapshotListener?.(createResumedSnapshot()));
+      expect(screen.queryByRole('button', { name: 'Copy conversation' })).toBeNull();
+      const update = createConversationUpdate();
+      update.snapshot.page = chain[0];
+      await act(async () => conversationListener?.(update));
+      // The Overlay has loaded only its first older pages; the oldest turn is not shown.
+      await screen.findByText('answer 2');
+      expect(screen.queryByText('answer 3')).toBeNull();
+      readConversationPage.mockClear();
+      writeText.mockReset();
+    }
+
+    it('reads every page first and copies the whole exchange in order', async () => {
+      await showConversation();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copy conversation' }));
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(TRANSCRIPT));
+      expect(readConversationPage.mock.calls.map(([request]) => request.cursor)).toEqual([
+        null,
+        'c1',
+        'c2',
+        'c3',
+      ]);
+    });
+
+    it('copies nothing when an older page cannot be read', async () => {
+      await showConversation();
+      readConversationPage.mockImplementation(async ({ cursor }: { cursor: string | null }) =>
+        cursor === 'c3'
+          ? { kind: 'stale_cursor' }
+          : cursor === null
+            ? chain[0]
+            : chain[Number(cursor.slice(1))]
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Copy conversation' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Couldn’t copy the conversation. Try again.'
+      );
+      expect(writeText).not.toHaveBeenCalled();
+    });
+  });
+
   it('submits against the canonical run and clears a stopped not-executed message', async () => {
     const messageId = '00000000-0000-4000-8000-000000000001';
     vi.spyOn(crypto, 'randomUUID')
@@ -1060,8 +1156,6 @@ describe('AgentOverlay broader E2E', () => {
     };
     await waitFor(() => expect(scrolledItem()).toHaveTextContent('canonical final output'));
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Copy answer to clipboard' }));
-    expect(writeText).toHaveBeenCalledWith('older final output\n\ncanonical final output');
     expect(screen.getByText('older final output')).toBeInTheDocument();
 
     await act(async () => conversationListener?.({ kind: 'reset' }));

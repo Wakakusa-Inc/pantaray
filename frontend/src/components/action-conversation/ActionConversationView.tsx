@@ -14,9 +14,11 @@ import { useI18n } from '@/context/useI18n';
 
 import type { ImageGridCopy } from './AttachedImages';
 import { UserItem } from './UserMessage';
+import { CopyAnswerButton } from './CopyAnswerButton';
 import { ToolRow, type ToolRowStatus } from './ToolRow';
 import { resolveToolDisplay, resolveToolLine } from './toolDisplayName';
 import {
+  foldsCommentary,
   groupAgentWork,
   groupRunLines,
   type AgentWorkSection,
@@ -243,6 +245,7 @@ export function StepItem({
       ) : (
         <p>{line.text}</p>
       )}
+      {line.kind === 'final_output' ? <CopyAnswerButton markdown={line.text} /> : null}
     </section>
   );
 }
@@ -404,8 +407,8 @@ export function RunItem({
   const { language, formatDateTime } = useI18n();
   const copy = COPY[language];
   const settled = stopped || (run.status !== 'running' && run.status !== 'approval_pending');
-  const finalAnswerVisible = run.lines.some((line) => line.kind === 'final_output');
-  const sections = groupAgentWork(run.lines, finalAnswerVisible);
+  const finalAnswerVisible = foldsCommentary(run.lines);
+  const sections = groupAgentWork(run.lines);
   const expansionKey = `${settled}:${finalAnswerVisible}`;
   const runRef = useRef<HTMLElement>(null);
   const disclosures = useRef(new Map<string, HTMLButtonElement>());
