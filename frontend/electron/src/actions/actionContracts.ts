@@ -197,6 +197,10 @@ const UserEntrySchema = z
         })
         .strict()
     ),
+    // Documents sent with the message. Optional until every backend returns the field.
+    files: z
+      .array(z.object({ name: z.string(), byte_size: z.number().int().positive() }).strict())
+      .optional(),
     status: z.enum(['adopted', 'pending', 'not_executed']),
   })
   .strict()
