@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 from collections.abc import Callable, Iterator
 from contextlib import closing
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -25,6 +27,11 @@ from pantaray_agents.local_runtime.runtime.action_messages import (
 from pantaray_agents.local_runtime.runtime.identity import (
     register_logged_out_owner,
     reset_logged_out_owner,
+)
+from pantaray_agents.local_runtime.runtime.office_runtime import (
+    OFFICE_RUNTIME,
+    OfficeRuntimePreparing,
+    OfficeRuntimeSnapshot,
 )
 from pantaray_agents.local_runtime.storage.migrations import load_default_migrations
 from pantaray_agents.local_runtime.storage.transactions import (
@@ -56,6 +63,30 @@ DOCX_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7"
 PAYLOAD = b"%PDF-1.7 staged"
 
 
+@dataclass
+class OfficeRuntimeCalls:
+    """Each call that would start LibreOffice discovery, and its thread's name."""
+
+    calls: list[tuple[Path, str]] = field(default_factory=list)
+    called: threading.Event = field(default_factory=threading.Event)
+
+
+@pytest.fixture(autouse=True)
+def office_runtime(monkeypatch: pytest.MonkeyPatch) -> OfficeRuntimeCalls:
+    """Replaced for every test here: the real call runs Spotlight and may start
+    a download of LibreOffice."""
+
+    recorded = OfficeRuntimeCalls()
+
+    def ensure_available(storage_base: Path) -> OfficeRuntimeSnapshot:
+        recorded.calls.append((storage_base, threading.current_thread().name))
+        recorded.called.set()
+        return OfficeRuntimePreparing()
+
+    monkeypatch.setattr(OFFICE_RUNTIME, "ensure_available", ensure_available)
+    return recorded
+
+
 @pytest.fixture
 def runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     db_path = tmp_path / "runtime.db"
@@ -79,7 +110,9 @@ def _stage(tmp_path: Path, name: str, payload: bytes = PAYLOAD) -> Path:
     return staged
 
 
-def _command(*, byte_size: int = len(PAYLOAD)) -> SubmitActionMessageCommand:
+def _command(
+    *, byte_size: int = len(PAYLOAD), name: str = "Q3 report.PDF"
+) -> SubmitActionMessageCommand:
     return SubmitActionMessageCommand(
         user_id=USER,
         target=NewActionTarget(),
@@ -88,7 +121,7 @@ def _command(*, byte_size: int = len(PAYLOAD)) -> SubmitActionMessageCommand:
             content="Summarize the report",
             files=(
                 FileAttachmentInput(
-                    attachment_id=PDF_ID, name="Q3 report.PDF", byte_size=byte_size
+                    attachment_id=PDF_ID, name=name, byte_size=byte_size
                 ),
             ),
         ),
@@ -132,6 +165,34 @@ def test_submit_links_the_staged_file_and_consumes_it_after_commit(
     replay = submit_action_message(_command())
     assert (replay.action_id, replay.inserted) == (result.action_id, False)
     assert linked.read_bytes() == PAYLOAD
+
+
+def test_an_office_attachment_starts_getting_libreoffice_ready_after_commit(
+    runtime: Path, tmp_path: Path, office_runtime: OfficeRuntimeCalls
+) -> None:
+    _stage(tmp_path, f"{PDF_ID}.xlsx")
+
+    submit_action_message(_command(name="Budget.xlsx"))
+
+    # Off the request's thread, so a slow Spotlight never delays the submit.
+    assert office_runtime.called.wait(timeout=5)
+    assert office_runtime.calls == [(runtime.resolve().parent, "office-runtime-ensure")]
+
+
+def test_a_pdf_attachment_leaves_libreoffice_alone(
+    runtime: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started: list[Path] = []
+    monkeypatch.setattr(
+        action_file_attachments, "_prepare_office_renderer", started.append
+    )
+    _stage(tmp_path, f"{PDF_ID}.pdf")
+
+    submit_action_message(_command())
+
+    assert started == []
 
 
 def _replace_with_symlink(staged: Path) -> None:
@@ -264,5 +325,6 @@ async def test_read_tools_open_an_attachment_at_its_relative_path(
     )
     assert rendered.status == "success"
     assert asked["pdf_path"] == context.workspace_path / files[1].workspace_path
-    parsed = RenderPdfPageOutput.model_validate(rendered.output)
+    parsed = RenderPdfPageOutput.model_validate(rendered.output).root
+    assert parsed.kind == "pdf_pages"
     assert [page.page_number for page in parsed.attachments] == [2]

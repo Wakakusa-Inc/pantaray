@@ -36,6 +36,7 @@ from .page_render import (
     PageOutOfRangeError,
     PageRenderTimeoutError,
     RenderedPage,
+    RenderedPages,
     render_pdf_pages,
 )
 from .pdf import extract_pdf
@@ -164,6 +165,7 @@ __all__ = [
     "PageOutOfRangeError",
     "PageRenderTimeoutError",
     "RenderedPage",
+    "RenderedPages",
     "extract_document",
     "render_pdf_pages",
 ]

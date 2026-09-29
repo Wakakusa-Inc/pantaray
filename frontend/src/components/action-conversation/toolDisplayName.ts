@@ -160,7 +160,7 @@ const TOOL_DISPLAY_NAMES = {
     enRunning: 'Reading {subject}',
   },
   render_pdf_page: {
-    agentName: 'Look At PDF Pages',
+    agentName: 'Look At Document Pages',
     icon: FileText,
     ja: 'ページを見る',
     en: 'Look at pages',

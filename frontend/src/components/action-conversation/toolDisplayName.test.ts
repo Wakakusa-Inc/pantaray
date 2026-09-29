@@ -73,7 +73,7 @@ describe('resolveToolDisplay', () => {
     ['bash', 'コマンドを実行', 'Run a command'],
     // PDF だけでなく Office 文書のページも描くので、名前は「PDF」に限らない。
     ['render_pdf_page', 'ページを見る', 'Look at pages'],
-    ['Look At PDF Pages', 'ページを見る', 'Look at pages'],
+    ['Look At Document Pages', 'ページを見る', 'Look at pages'],
   ])('resolves %s to the same tool in both languages', (label, ja, en) => {
     expect(resolveToolDisplay(label, 'ja')).toEqual({
       key: expect.any(String),
