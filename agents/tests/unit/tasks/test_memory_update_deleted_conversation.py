@@ -76,7 +76,7 @@ async def test_a_deleted_action_is_skipped_and_its_history_reads_as_not_found(
         db_path=runtime.db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
-        turns=(ActionTurnWindow("action-deleted", 2),),
+        turns=(ActionTurnWindow("action-deleted", 1, 2),),
     ).definitions()
     outputs = []
     for tool, args in zip(

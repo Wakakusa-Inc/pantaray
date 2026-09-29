@@ -219,6 +219,7 @@ def prepare_memory_update_run(
             turns=tuple(
                 ActionTurnWindow(
                     action_id=terminal["action_id"],
+                    turn_start_step_number=terminal["turn_start_step_number"],
                     turn_end_step_number=terminal["turn_end_step_number"],
                 )
                 for terminal in terminals

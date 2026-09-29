@@ -64,7 +64,7 @@ def history_tools(tmp_path: Path) -> AgentExperienceActionHistoryTools:
         db_path=db_path,
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
-        turns=(ActionTurnWindow(ACTION_ID, 2),),
+        turns=(ActionTurnWindow(ACTION_ID, 1, 2),),
     )
 
 

@@ -373,7 +373,7 @@ async def test_every_turn_one_run_coalesced_for_an_action_stays_readable(
     )
 
 
-async def test_a_later_turn_reads_the_action_from_its_first_step(
+async def test_a_later_turn_starts_at_its_new_steps_and_reaches_back_to_step_1(
     tmp_path: Path,
 ) -> None:
     # "Remember this" in a later turn only makes sense against the request
@@ -393,8 +393,8 @@ async def test_a_later_turn_reads_the_action_from_its_first_step(
         )
     for step_number, text in (
         (1, "Draft the launch plan"),
-        (4, "Remember to keep it short"),
-        (7, "in progress"),
+        (4, "Remember to keep the launch plan short"),
+        (7, "Launch plan follow-up still in progress"),
     ):
         _insert_user_step(runtime.db_path, step_number=step_number, text=text)
     payload = _payload()
@@ -407,25 +407,35 @@ async def test_a_later_turn_reads_the_action_from_its_first_step(
 
     assert ", steps 4-6, " in prepared.context.action_turns
     tools = {definition.name: definition for definition in prepared.tool_definitions}
-    listed = await tools["list_action_steps"].execute(
-        _tool_call("list_action_steps", action_id="action-1"), 1
-    )
-    assert isinstance(listed.output, dict)
-    steps = listed.output["steps"]
-    assert isinstance(steps, list)
-    assert [step["short_step_id"] for step in steps] == ["S-1-USER", "S-4-USER"]
-    found = await tools["search_action_steps"].execute(
-        _tool_call("search_action_steps", action_id="action-1", query="launch"), 1
-    )
-    assert isinstance(found.output, dict)
-    matches = found.output["matches"]
-    assert isinstance(matches, list)
-    assert [match["short_step_id"] for match in matches] == ["S-1-USER"]
+
+    async def refs(name: str, key: str, **args: JSONValue) -> list[JSONValue]:
+        result = await tools[name].execute(
+            _tool_call(name, action_id="action-1", **args), 1
+        )
+        assert isinstance(result.output, dict)
+        items = result.output[key]
+        assert isinstance(items, list)
+        return [item["short_step_id"] for item in items if isinstance(item, dict)]
+
+    # The run starts at the steps it records; step 7 is past the bound.
+    assert await refs("list_action_steps", "steps") == ["S-4-USER"]
+    assert await refs("search_action_steps", "matches", query="launch") == ["S-4-USER"]
+    assert await refs("list_action_steps", "steps", from_step=1) == [
+        "S-1-USER",
+        "S-4-USER",
+    ]
+    assert await refs(
+        "search_action_steps", "matches", query="launch", from_step=1
+    ) == ["S-1-USER", "S-4-USER"]
     fetched = await tools["history_fetch"].execute(
         _tool_call("history_fetch", action_id="action-1", refs=["S-1-USER"]), 1
     )
     assert fetched.status == "success"
     assert "Draft the launch plan" in json.dumps(fetched.output)
+    beyond = await tools["history_fetch"].execute(
+        _tool_call("history_fetch", action_id="action-1", refs=["S-7-USER"]), 1
+    )
+    assert beyond.status == "error"
 
 
 @pytest.mark.parametrize(
