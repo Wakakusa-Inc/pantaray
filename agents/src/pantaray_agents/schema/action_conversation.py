@@ -24,7 +24,12 @@ type ActionStatus = Literal["queued", "processing", "success", "error", "cancele
 type RunStatus = Literal["running", "approval_pending", "success", "error", "canceled"]
 type UserEntryStatus = Literal["adopted", "pending", "not_executed"]
 type ActionStepStatus = Literal["processing", "success", "error", "timeout"]
-type ToolEntryOutcome = Literal["completed", "denied", "unavailable", "not_executed"]
+type ToolEntryOutcome = Literal[
+    "completed", "denied", "unavailable", "not_executed", "preparing"
+]
+# The body kind a successful page render returns while the renderer it needs is still
+# being set up; the row says the pages will be shown once it is ready, not that it failed.
+RENDERER_PREPARING_OUTPUT_KIND = "renderer_preparing"
 type ActionToolOutputUnavailableReason = Literal["no_output", "binary"]
 
 _ACTION_TOOL_STEP_NAME_PREFIX = "tool::"
@@ -490,6 +495,7 @@ __all__ = [
     "ActionToolOutputDetail",
     "ActionToolOutputUnavailableReason",
     "PublicActionError",
+    "RENDERER_PREPARING_OUTPUT_KIND",
     "RunStatus",
     "ToolEntry",
     "ToolEntryOutcome",

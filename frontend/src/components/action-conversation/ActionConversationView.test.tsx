@@ -875,6 +875,26 @@ describe('ActionConversationView', () => {
     expect(marker).not.toHaveClass('action-conversation__state--failed');
   });
 
+  it('shows pages still being prepared without a status word or the failed colour', async () => {
+    const run: ActionConversationRunItem = {
+      kind: 'run',
+      runId: 'run-1',
+      status: 'success',
+      startedAt: '2026-08-30T00:00:00.000000Z',
+      completedAt: '2026-08-30T00:00:30.000000Z',
+      lines: [
+        tool('t1', 'render_pdf_page', 'success', 1, [], 'slides.pptx', null, 'preparing'),
+      ],
+    };
+    renderView(viewWith([run], 'success'), 'ja');
+    await userEvent.click(screen.getByRole('button', { name: /^Pantarayの作業 1,/ }));
+
+    const line = toolLineOf(screen.getByText('slides.pptx を表示する準備をしています'));
+    expect(line).toBeVisible();
+    expect(line.querySelector('.action-conversation__state')).toBeNull();
+    expect(line.querySelector('.action-conversation__state--failed')).toBeNull();
+  });
+
   it('announces that a run started or waits for approval without showing it', () => {
     const run: ActionConversationRunItem = {
       kind: 'run',

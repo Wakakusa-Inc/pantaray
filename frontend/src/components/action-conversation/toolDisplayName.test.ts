@@ -71,6 +71,9 @@ describe('resolveToolDisplay', () => {
     ['draft_final_answer', '回答を作成', 'Draft the answer'],
     ['capture_screen', '画面を撮影', 'Capture the screen'],
     ['bash', 'コマンドを実行', 'Run a command'],
+    // PDF だけでなく Office 文書のページも描くので、名前は「PDF」に限らない。
+    ['render_pdf_page', 'ページを見る', 'Look at pages'],
+    ['Look At Document Pages', 'ページを見る', 'Look at pages'],
   ])('resolves %s to the same tool in both languages', (label, ja, en) => {
     expect(resolveToolDisplay(label, 'ja')).toEqual({
       key: expect.any(String),
@@ -191,6 +194,20 @@ describe('resolveToolLine', () => {
       ).toEqual({ text: expected, mono: false });
     }
   );
+
+  // 描く準備を待っているページは失敗でも「見ました」でもない。
+  it.each([
+    ['ja', 'slides.pptx を表示する準備をしています'],
+    ['en', 'Preparing to show slides.pptx'],
+  ] as const)('says in %s that the pages are not ready to show yet', (language, expected) => {
+    expect(
+      resolveToolLine('render_pdf_page', language, {
+        subject: 'slides.pptx',
+        running: false,
+        outcome: 'preparing',
+      })
+    ).toEqual({ text: expected, mono: false });
+  });
 
   it.each([
     ['ja', '記録がオフのため最近の操作を確認できませんでした'],
