@@ -160,8 +160,7 @@ const TOOL_DISPLAY_NAMES = {
     enRunning: 'Reading {subject}',
   },
   render_pdf_page: {
-    // PDF だけでなく Word・PowerPoint・Excel のページも描く。
-    agentName: 'Look At Document Pages',
+    agentName: 'Look At PDF Pages',
     icon: FileText,
     ja: 'ページを見る',
     en: 'Look at pages',

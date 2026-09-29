@@ -882,9 +882,7 @@ describe('ActionConversationView', () => {
       status: 'success',
       startedAt: '2026-08-30T00:00:00.000000Z',
       completedAt: '2026-08-30T00:00:30.000000Z',
-      lines: [
-        tool('t1', 'render_pdf_page', 'success', 1, [], 'slides.pptx', null, 'preparing'),
-      ],
+      lines: [tool('t1', 'render_pdf_page', 'success', 1, [], 'slides.pptx', null, 'preparing')],
     };
     renderView(viewWith([run], 'success'), 'ja');
     await userEvent.click(screen.getByRole('button', { name: /^Pantarayの作業 1,/ }));
