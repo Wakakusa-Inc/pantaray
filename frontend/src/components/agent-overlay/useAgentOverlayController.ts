@@ -220,7 +220,7 @@ export function useAgentOverlayController(isStandalone: boolean): AgentOverlayCo
     // Auto expand/collapse (既存挙動互換)
     if (historyExpandOverrideRef.current === null && !manualResizeRef.current) {
       const collapsedPreviewHeight = scrollableEl
-        ? getCollapsedPreviewHeightPx(px(window.getComputedStyle(scrollableEl).fontSize))
+        ? getCollapsedPreviewHeightPx(px(window.getComputedStyle(scrollableEl).lineHeight))
         : MIN_HEIGHT;
       const contentRequiresExpansion = shouldExpandScrollableContent({
         contentHeightPx: fullContentHeight,

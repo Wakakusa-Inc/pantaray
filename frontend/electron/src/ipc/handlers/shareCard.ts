@@ -91,11 +91,11 @@ type ElectronShareCardModule = {
 
 const MAX_PNG_BYTES = 25 * 1024 * 1024; // 25MB
 const READY_TIMEOUT_MS = 10_000;
-// ShareCard は「通常のOverlay（幅 460px）」と同じ折り返しで描画する。
-// 撮影ウィンドウは 524px (card 460px + margin 32px*2) で、card は中央配置。
+// ShareCard は「通常のOverlay（幅 520px）」と同じ折り返しで描画する。
+// 撮影ウィンドウは 584px (card 520px + margin 32px*2) で、card は中央配置。
 // カード幅の実体は renderer 側の --sharecard-card-width-px（src/index.css）で、
 // overlay_window_factory.js の DEFAULT_OVERLAY_WIDTH_PX と一致させること。
-const SHARECARD_STAGE_WIDTH_PX = 524;
+const SHARECARD_STAGE_WIDTH_PX = 584;
 const FINAL_LAYOUT_WAIT_SCRIPT =
   'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))';
 const CHROME_DEBUGGER_PROTOCOL_VERSION = '1.3';
@@ -417,7 +417,7 @@ export function registerShareCardHandlers(_ctx: MainContext, registrar: IpcRegis
         const urlSpec = getShareCardUrl(electron.app);
 
         // NOTE:
-        // - ウィンドウ幅は card(460px) + 左右margin(32px) の 524px。card は中央配置。
+        // - ウィンドウ幅は card(520px) + 左右margin(32px) の 584px。card は中央配置。
         // - 撮影は等倍（deviceScaleFactor: 1）で、共有画像は幅 1600px へリサイズする。
         win = new electron.BrowserWindow({
           width: SHARECARD_STAGE_WIDTH_PX,

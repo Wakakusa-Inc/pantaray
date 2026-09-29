@@ -21,7 +21,7 @@ test.beforeAll(async () => {
   baseUrl = vite.resolvedUrls!.local[0];
 });
 test.afterAll(async () => vite.close());
-test.use({ viewport: { width: 460, height: 800 }, deviceScaleFactor: 2 });
+test.use({ viewport: { width: 520, height: 800 }, deviceScaleFactor: 2 });
 
 function conversation(settled: boolean, includeLastTool = true): ActionConversationPage {
   const assistant = (step: number, content: string) => ({

@@ -3,7 +3,7 @@ const path = require('path');
 const { buildFrontendDevPageUrl } = require('./dev_frontend_env');
 const { buildUiLanguageAdditionalArguments } = require('./ui_language_bootstrap');
 
-const DEFAULT_OVERLAY_WIDTH_PX = 460;
+const DEFAULT_OVERLAY_WIDTH_PX = 520;
 const DEFAULT_OVERLAY_HEIGHT_PX = 120;
 const DEFAULT_SCREEN_MARGIN_PX = 20;
 const DEFAULT_OVERLAY_GAP_PX = 12;
