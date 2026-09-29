@@ -10,6 +10,9 @@ from typing import Literal, cast
 from pydantic import ValidationError
 
 from pantaray_agents.action_status import is_action_terminal_status
+from pantaray_agents.local_runtime.runtime.action_file_attachments import (
+    ActionFileAttachmentUnavailableError,
+)
 from pantaray_agents.local_runtime.runtime.action_messages import (
     ActionMessageConflictError,
     NewActionTarget,
@@ -30,7 +33,10 @@ from pantaray_agents.schema.agent.action import (
     ActionUserMessageInput,
     SuggestionApprovalInput,
 )
-from pantaray_agents.schema.agent.action_message import ActionProjectRef
+from pantaray_agents.schema.agent.action_message import (
+    ActionProjectRef,
+    FileAttachmentInput,
+)
 from pantaray_agents.schema.agent.base import ErrorSeverity, ErrorType
 from pantaray_agents.schema.agent.image import ImageInput
 from pantaray_agents.schema.websocket import ExecuteActionMessage
@@ -72,6 +78,7 @@ def _build_suggestion_action_command(
     supplement_project_refs: tuple[ActionProjectRef, ...],
     approval_mode: ApprovalMode,
     images: tuple[ImageInput, ...],
+    files: tuple[FileAttachmentInput, ...],
     suggestion_row: Mapping[str, object],
 ) -> SubmitActionMessageCommand:
     content = _optional_text(suggestion_row.get("answer"))
@@ -100,6 +107,7 @@ def _build_suggestion_action_command(
                 supplement=supplement,
                 supplement_project_refs=supplement_project_refs,
                 images=images,
+                files=files,
                 suggestion_approval=SuggestionApprovalInput(
                     suggestion_id=suggestion_id,
                     approved_at=approved_at,
@@ -182,9 +190,19 @@ class ActionFlowMixin(ActionRelayMixin):
                     supplement_project_refs=payload.supplement_project_refs,
                     approval_mode=payload.approval_mode,
                     images=payload.images,
+                    files=payload.files,
                     suggestion_row=suggestion_row,
                 )
             )
+        except ActionFileAttachmentUnavailableError:
+            await self._send_preflight_error(
+                suggestion_id=suggestion_id,
+                command_id=command_id,
+                error_code="WS_ACTION_ATTACHMENT_UNAVAILABLE",
+                error_message="An attached file is no longer available.",
+                failure_kind="attachment_unavailable",
+            )
+            return
         except ActionMessageConflictError:
             await self._send_preflight_error(
                 suggestion_id=suggestion_id,

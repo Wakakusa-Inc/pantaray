@@ -21,10 +21,14 @@ from pantaray_agents.schema.action_conversation import (
     ToolEntry,
     ToolEntryOutcome,
     UserEntry,
+    UserEntryFile,
     UserEntryProjectRef,
     UserEntryStatus,
 )
-from pantaray_agents.schema.agent.action_message import ActionProjectRef
+from pantaray_agents.schema.agent.action_message import (
+    ActionProjectRef,
+    FileAttachmentInput,
+)
 from pantaray_agents.schema.agent.action_message_codec import (
     parse_stored_action_user_message,
 )
@@ -71,6 +75,7 @@ def project_action_user_entry(row: ActionHistoryUserRow) -> UserEntry:
     images: tuple[ImageInput, ...]
     approved_suggestion: ApprovedSuggestion | None = None
     project_refs: tuple[ActionProjectRef, ...] = ()
+    files: tuple[FileAttachmentInput, ...] = ()
     if message is None:
         content = row.user_request_text
         images = ()
@@ -86,6 +91,7 @@ def project_action_user_entry(row: ActionHistoryUserRow) -> UserEntry:
             content = message.content
             project_refs = message.project_refs
         images = message.images
+        files = message.files
 
     status: UserEntryStatus = (
         "adopted"
@@ -109,6 +115,10 @@ def project_action_user_entry(row: ActionHistoryUserRow) -> UserEntry:
                     display_name=ref.display_name, start=ref.start, end=ref.end
                 )
                 for ref in project_refs
+            ),
+            files=tuple(
+                UserEntryFile(name=file.name, byte_size=file.byte_size)
+                for file in files
             ),
             status=status,
         )

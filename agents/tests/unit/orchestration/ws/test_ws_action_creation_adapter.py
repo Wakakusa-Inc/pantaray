@@ -6,6 +6,9 @@ from unittest.mock import AsyncMock
 import pytest
 from starlette.websockets import WebSocketState
 
+from pantaray_agents.local_runtime.runtime.action_file_attachments import (
+    ActionFileAttachmentUnavailableError,
+)
 from pantaray_agents.local_runtime.runtime.action_messages import (
     ActionMessageConflictError,
     DeferredActionMessageResult,
@@ -200,6 +203,13 @@ async def test_execute_action_adapts_suggestion_to_the_canonical_creation_comman
             # Spans point into the trimmed supplement.
             supplement="  Run only the focused regression in Demo App.",
             supplement_project_refs=(DEMO_REF,),
+            files=(
+                {
+                    "attachment_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+                    "name": "spec.docx",
+                    "byte_size": 4_096,
+                },
+            ),
         )
     )
 
@@ -215,7 +225,15 @@ async def test_execute_action_adapts_suggestion_to_the_canonical_creation_comman
     assert message.supplement == "Run only the focused regression in Demo App."
     assert message.supplement_project_refs[0].display_name == "Demo App"
     assert render_action_user_request_text(message).endswith(
-        "Referenced workspace projects:\n- Demo App: /workspace/demo-app"
+        "Referenced workspace projects:\n- Demo App: /workspace/demo-app\n\n"
+        "Attached files:\n"
+        "The user attached these files to this message. Each is saved at the path "
+        "shown, relative to your workspace cwd. Open one with the `read` tool at "
+        "that path; a PDF page can also be drawn with `render_pdf_page`. These "
+        "formats are readable: do not tell the user they are unsupported, and do "
+        "not ask them to paste the contents.\n"
+        "- spec.docx (Word document, 4.0 KB): "
+        "attachments/0f8fad5b-d9cb-469f-a165-70867728950e/spec.docx"
     )
     assert message.language == "ja"
     assert (
@@ -414,6 +432,11 @@ async def test_execute_action_does_not_replay_or_attach_deferred_submission(
     [
         (False, None, "LOCAL_RUNTIME_REQUIRED"),
         (True, ActionMessageConflictError("conflict"), "WS_ACTION_NOT_ALLOWED"),
+        (
+            True,
+            ActionFileAttachmentUnavailableError("staged file is gone"),
+            "WS_ACTION_ATTACHMENT_UNAVAILABLE",
+        ),
         (True, RuntimeError("database unavailable"), "WS_DEPENDENCY_UNAVAILABLE"),
     ],
 )
