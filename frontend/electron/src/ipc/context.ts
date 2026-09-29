@@ -82,8 +82,6 @@ export type BrowserUrlProbeResult = {
   error: string | null;
 };
 
-export type ActiveWindowInfo = { name: string | null; title: string | null } | null;
-
 /**
  * What the recording screen reads: whether macOS lets the recorder run at all,
  * whether a conversation is waiting on that, and whether the screen was already
@@ -246,13 +244,10 @@ export type MainContext = {
     // sections, omitted timestamps). Return types are the fully normalized
     // SSOT shape.
     updateCaptureSettings: (next: CapturePrivacySettingsInput) => Promise<CapturePrivacySettings>;
-    getActiveAppName: () => Promise<string | null>;
-    getActiveWindowInfo: () => Promise<ActiveWindowInfo>;
     listInstalledApps: () => Promise<InstalledAppOption[]>;
     getIdeFileRules: () => IdeFileRules;
     setCaptureEditing: (request: CaptureEditingRequest) => Promise<boolean>;
     updateIdeFileRules: (nextRules: IdeFileRulesInput) => Promise<IdeFileRules>;
-    getActiveBrowserUrl: () => Promise<BrowserUrlProbeResult>;
   };
 
   externalUrl: {

@@ -21,23 +21,12 @@ import type {
   StopReason,
 } from '../context/sourceControl';
 type ExecPromise = (command: string) => Promise<{ stdout: string; stderr?: string }>;
-type CaptureActiveWindowInfoFn = (
-  execPromise: ExecPromise,
-  mainWindow: BrowserWindow | null
-) => Promise<{ name: string; title: string } | null>;
-
-type GetActiveBrowserUrlFn = (
-  execPromise: ExecPromise,
-  activeAppName: string | null
-) => Promise<BrowserUrlProbeResult>;
 type ProbeBrowserUrlForAppFn = (
   execPromise: ExecPromise,
   activeAppName: string | null
 ) => Promise<BrowserUrlProbeResult>;
 
 export type ScreenshotLib = {
-  captureActiveWindowInfo?: CaptureActiveWindowInfoFn;
-  getActiveBrowserUrl?: GetActiveBrowserUrlFn;
   probeBrowserUrlForApp?: ProbeBrowserUrlForAppFn;
 };
 
@@ -422,14 +411,6 @@ export function createScreenshotSyncManager(params: {
     report.permissions_ok &&
     report.heartbeat_freshness === 'fresh' &&
     report.store_write_state === 'healthy';
-  async function getActiveWindowInfo() {
-    return (
-      (await params.screenshotLib.captureActiveWindowInfo?.(
-        params.execPromise,
-        params.getMainWindow()
-      )) ?? null
-    );
-  }
   return {
     setOwner: (next: LocalOwner) => {
       owner = next;
@@ -538,8 +519,6 @@ export function createScreenshotSyncManager(params: {
         await restoreFromPreference();
         return result;
       }),
-    getCurrentActiveAppName: async () => (await getActiveWindowInfo())?.name ?? null,
-    getActiveWindowInfo,
     getCaptureStatusSnapshot: (): Promise<CaptureStatusSnapshot> =>
       enqueue(async () => {
         const report = await readReport();
