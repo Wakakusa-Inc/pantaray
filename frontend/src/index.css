@@ -126,6 +126,9 @@ body::-webkit-scrollbar-thumb:hover {
 
 /* Electron overlay window specific styles */
 body.overlay-window {
+  /* The overlay is read at a glance beside other work, so its text runs a size up with looser lines. */
+  --text-body-size: 15px;
+  --text-body-leading: 1.75;
   background: transparent !important;
   overflow: hidden;
   color: #ffffff;
@@ -197,11 +200,11 @@ body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
 }
 
 .sharecard-stage {
-  --sharecard-card-width-px: 460px;
+  --sharecard-card-width-px: 520px;
   --sharecard-card-margin-px: 32px;
   /*
-   * ShareCardは「通常のOverlay（横幅 460px）」と同じ折り返し/縦横比で描画する。
-   * stage は BrowserWindow 全体を埋め、card(460px)は中央配置。
+   * ShareCardは「通常のOverlay（横幅 520px）」と同じ折り返し/縦横比で描画する。
+   * stage は BrowserWindow 全体を埋め、card(520px)は中央配置。
    */
   width: 100%;
   min-height: 100%;
@@ -249,7 +252,7 @@ body.overlay-window.sharecard-mode [data-sharecard-root='true'] > * {
 }
 
 .sharecard-card {
-  /* 通常Overlayの横幅（通知ウィンドウ幅: 460px）と揃える */
+  /* 通常Overlayの横幅（通知ウィンドウ幅: 520px）と揃える */
   width: calc(100% - var(--sharecard-card-margin-px) * 2);
   max-width: var(--sharecard-card-width-px);
   margin: var(--sharecard-card-margin-px);

@@ -19,7 +19,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await vite?.close();
 });
-test.use({ viewport: { width: 460, height: 800 }, locale: 'ja-JP', deviceScaleFactor: 2 });
+test.use({ viewport: { width: 520, height: 800 }, locale: 'ja-JP', deviceScaleFactor: 2 });
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
