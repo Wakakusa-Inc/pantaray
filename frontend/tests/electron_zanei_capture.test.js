@@ -40,7 +40,7 @@ function fixture(t, overrides = {}) {
     resume: async () => { calls.push('resume'); report = { ...report, paused: false }; } };
   const manager = createScreenshotSyncManager({
     isMac: true, userDataDir: dir, getMainWindow: () => null,
-    getNotificationWindow: () => null, isBackendRuntimeReady: () => true,
+    isBackendRuntimeReady: () => true,
     capturePrivacy: privacy, screenshotLib: {}, execPromise: async () => ({ stdout: '' }),
     getManifestPath: () => manifestPath,
     readSource: async () => { await backendGate; return state; },

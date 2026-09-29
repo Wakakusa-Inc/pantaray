@@ -65,7 +65,6 @@ function createManagerHarness(overrides = {}) {
       setOverlaySnapshot: (id, payload) => {
         overlayPayloads.set(String(id), payload);
       },
-      getNotificationWindow: () => null,
       sendToAllOverlays: (channel, payload) => overlayWindowMessages.push({ channel, payload }),
       sendResetToAllOverlays: (channel, payload) =>
         overlayWindowMessages.push({ channel, payload }),
@@ -275,7 +274,6 @@ test('OrchestrationManager: runtimeBackendUrl が無い場合は暗黙フォー�
     notificationWindow: {
       setActionLiveSnapshotGetter: () => {},
       setOverlaySnapshot: () => {},
-      getNotificationWindow: () => null,
       sendToAllOverlays: () => {},
       dispatchEventToOverlay: () => false,
       sendToOverlay: () => {},
@@ -314,7 +312,6 @@ test('OrchestrationManager: runtime が ready でない場合は接続せず既�
     notificationWindow: {
       setActionLiveSnapshotGetter: () => {},
       setOverlaySnapshot: () => {},
-      getNotificationWindow: () => null,
       sendToAllOverlays: () => {},
       dispatchEventToOverlay: () => false,
       sendToOverlay: () => {},
@@ -358,7 +355,6 @@ test('OrchestrationManager: Action conversation reader未注入ではfail-fast�
         notificationWindow: {
           setActionLiveSnapshotGetter: () => {},
           setOverlaySnapshot: () => {},
-          getNotificationWindow: () => null,
           sendToAllOverlays: () => {},
           dispatchEventToOverlay: () => false,
           sendToOverlay: () => {},
@@ -394,7 +390,6 @@ test('OrchestrationManager: acceptAction は send 例外時にも snapshot を�
       setOverlaySnapshot: (id, payload) => {
         overlayPayloads.set(String(id), payload);
       },
-      getNotificationWindow: () => null,
       sendToAllOverlays: () => {},
       dispatchEventToOverlay: () => false,
       sendToOverlay: () => {},

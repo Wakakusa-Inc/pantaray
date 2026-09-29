@@ -209,15 +209,6 @@ export function createOrchestrationRendererBridge(params: {
     }
   }
 
-  function getNotificationWindowOrNull(): BrowserWindow | null {
-    try {
-      const win = notificationWindow.getNotificationWindow();
-      return win && typeof win.isDestroyed === 'function' && !win.isDestroyed() ? win : null;
-    } catch {
-      return null;
-    }
-  }
-
   function extractRoutingIds(message: OrchestrationServerEvent): {
     suggestionId: string | null;
     processId: string | null;
@@ -335,21 +326,8 @@ export function createOrchestrationRendererBridge(params: {
     if (!handled && suggestionId && liveResult.route.legacyDisposition === 'pass') {
       try {
         notificationWindow.sendToOverlay(suggestionId, 'ws:event', msg);
-        handled = true;
       } catch (error) {
         console.error('Failed to send WS event to overlay by suggestion_id:', error);
-      }
-    }
-
-    if (!handled && liveResult.route.legacyDisposition === 'pass') {
-      const win = getNotificationWindowOrNull();
-      if (win) {
-        try {
-          win.webContents.send('ws:event', msg);
-          handled = true;
-        } catch {
-          // no-op
-        }
       }
     }
 
@@ -373,14 +351,6 @@ export function createOrchestrationRendererBridge(params: {
   }
 
   function forwardStatusToRenderers(payload: OrchestrationStatusPayload): void {
-    const win = getNotificationWindowOrNull();
-    if (win) {
-      try {
-        win.webContents.send('ws:status', payload);
-      } catch {
-        // no-op
-      }
-    }
     try {
       notificationWindow.sendToAllOverlays('ws:status', payload);
     } catch {
@@ -560,7 +530,6 @@ export function createOrchestrationRendererBridge(params: {
     acceptAction,
     forwardEventToRenderers,
     forwardStatusToRenderers,
-    getNotificationWindowOrNull,
     getOverlaySnapshot,
     refreshActionConversation,
     refreshAndResumeActionConversation,

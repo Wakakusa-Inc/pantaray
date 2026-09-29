@@ -5,11 +5,11 @@ const { BrowserWindow, systemPreferences } = require('electron');
  * ウィンドウタイトルは Slack のワークスペース判定などに使う。
  * @returns {Promise<{ name: string, title: string }>}
  */
-async function captureActiveWindowInfo(execPromise, mainWindow, notificationWindow) {
+async function captureActiveWindowInfo(execPromise, mainWindow) {
   let activeWindowInfo;
   try {
     const focusedWindow = BrowserWindow.getFocusedWindow();
-    if (focusedWindow && focusedWindow !== mainWindow && focusedWindow !== notificationWindow) {
+    if (focusedWindow && focusedWindow !== mainWindow) {
       const windowTitle = focusedWindow.getTitle();
       activeWindowInfo = {
         name: 'Active Application',

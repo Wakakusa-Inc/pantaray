@@ -338,7 +338,6 @@ declare global {
         onCaptureSettingsUpdated?: (cb: (settings: CapturePrivacySettings) => void) => () => void;
       };
       agentOverlay?: {
-        show: (content: string) => Promise<unknown>;
         /** 履歴オーバーレイ表示（main 側で通知ウィンドウを開く） */
         showHistory?: (payload: {
           suggestionId: string;
@@ -347,7 +346,6 @@ declare global {
         }) => void;
         close: () => Promise<unknown>;
         resize: (height: number) => Promise<unknown>;
-        onSetContent: (func: (content: string) => void) => (() => void) | undefined;
         onSnapshot?: (
           func: (payload: ElectronOverlaySnapshotPayload) => void
         ) => (() => void) | undefined;

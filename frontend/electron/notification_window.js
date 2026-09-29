@@ -4,14 +4,11 @@ const { createOverlayDragController } = require('./overlay_drag_controller');
 const { createAuxiliaryWindowIpcSecurity } = require('./auxiliary_window_ipc_security');
 const { createNotificationIpcHandlerFactory } = require('./notification_window_ipc');
 const {
-  OVERLAY_ALWAYS_ON_TOP_LEVEL,
   createOverlayWindowFactory,
   applyOverlayShellMode,
-  safeShowInactive,
   showInteractiveOverlayWindow,
 } = require('./overlay_window_factory');
 
-let notificationWindow = null; // backward-compat single window
 const overlayWindows = new Map(); // key: suggestionId, value: BrowserWindow
 let lastOverlayId = null;
 const overlayState = new Map(); // id -> { ready, queue, shellMode }
@@ -108,11 +105,9 @@ function isOwnerScopeCurrent(scope) {
 
 function clearForOwnerChange() {
   ownerGeneration += 1;
-  if (notificationWindow && !notificationWindow.isDestroyed()) notificationWindow.destroy();
   for (const win of overlayWindows.values()) {
     if (!win.isDestroyed()) win.destroy();
   }
-  notificationWindow = null;
   overlayWindows.clear();
   overlayState.clear();
   overlaySnapshotPayloads.clear();
@@ -272,32 +267,6 @@ function resolveOverlayId({ suggestionId, processId, actionId }) {
   return null;
 }
 
-function toDisplayString(content) {
-  try {
-    if (typeof content === 'string') return content;
-    if (content == null) return '';
-    return JSON.stringify(content);
-  } catch (_) {
-    return String(content);
-  }
-}
-
-function createNotificationWindow(content) {
-  const createdWindow = overlayWindowFactory.createLegacyNotificationWindow({
-    content,
-    onClosed: (closedWindow) => {
-      overlayDragController.clearForWindow(closedWindow);
-      if (notificationWindow === closedWindow) {
-        overlayActivationTracker.setNotificationWindow(null);
-        notificationWindow = null;
-      }
-    },
-  });
-  notificationWindow = createdWindow;
-  overlayActivationTracker.setNotificationWindow(createdWindow);
-  return createdWindow;
-}
-
 function createMappedOverlayWindow(id, options) {
   const runtime = getOverlayRuntimeState(id);
   if (!runtime) return null;
@@ -420,42 +389,15 @@ function destroyOverlayWindow(id) {
   if (win && !win.isDestroyed()) win.destroy();
 }
 
-function showNotification(content, id = 'default') {
+function showNotification(id) {
   readOwnerScope();
-  if (id === 'default') {
-    if (notificationWindow && !notificationWindow.isDestroyed()) {
-      notificationWindow.webContents.send('set-content', toDisplayString(content));
-      notificationWindow.setAlwaysOnTop(true, OVERLAY_ALWAYS_ON_TOP_LEVEL);
-      if (process.platform === 'darwin') {
-        notificationWindow.moveTop();
-      }
-      if (!notificationWindow.isVisible()) {
-        safeShowInactive(notificationWindow);
-      }
-      return;
-    }
-    createNotificationWindow(toDisplayString(content));
-    return;
-  }
-
   const win = getOrCreateOverlayWindow(id);
   if (win && !win.isVisible()) {
     applyOverlayShellMode(win, PASSIVE_SHELL_MODE);
   }
 }
 
-function hideNotification(id = 'default') {
-  // NOTE: hide() だけだと透明ウィンドウが alwaysOnTop:'screen-saver' のまま残り、
-  // クリックを吸収してアプリ全体が反応しなくなる。確実に destroy() する。
-  if (id === 'default') {
-    if (notificationWindow && !notificationWindow.isDestroyed()) {
-      try {
-        notificationWindow.destroy();
-      } catch {}
-    }
-    notificationWindow = null;
-    return;
-  }
+function hideNotification(id) {
   const win = overlayWindows.get(id);
   if (win && !win.isDestroyed()) {
     // A conversation window is opened per conversation, so hiding it would leave
@@ -478,13 +420,6 @@ function hideNotification(id = 'default') {
 }
 
 function sendToAllOverlays(channel, payload) {
-  try {
-    // single-window (legacy)
-    if (notificationWindow && !notificationWindow.isDestroyed()) {
-      notificationWindow.webContents.send(channel, payload);
-    }
-  } catch {}
-  // multi-window (per suggestion)
   for (const [, win] of overlayWindows) {
     if (win && !win.isDestroyed()) {
       try {
@@ -495,11 +430,6 @@ function sendToAllOverlays(channel, payload) {
 }
 
 function sendResetToAllOverlays(channel, payload) {
-  try {
-    if (notificationWindow && !notificationWindow.isDestroyed()) {
-      notificationWindow.webContents.send(channel, payload);
-    }
-  } catch {}
   for (const [id, runtime] of overlayState) {
     runtime.queue = runtime.queue.filter((message) => message.channel !== channel);
     enqueueOverlayMessage(id, channel, payload);
@@ -549,7 +479,6 @@ const createNotificationIpcHandlers = createNotificationIpcHandlerFactory({
     readOwnerScope,
     isOwnerScopeCurrent,
     getLastOverlayId: () => lastOverlayId,
-    getLegacyNotification: () => notificationWindow,
     getOverlay: (id) => overlayWindows.get(id) || null,
     hide: hideNotification,
     normalizeId,
@@ -557,7 +486,6 @@ const createNotificationIpcHandlers = createNotificationIpcHandlerFactory({
       getMainWindowForOverlayIsolation = getter;
     },
     setSnapshot: setOverlaySnapshot,
-    show: showNotification,
     showHistory: getOrCreateHistoryOverlayWindow,
   },
   interactions: {
@@ -571,7 +499,6 @@ module.exports = {
   clearForOwnerChange,
   showNotification,
   createNotificationIpcHandlers,
-  getNotificationWindow: () => notificationWindow,
   sendToAllOverlays,
   sendResetToAllOverlays,
   hideOverlay: hideNotification,

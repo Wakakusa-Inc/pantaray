@@ -147,7 +147,6 @@ test('IPC registration: registers all expected channels (invoke/send)', async ()
       createNotificationIpcHandlers: (options) => {
         overlayFactoryCalls.push(options);
         return {
-          onShowNotification: () => {},
           onResizeNotificationWindow: () => {},
           onNotificationActionAccept: () => {},
           onNotificationActionReject: () => {},
@@ -280,7 +279,6 @@ test('IPC registration: window:move rejects invalid payload', async () => {
     overlay: {
       resumeLiveProcess: () => {},
       createNotificationIpcHandlers: () => ({
-        onShowNotification: () => {},
         onResizeNotificationWindow: () => {},
         onNotificationActionAccept: () => {},
         onNotificationActionReject: () => {},

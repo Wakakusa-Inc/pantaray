@@ -155,7 +155,6 @@ function buildCtx(overrides = {}) {
       resolveOverlayBootstrap: async () => null,
       submitApprovalDecision: asyncSpy(null),
       createNotificationIpcHandlers: () => ({
-        onShowNotification: () => {},
         onResizeNotificationWindow: () => {},
         onNotificationActionAccept: () => {},
         onNotificationActionReject: () => {},

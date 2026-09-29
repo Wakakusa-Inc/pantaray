@@ -8,7 +8,6 @@
 
 export const validSendChannels = [
   'resize-notification-window',
-  'show-notification',
   'notification-action-accept',
   'notification-action-reject',
   'notification-hide',
@@ -26,7 +25,6 @@ export const validSendChannels = [
 
 export const validReceiveChannels = [
   'aiConnection:changed',
-  'set-content',
   // Auth state (main SSOT)
   'auth:stateChanged',
   // History realtime hint (main SSOT)
