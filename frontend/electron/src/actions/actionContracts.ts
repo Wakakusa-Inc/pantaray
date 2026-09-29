@@ -14,6 +14,8 @@ const ACTION_MESSAGE_ID_MAX_CODEPOINTS = 128;
 const ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS = 32_000;
 const ACTION_MESSAGE_MAX_IMAGES = 32;
 const ACTION_MESSAGE_MAX_PROJECT_REFS = 32;
+/** Documents one message may carry; the local backend enforces the same limit. */
+export const ACTION_MESSAGE_MAX_FILES = 10;
 const ACTION_PROJECT_REF_MAX_PATHS = 32;
 const ACTION_PROJECT_REF_NAME_MAX_CODEPOINTS = 200;
 
@@ -74,6 +76,20 @@ const ImageReferenceSchema = z
 
 const CodePointOffsetSchema = z.number().int().nonnegative();
 
+// A document staged by `action:attachFile`. The backend moves the staged file into the
+// Action's workspace on submit and re-validates the name and size against it.
+export const ActionFileAttachmentsSchema = z
+  .array(
+    z
+      .object({
+        attachment_id: z.string().uuid(),
+        name: NonBlankTextSchema,
+        byte_size: z.number().int().positive(),
+      })
+      .strict()
+  )
+  .max(ACTION_MESSAGE_MAX_FILES);
+
 // A workspace project named in the user's text, copied when the message is sent.
 // start/end are Unicode code-point offsets into the trimmed text the backend
 // stores; codePointSpanInTrimmedText converts the composer's UTF-16 offsets.
@@ -119,6 +135,7 @@ export const ActionMessageRequestSchema = z
         images: z.array(ImageReferenceSchema).max(ACTION_MESSAGE_MAX_IMAGES),
         language: z.enum(['en', 'ja']).nullable().optional(),
         project_refs: ActionProjectRefsSchema.optional(),
+        files: ActionFileAttachmentsSchema.optional(),
       })
       .strict(),
   })
@@ -180,6 +197,10 @@ const UserEntrySchema = z
         })
         .strict()
     ),
+    // Documents sent with the message. Optional until every backend returns the field.
+    files: z
+      .array(z.object({ name: z.string(), byte_size: z.number().int().positive() }).strict())
+      .optional(),
     status: z.enum(['adopted', 'pending', 'not_executed']),
   })
   .strict()
@@ -444,6 +465,7 @@ export type ActionMessageSubmitResult =
 export type ActionConversationPage = z.infer<typeof ActionConversationPageSchema>;
 export type ActionImageReference = z.infer<typeof ImageReferenceSchema>;
 export type ActionProjectRef = z.infer<typeof ActionProjectRefsSchema>[number];
+export type ActionFileAttachment = z.infer<typeof ActionFileAttachmentsSchema>[number];
 export type ActionToolOutputDetail = z.infer<typeof ActionToolOutputDetailSchema>;
 
 export class ActionWireContractError extends Error {

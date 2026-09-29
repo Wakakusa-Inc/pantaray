@@ -80,6 +80,22 @@ function activeRun(entries, status = 'running') {
   };
 }
 
+test('USER entry parses with or without the files it was sent with', () => {
+  const files = [{ name: 'plan.pdf', byte_size: 42 }];
+  const withFiles = page({ runs: [activeRun([{ ...user('step-a', 'message-a', 1), files }])] });
+  assert.deepStrictEqual(withFiles.runs[0].entries[0].files, files);
+
+  const withoutFiles = page({ runs: [activeRun([user('step-a', 'message-a', 1)])] });
+  assert.equal(withoutFiles.runs[0].entries[0].files, undefined);
+
+  for (const invalid of [[{ name: 'plan.pdf', byte_size: 0 }], [{ ...files[0], path: '/x' }]]) {
+    assert.throws(
+      () => page({ runs: [activeRun([{ ...user('step-a', 'message-a', 1), files: invalid }])] }),
+      ActionWireContractError
+    );
+  }
+});
+
 test('未取得のrunに属する承認提案をActionメタデータに保持し、別の提案IDを拒否する', () => {
   const approvedSuggestion = { suggestion_id: 'suggestion-1', content: 'Review the changes?' };
   const parsed = page({ suggestionId: 'suggestion-1', approvedSuggestion });

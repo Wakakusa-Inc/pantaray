@@ -21,6 +21,8 @@ function createActionsApi({ ipcRenderer }) {
       resumeAction: (request) => ipcRenderer.invoke('action:resume', request),
       attachImage: (request) => ipcRenderer.invoke('action:attachImage', request),
       revealImage: (request) => ipcRenderer.invoke('actionImage:reveal', request),
+      attachFile: (request) => ipcRenderer.invoke('action:attachFile', request),
+      discardAttachment: (request) => ipcRenderer.invoke('action:discardAttachment', request),
       readConversationPage: (request) => ipcRenderer.invoke('action:readConversationPage', request),
       readToolOutputPage: (request) => ipcRenderer.invoke('action:readToolOutputPage', request),
       onConversationUpdated: (callback) => {

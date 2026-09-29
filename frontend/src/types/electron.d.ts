@@ -34,6 +34,7 @@ import type {
 } from '../../electron/src/actions/actionFetch';
 import type { ActionLiveUpdate } from '../../electron/src/actions/actionLiveCore';
 import type { ActionImageAttachResult } from '../../electron/src/ipc/schemas/actionImages';
+import type { ActionAttachFileResult } from '../../electron/src/ipc/schemas/actionAttachments';
 import type { ActionImageMimeType } from '../../electron/src/protocol/imageStoragePath';
 import type { RecordingStartResult } from '../../electron/src/screenshot/screenshotSync';
 import type { HistoryFetchResult } from '../../electron/src/history/historyFetch';
@@ -227,6 +228,12 @@ declare global {
           declaredMimeType: ActionImageMimeType;
         }) => Promise<ActionImageAttachResult>;
         revealImage: (request: { storagePath: string }) => Promise<{ revealed: boolean }>;
+        /** Stages a document; the returned id goes into the next message's `files`. */
+        attachFile: (request: {
+          bytes: ArrayBuffer;
+          name: string;
+        }) => Promise<ActionAttachFileResult>;
+        discardAttachment: (request: { attachmentId: string }) => Promise<void>;
         readConversationPage: (
           request: ActionConversationPageRequest
         ) => Promise<ActionConversationPageReadResult>;

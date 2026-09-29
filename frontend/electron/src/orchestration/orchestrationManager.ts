@@ -23,7 +23,11 @@ import type {
   ResumeProcessRequest,
 } from './contracts';
 import { isScreenCaptureRequestedEvent } from './eventContracts';
-import { ActionMessageRequestSchema, ActionProjectRefsSchema } from '../actions/actionContracts';
+import {
+  ActionFileAttachmentsSchema,
+  ActionMessageRequestSchema,
+  ActionProjectRefsSchema,
+} from '../actions/actionContracts';
 import { createOrchestrationRendererBridge } from './orchestrationRendererBridge';
 
 export type CreateOrchestrationWS = (opts: {
@@ -169,6 +173,7 @@ export function createOrchestrationManager(params: {
       case 'execute_action': {
         const images = ActionMessageRequestSchema.shape.message.shape.images.safeParse(data.images);
         const projectRefs = ActionProjectRefsSchema.safeParse(data.supplement_project_refs);
+        const files = ActionFileAttachmentsSchema.optional().safeParse(data.files);
         if (
           typeof data.suggestion_id !== 'string' ||
           typeof data.command_id !== 'string' ||
@@ -176,7 +181,8 @@ export function createOrchestrationManager(params: {
           !(typeof data.supplement === 'string' || data.supplement === null) ||
           (data.approval_mode !== 'prompt_each_time' && data.approval_mode !== 'always_allow') ||
           !images.success ||
-          !projectRefs.success
+          !projectRefs.success ||
+          !files.success
         ) {
           return null;
         }
@@ -190,6 +196,7 @@ export function createOrchestrationManager(params: {
             supplement_project_refs: projectRefs.data,
             approval_mode: data.approval_mode,
             images: images.data,
+            files: files.data,
           },
         };
       }

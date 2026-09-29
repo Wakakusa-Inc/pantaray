@@ -60,6 +60,9 @@ test('Action preload API forwards typed invokes and retains only the latest targ
   await api.actions.submitMessage(submit);
   await api.actions.readConversationPage(page);
   await api.actions.readToolOutputPage(output);
+  const file = { bytes: new ArrayBuffer(1), name: 'a.pdf' };
+  await api.actions.attachFile(file);
+  await api.actions.discardAttachment({ attachmentId: 'f1' });
   const viewed = { subjectId: 'u1', actionId: 'a1', completionEventId: 'c1' };
   await api.history.markCompletionViewed(viewed);
   await api.history.openNewConversation();
@@ -70,6 +73,8 @@ test('Action preload API forwards typed invokes and retains only the latest targ
     ['action:submitMessage', submit],
     ['action:readConversationPage', page],
     ['action:readToolOutputPage', output],
+    ['action:attachFile', file],
+    ['action:discardAttachment', { attachmentId: 'f1' }],
     ['history:markCompletionViewed', viewed],
     ['history:openNewConversation'],
     ['history:openConversation', { actionId: 'a1' }],

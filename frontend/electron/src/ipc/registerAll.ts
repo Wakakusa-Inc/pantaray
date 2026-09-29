@@ -16,6 +16,7 @@ import { registerApprovalHandlers } from './handlers/approval';
 import { registerActionFileHandlers } from './handlers/actionFiles';
 import { registerActionHandlers } from './handlers/actions';
 import { registerActionImageHandlers } from './handlers/actionImages';
+import { registerActionAttachmentHandlers } from './handlers/actionAttachments';
 import { registerExternalUrlHandlers } from './handlers/externalUrl';
 import { registerHistoryHandlers } from './handlers/history';
 import { registerOverlayHandlers } from './handlers/overlay';
@@ -47,6 +48,7 @@ export function registerAllIpcHandlers(ctx: MainContext): RegisterAllResult {
   registerActionFileHandlers(ctx, registrar);
   registerActionHandlers(ctx, registrar);
   registerActionImageHandlers(ctx, registrar);
+  registerActionAttachmentHandlers(ctx, registrar);
   registerHistoryHandlers(ctx, registrar);
   registerUiLanguageHandlers(ctx, registrar);
   registerUpdateHandlers(ctx, registrar);

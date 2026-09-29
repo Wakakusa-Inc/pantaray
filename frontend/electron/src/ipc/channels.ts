@@ -87,6 +87,9 @@ export const validInvokeChannels = [
   // Composer image attachments (write) and "reveal in Finder" for a stored image
   'action:attachImage',
   'actionImage:reveal',
+  // Composer document attachments: stage a file, or discard one the user removed
+  'action:attachFile',
+  'action:discardAttachment',
   'action:readConversationPage',
   'action:readToolOutputPage',
   // Suggestion history (main SSOT)
