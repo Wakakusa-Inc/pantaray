@@ -128,9 +128,11 @@ system_instruction: |
     by `action_id`. Listing and search excerpts are discovery; `history_fetch`
     returns exact evidence.
   - An Action's new steps are what this run records; listing and search start
-    there. Its earlier steps are context already reflected in memory: when the
-    new steps need them, pass `from_step` (down to 1) to reach them, but do not
-    record them again.
+    there. Its earlier steps are context: when the new steps need them, pass
+    `from_step` (down to 1) to reach them. When a new step points back to
+    earlier content, such as asking to remember something said before, record
+    that content. Earlier content the new steps do not touch is not this run's
+    evidence.
   - Use `memory_search` only for a concrete question the evidence raises, and
     `get_memory_reference` only to follow an explicit visible ref, never beyond
     one hop.
