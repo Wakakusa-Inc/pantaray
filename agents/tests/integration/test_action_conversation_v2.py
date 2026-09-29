@@ -52,6 +52,9 @@ from pantaray_agents.local_runtime.runtime.session_store import (
     reset_desktop_session_store,
 )
 from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
+from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
+    welcome_suggestion_id,
+)
 from pantaray_agents.local_runtime.storage.migrations import (
     apply_migrations,
     load_default_migrations,
@@ -262,6 +265,33 @@ def test_assistant_message_is_public_history_before_the_first_user(
     duplicate = _message("another-reply", "別の返信")
     duplicate["target"] = request["target"]
     assert client.post(MESSAGES_PATH, json=duplicate).status_code == 409
+
+
+def test_a_reply_to_the_welcome_continues_it_as_an_ordinary_conversation(
+    runtime_client: tuple[TestClient, Path],
+) -> None:
+    client, db_path = runtime_client
+    welcome_path = f"/v1/agents/users/{USER_ID}/suggestions/welcome"
+    welcome = "まずはあなたの仕事を理解するところから始めます。"
+    created = client.post(welcome_path, json={"answer": welcome})
+    assert created.status_code == 200, created.text
+    assert created.json() == {"created": True}
+    # Recording can start for the first time only once; a repeat greets no one.
+    assert client.post(welcome_path, json={"answer": "again"}).json() == {
+        "created": False
+    }
+
+    request = _message("welcome-reply", "今開いている資料を要約して")
+    request["target"] = {
+        "kind": "new",
+        "reply_to_suggestion_id": welcome_suggestion_id(USER_ID),
+    }
+    response = client.post(MESSAGES_PATH, json=request)
+    assert response.status_code == 200, response.text
+    _, preparation = _claim_and_prepare(db_path, claimed_by="worker:welcome")
+    assert [
+        message.content for message in preparation.context.preceding_assistant_messages
+    ] == [welcome]
 
 
 def test_project_refs_are_stored_projected_and_given_to_the_model(

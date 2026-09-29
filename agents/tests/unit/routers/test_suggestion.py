@@ -362,3 +362,63 @@ async def test_suggestion_state_does_not_use_foreign_session(monkeypatch):
         )
 
     assert exc.value.status_code == 404
+
+
+def _welcome_client(monkeypatch, *, resolved_user_id: str = "user-1"):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from pantaray_agents.auth_http import get_current_user_id_from_token
+    from pantaray_agents.routers import suggestion as suggestion_router
+
+    recorded: list[dict[str, object]] = []
+
+    def _record(**kwargs):
+        recorded.append(kwargs)
+        return True
+
+    monkeypatch.setattr(
+        suggestion_router,
+        "read_local_runtime_db_config",
+        lambda: (Path(":memory:"), BUSY_TIMEOUT_MS),
+    )
+    monkeypatch.setattr(suggestion_router, "verify_current_owner", lambda _user: None)
+    monkeypatch.setattr(suggestion_router, "record_welcome_suggestion", _record)
+    app = FastAPI()
+    app.include_router(suggestion_router.router)
+    app.dependency_overrides[get_current_user_id_from_token] = lambda: resolved_user_id
+    return TestClient(app), recorded
+
+
+def test_welcome_is_recorded_with_the_trimmed_answer(monkeypatch) -> None:
+    client, recorded = _welcome_client(monkeypatch)
+
+    response = client.post(
+        "/v1/agents/users/user-1/suggestions/welcome", json={"answer": "  Hello  "}
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"created": True}
+    assert [(call["user_id"], call["answer"]) for call in recorded] == [
+        ("user-1", "Hello")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("resolved_user_id", "body", "expected_status"),
+    (
+        ("someone-else", {"answer": "Hello"}, 403),
+        ("user-1", {"answer": "   "}, 422),
+        ("user-1", {"answer": ""}, 422),
+        ("user-1", {"answer": "Hello", "has_suggestion": False}, 422),
+    ),
+)
+def test_welcome_rejects_other_users_and_blank_answers(
+    monkeypatch, resolved_user_id: str, body: dict[str, object], expected_status: int
+) -> None:
+    client, recorded = _welcome_client(monkeypatch, resolved_user_id=resolved_user_id)
+
+    response = client.post("/v1/agents/users/user-1/suggestions/welcome", json=body)
+
+    assert response.status_code == expected_status
+    assert recorded == []

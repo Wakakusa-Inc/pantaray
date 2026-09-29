@@ -623,6 +623,58 @@ test('a start left waiting for permission stores nothing until a later start rec
   assert.equal(f.enabled(), true);
 });
 
+test('only the first recording ever greets, once it actually runs', async t => {
+  const firsts = [];
+  const f = fixture(t, { onFirstRecordingStarted: userId => firsts.push(userId) });
+  f.process.start = async () => { f.calls.push('start'); return {
+    binding: { store_id: 'store', protocol_version: 1 }, permissionsReady: false,
+  }; };
+  // Waiting for macOS permission records nothing, so it is not the first recording yet.
+  assert.equal(await f.manager.start(), 'permission_pending');
+  assert.deepEqual(firsts, []);
+  f.setReport({ running: true, permissions_ok: true, paused: false,
+    heartbeat_freshness: 'fresh', store_write_state: 'healthy', degraded: {} });
+  await f.manager.getCaptureStatusSnapshot();
+  assert.deepEqual(firsts, ['alice']);
+  f.process.start = async () => { f.calls.push('start'); return {
+    binding: { store_id: 'store', protocol_version: 1 }, permissionsReady: true,
+  }; };
+  // Turning it off and on, a relaunch that restores it, or a full restart all follow a
+  // recording that already ran.
+  await f.manager.stop();
+  assert.equal(await f.manager.start(), 'started');
+  await f.manager.pause('signed_out');
+  await f.manager.restoreRecorder();
+  await f.manager.stop();
+  await f.manager.pause('shutdown');
+  await f.manager.restoreRecorder();
+  assert.equal(await f.manager.start(), 'started');
+  assert.deepEqual(firsts, ['alice']);
+});
+
+test('a greeting that fails does not fail the start the user asked for', async t => {
+  const f = fixture(t, { onFirstRecordingStarted: () => { throw new Error('greeting failed'); } });
+  const logged = [];
+  t.mock.method(console, 'error', (...args) => logged.push(args[0]));
+  assert.equal(await f.manager.start(), 'started');
+  assert.equal(f.manager.getStatus(), true);
+  assert.deepEqual(logged, ['First recording start hook failed:']);
+});
+
+test('a failed first activation stores nothing and greets no one', async t => {
+  const firsts = [];
+  const f = fixture(t, {
+    onFirstRecordingStarted: userId => firsts.push(userId),
+    transitionSource: async (_user, request) => request.kind === 'activate'
+      ? { kind: 'conflict', current_epoch: 'other', reason: 'stale_epoch' }
+      : { kind: 'applied', state: { kind: 'stopped', epoch: 'issued', policy_revision: 'p', reason: 'disabled' } },
+  });
+  t.mock.method(console, 'error', () => undefined);
+  await assert.rejects(f.manager.start(), /activation conflict/);
+  assert.equal(f.stored(), false);
+  assert.deepEqual(firsts, []);
+});
+
 test('disabling while permission pending stops producer without activating source', async t => {
   const f = fixture(t);
   f.process.start = async () => ({ binding: { store_id: 's', protocol_version: 1 }, permissionsReady: false });
