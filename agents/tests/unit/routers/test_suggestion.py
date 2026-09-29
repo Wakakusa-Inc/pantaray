@@ -422,3 +422,24 @@ def test_welcome_rejects_other_users_and_blank_answers(
 
     assert response.status_code == expected_status
     assert recorded == []
+
+
+def test_welcome_for_an_owner_that_is_no_longer_current_is_refused(
+    monkeypatch,
+) -> None:
+    from pantaray_agents.local_runtime.runtime.identity import OwnerMismatchError
+    from pantaray_agents.routers import suggestion as suggestion_router
+
+    client, recorded = _welcome_client(monkeypatch)
+
+    def _mismatch(_user_id: str) -> None:
+        raise OwnerMismatchError("owner_user_id does not match the current owner")
+
+    monkeypatch.setattr(suggestion_router, "verify_current_owner", _mismatch)
+
+    response = client.post(
+        "/v1/agents/users/user-1/suggestions/welcome", json={"answer": "Hello"}
+    )
+
+    assert response.status_code == 403
+    assert recorded == []
