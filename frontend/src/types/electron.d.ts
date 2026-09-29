@@ -319,20 +319,13 @@ declare global {
         updateCaptureSettings: (
           settings: CapturePrivacySettingsInput
         ) => Promise<CapturePrivacySettings>;
-        getActiveAppName: () => Promise<string | null>;
         /** アクティブウィンドウの完全情報を取得（appName + title） */
-        getActiveWindowInfo: () => Promise<{ name: string | null; title: string | null } | null>;
         /** 記録フィルタのアプリ候補（インストール済みアプリ + アイコン） */
         listInstalledApps: () => Promise<ElectronInstalledApp[]>;
         /** IDE file rules（VSCode/Cursor） */
         getIdeFileRules: () => Promise<IdeFileRules>;
         updateIdeFileRules: (rules: IdeFileRulesInput) => Promise<IdeFileRules>;
         /** Chrome/Safari のアクティブタブURL（取得できない場合は url=null + error） */
-        getActiveBrowserUrl: () => Promise<{
-          url: string | null;
-          appName: string | null;
-          error: string | null;
-        }>;
         /** 編集モード（フィルタ編集中は全アプリのキャプチャを一時停止） */
         setCaptureEditing: (request: CaptureEditingRequest) => Promise<boolean>;
         onCaptureSettingsUpdated?: (cb: (settings: CapturePrivacySettings) => void) => () => void;

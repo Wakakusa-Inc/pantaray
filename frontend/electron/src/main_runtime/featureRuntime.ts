@@ -376,8 +376,6 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
         openCapturePermissionSettings,
         capturePrivacy,
         readAppIcon: readAppIconDataUrl,
-        screenshotLib: params.screenshotLib,
-        execPromise: params.execPromise,
         onCaptureSettingsChanged: () => void params.updateUi.refreshCaptureStatus(),
         openExternalUrl,
         wsSend: orchestration.sendFromRenderer,

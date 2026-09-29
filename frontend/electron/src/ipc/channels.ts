@@ -115,12 +115,9 @@ export const validInvokeChannels = [
   'privacy:getCaptureSettings',
   'privacy:updateCaptureSettings',
   'privacy:listInstalledApps',
-  'privacy:getActiveAppName',
-  'privacy:getActiveWindowInfo',
   // IDE file rules
   'privacy:getIdeFileRules',
   'privacy:updateIdeFileRules',
-  'privacy:getActiveBrowserUrl',
   // 編集モード（全アプリのキャプチャを一時停止）
   'privacy:setCaptureEditing',
   'ws:acceptAction',

@@ -135,13 +135,10 @@ function buildCtx(overrides = {}) {
     privacy: {
       getCaptureSettings: () => validCapturePrivacySettings(),
       updateCaptureSettings: spy((next) => next),
-      getActiveAppName: async () => null,
-      getActiveWindowInfo: async () => null,
       listInstalledApps: async () => [],
       getIdeFileRules: () => validIdeFileRules(),
       setCaptureEditing: spy((v) => v),
       updateIdeFileRules: spy((v) => v),
-      getActiveBrowserUrl: async () => ({ url: null, appName: null, error: null }),
     },
     externalUrl: { open: async () => {} },
     ws: {

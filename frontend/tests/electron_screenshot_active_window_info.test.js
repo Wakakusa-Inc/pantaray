@@ -64,29 +64,3 @@ test('probeBrowserUrlForApp queries only the described supported browser', async
   assert.match(commands[1], /tell application "Safari"/);
   assert.doesNotMatch(commands[1], /System Events|Google Chrome/);
 });
-
-test('captureActiveWindowInfo preserves the longer AXTitle for advisory consumers', async () => {
-  const commands = [];
-  const { captureActiveWindowInfo } = loadScreenshotWithElectron({
-    BrowserWindow: {
-      getAllWindows: () => [],
-      getFocusedWindow: () => null,
-    },
-    systemPreferences: {
-      getMediaAccessStatus: () => 'denied',
-      isTrustedAccessibilityClient: () => true,
-    },
-  });
-
-  const result = await captureActiveWindowInfo(async (command) => {
-    commands.push(command);
-    return { stdout: 'Slack\tgeneral (Workspace) - Slack\n' };
-  }, null);
-
-  assert.deepEqual(result, {
-    name: 'Slack',
-    title: 'general (Workspace) - Slack',
-  });
-  assert.equal(commands.length, 1);
-  assert.match(commands[0], /appName & "\\t" & winTitle/);
-});
