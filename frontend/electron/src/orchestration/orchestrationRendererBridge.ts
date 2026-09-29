@@ -528,6 +528,7 @@ export function createOrchestrationRendererBridge(params: {
             supplement_project_refs: request.supplementProjectRefs,
             approval_mode: request.approvalMode,
             images: request.images,
+            files: request.files,
           },
         };
     const nextSnapshot: OverlaySnapshot =

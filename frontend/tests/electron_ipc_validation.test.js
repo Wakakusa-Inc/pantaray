@@ -538,6 +538,7 @@ test('ws:acceptAction rejects invalid fields and Unicode overflow', async () => 
     { images: [{ kind: 'file', storage_path: 'private.pdf' }] },
     { images: Array(33).fill({ kind: 'image', storage_path: 'image.png' }) },
     { supplementProjectRefs: [{ project_id: 'p1', display_name: 'Demo', paths: [], start: -1, end: 4 }] },
+    { files: [{ attachment_id: '../staged', name: 'a.pdf', byte_size: 1 }] },
   ]) {
     await assert.rejects(invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: null, supplementProjectRefs: [], ...invalid }), rejectsValidation('ws:acceptAction'));
   }
@@ -548,7 +549,8 @@ test('ws:acceptAction normalizes blank and accepts 8,000 Unicode code points', a
   const { ctx, ipcMain } = buildCtx();
   const invoke = getInvoke(ipcMain, 'ws:acceptAction');
   const supplementProjectRefs = [{ project_id: 'p1', display_name: '😀', paths: ['/workspace/demo'], start: 0, end: 1 }];
-  const request = { approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '😀'.repeat(8_000), supplementProjectRefs };
+  const files = [{ attachment_id: '22222222-2222-4222-8222-222222222222', name: 'plan.pdf', byte_size: 42 }];
+  const request = { approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '😀'.repeat(8_000), supplementProjectRefs, files };
   await invoke(request);
   await invoke({ approvalMode: 'prompt_each_time', images: [], suggestionId: 's_123', commandId: null, supplement: '   ', supplementProjectRefs: [] });
   assert.deepEqual(ctx.ws.acceptAction.calls, [

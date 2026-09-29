@@ -40,6 +40,8 @@ const OVERLAY_ONLY_CHANNELS = new Set<IpcChannel>([
   'action:submitMessage',
   'action:resume',
   'action:attachImage',
+  'action:attachFile',
+  'action:discardAttachment',
   'actionImage:reveal',
   'overlay:submitApprovalDecision',
   'overlay:getActionApprovalMode',

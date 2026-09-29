@@ -91,9 +91,14 @@ test('Conversation submission and read receipts belong to Overlay; History opens
   security.registerWindow('overlay', overlayEvent.sender);
 
   assert.equal(security.authorize('action:submitMessage', overlayEvent), 'overlay');
-  assert.equal(security.authorize('action:attachImage', overlayEvent), 'overlay');
-  assert.equal(security.authorize('actionImage:reveal', overlayEvent), 'overlay');
-  for (const channel of ['action:attachImage', 'actionImage:reveal']) {
+  const attachmentChannels = [
+    'action:attachImage',
+    'actionImage:reveal',
+    'action:attachFile',
+    'action:discardAttachment',
+  ];
+  for (const channel of attachmentChannels) {
+    assert.equal(security.authorize(channel, overlayEvent), 'overlay');
     assert.throws(
       () => security.authorize(channel, mainEvent),
       (error) =>

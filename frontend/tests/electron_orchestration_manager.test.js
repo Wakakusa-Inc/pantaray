@@ -463,7 +463,8 @@ test('OrchestrationManager: command allocation時のexact envelopeだけを再�
   const harness = createManagerHarness({ getUiLanguage: () => language });
 
   const images = [{ kind: 'image', storage_path: 'user-1/2026-09-11/11111111-1111-4111-8111-111111111111.png' }];
-  const snapshot = await harness.manager.acceptAction({ ...actionRequest('Keep this condition'), approvalMode: 'always_allow', images });
+  const files = [{ attachment_id: '22222222-2222-4222-8222-222222222222', name: 'plan.pdf', byte_size: 42 }];
+  const snapshot = await harness.manager.acceptAction({ ...actionRequest('Keep this condition'), approvalMode: 'always_allow', images, files });
   assert.ok(snapshot);
   const executeEnvelope = {
     event: 'execute_action',
@@ -475,6 +476,7 @@ test('OrchestrationManager: command allocation時のexact envelopeだけを再�
       supplement_project_refs: [],
       approval_mode: 'always_allow',
       images,
+      files,
     },
   };
   assert.deepEqual(harness.sentMessages, [executeEnvelope]);
