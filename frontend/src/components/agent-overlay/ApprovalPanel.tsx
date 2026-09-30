@@ -233,6 +233,11 @@ export function ApprovalPanel({
         // A reason is for readers who cannot read commands: it leads, the folders
         // follow, and the command stays one click away.
         <>
+          {display.usesLoginEnvironment ? (
+            <ApprovalOperationText>
+              {t('overlay.approvalRequired.loginEnvironmentNotice')}
+            </ApprovalOperationText>
+          ) : null}
           <ApprovalDetailGroup>
             <ApprovalDetailLabel>
               {t('overlay.approvalRequired.outsideWorkspace.folders')}

@@ -27,6 +27,9 @@ export type ApprovalOutsideWorkspace = {
 export type ApprovalDisplay = {
   operationKey: MessageKey;
   operationVars?: Record<string, string>;
+  // The operation line already says it; a reason headline replaces that line, so the
+  // panel repeats this on its own.
+  usesLoginEnvironment: boolean;
   primaryLabelKey: MessageKey;
   primaryValue: string;
   details: ApprovalDetail[];
@@ -37,7 +40,7 @@ export type ApprovalDisplay = {
 
 type ToolApprovalDisplay = Pick<
   ApprovalDisplay,
-  'operationKey' | 'primaryLabelKey' | 'primaryValue' | 'details'
+  'operationKey' | 'usesLoginEnvironment' | 'primaryLabelKey' | 'primaryValue' | 'details'
 >;
 
 export type ApprovalDisplayTranslator = (
@@ -151,11 +154,12 @@ function buildToolApprovalDisplay(
   const cwd = readStringValue(summary, 'cwd');
 
   if (approvalPanel.toolId === 'bash' || summaryKind === 'bash') {
+    const usesLoginEnvironment = summary.use_login_environment === true;
     return {
-      operationKey:
-        summary.use_login_environment === true
-          ? 'overlay.approvalRequired.operation.bashLoginEnvironment'
-          : 'overlay.approvalRequired.operation.bash',
+      operationKey: usesLoginEnvironment
+        ? 'overlay.approvalRequired.operation.bashLoginEnvironment'
+        : 'overlay.approvalRequired.operation.bash',
+      usesLoginEnvironment,
       primaryLabelKey: 'overlay.approvalRequired.command',
       primaryValue:
         readStringValue(summary, 'command') ?? t('overlay.approvalRequired.unavailable'),
@@ -170,6 +174,7 @@ function buildToolApprovalDisplay(
     const argsCount = readNumberValue(summary, 'args_count');
     return {
       operationKey: 'overlay.approvalRequired.operation.runPython',
+      usesLoginEnvironment: false,
       primaryLabelKey: 'overlay.approvalRequired.pythonCode',
       primaryValue: t('overlay.approvalRequired.pythonCodeDescription'),
       details: [
@@ -198,6 +203,7 @@ function buildToolApprovalDisplay(
     const targetPaths = readStringArrayValue(summary, 'target_paths');
     return {
       operationKey: 'overlay.approvalRequired.operation.applyPatch',
+      usesLoginEnvironment: false,
       primaryLabelKey: 'overlay.approvalRequired.files',
       primaryValue: targetPaths.length
         ? targetPaths.join('\n')
@@ -212,6 +218,7 @@ function buildToolApprovalDisplay(
   if (approvalPanel.toolId === 'capture_screen' || summaryKind === 'screen_capture') {
     return {
       operationKey: 'overlay.approvalRequired.operation.captureScreen',
+      usesLoginEnvironment: false,
       primaryLabelKey: 'overlay.approvalRequired.details',
       primaryValue: '',
       details: [],
@@ -220,6 +227,7 @@ function buildToolApprovalDisplay(
 
   return {
     operationKey: 'overlay.approvalRequired.operation.generic',
+    usesLoginEnvironment: false,
     primaryLabelKey: 'overlay.approvalRequired.details',
     primaryValue: buildGenericPrimaryValue(summary),
     details: [],

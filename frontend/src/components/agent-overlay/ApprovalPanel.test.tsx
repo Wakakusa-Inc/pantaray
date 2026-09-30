@@ -57,9 +57,10 @@ const TWO_FOLDER_COMMAND_SUMMARY = {
 
 const COMMAND_REASON = 'レポートの下書きを書き出すために、次のフォルダにファイルを作ります。';
 
-function withReason(reason: string) {
+function withReason(reason: string, useLoginEnvironment = false) {
   return {
     ...TWO_FOLDER_COMMAND_SUMMARY,
+    use_login_environment: useLoginEnvironment,
     outside_workspace: { ...TWO_FOLDER_COMMAND_SUMMARY.outside_workspace, reason },
   };
 }
@@ -223,6 +224,7 @@ describe('ApprovalPanel', () => {
     expect(
       screen.getByText('/Users/me/Documents/Reports', { selector: 'dd' }).closest('details')
     ).toBe(disclosure);
+    expect(screen.queryByText('ログイン情報を使います。', { exact: false })).toBeNull();
     const summary = screen.getByText('詳細');
     expect(summary.tagName).toBe('SUMMARY');
     fireEvent.click(summary);
@@ -253,7 +255,25 @@ describe('ApprovalPanel', () => {
     expect(screen.getByText('Folders it will change')).toBeTruthy();
     expect(screen.getByText('Details').tagName).toBe('SUMMARY');
     expect(screen.getByText('touch made.txt').closest('details')?.open).toBe(false);
+    expect(screen.queryByText('It uses your login information.', { exact: false })).toBeNull();
     expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy();
+  });
+
+  // The reason is model-written; whether the command runs with the user's sign-ins
+  // is not, and it must stay in view while the command is collapsed.
+  it('keeps the login-environment notice outside the disclosure under a reason', () => {
+    for (const [language, notice] of [
+      ['ja', 'ログイン情報を使います。'],
+      ['en', 'It uses your login information.'],
+    ] as const) {
+      renderPanel(language, bashBlocker(withReason(COMMAND_REASON, true)));
+
+      expect(screen.getByText(COMMAND_REASON)).toBeTruthy();
+      expect(screen.getByText(notice).closest('details')).toBeNull();
+      expect(screen.getByText('touch made.txt').closest('details')?.open).toBe(false);
+      expect(screen.getAllByRole('listitem')).toHaveLength(2);
+      cleanup();
+    }
   });
 
   it('shows an HTML-looking reason as text', () => {
