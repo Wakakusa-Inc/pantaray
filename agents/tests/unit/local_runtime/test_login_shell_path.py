@@ -89,10 +89,12 @@ def test_hanging_startup_file_is_killed_and_the_app_path_is_kept(
     child_pid = tmp_path / "child.pid"
     shell = _fake_shell(tmp_path, f"sleep 30 &\necho $! > {child_pid}\nwait")
     monkeypatch.setenv("SHELL", str(shell))
-    monkeypatch.setattr(login_shell_path, "LOGIN_SHELL_TIMEOUT_SECONDS", 0.5)
+    # Long enough for a loaded machine to start the shell and record its child
+    # before the timeout fires; 0.5 s was not.
+    monkeypatch.setattr(login_shell_path, "LOGIN_SHELL_TIMEOUT_SECONDS", 3.0)
     started = time.monotonic()
     assert login_shell_path.login_shell_path() == APP_PATH
-    assert time.monotonic() - started < 5
+    assert time.monotonic() - started < 10
     # The whole group dies, not only the shell: a leftover child would keep
     # running whatever the startup file was waiting on.
     pid = int(child_pid.read_text())
