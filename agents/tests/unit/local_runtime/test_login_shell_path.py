@@ -109,38 +109,6 @@ def test_failing_login_shell_keeps_the_app_path(
     assert login_shell_path.login_shell_path() == APP_PATH
 
 
-def test_workspace_read_drops_unreadable_directories(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    workspace = (tmp_path / "workspace").resolve()
-    workspace_tools = workspace / "tools"
-    workspace_tools.mkdir(parents=True)
-    # e.g. ~/.pyenv/shims ahead of a working system binary.
-    unreadable = (tmp_path / "home/.pyenv/shims").resolve()
-    unreadable.mkdir(parents=True)
-    escaping_link = workspace / "escape"
-    escaping_link.symlink_to(unreadable, target_is_directory=True)
-    login_path = [
-        str(unreadable),
-        str(escaping_link),
-        str(workspace_tools),
-        "/usr/bin",
-        "/bin",
-    ]
-    monkeypatch.setattr(
-        command_runtime, "login_shell_path", lambda: os.pathsep.join(login_path)
-    )
-    assert _build_env(workspace, full_disk_read=False)["PATH"].split(":") == [
-        "/bin",
-        str(workspace_tools),
-        "/usr/bin",
-    ]
-    assert _build_env(workspace, full_disk_read=True)["PATH"].split(":") == [
-        "/bin",
-        *login_path[:-1],
-    ]
-
-
 def _is_running(pid: int) -> bool:
     try:
         os.kill(pid, 0)

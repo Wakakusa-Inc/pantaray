@@ -62,7 +62,7 @@ async def test_commands_find_tools_from_the_login_shell_path(
     if read_access_scope == "full_access":
         assert "probe ok" in stdout
     else:
-        # The sandbox cannot read the tools directory, so it is not on PATH,
-        # while the system directories that it can read still are.
+        # The tools directory stays on PATH, but the sandbox cannot read it, so
+        # the lookup skips it and the system directories still work.
         assert "probe missing" in stdout
     assert stdout.rstrip().endswith("/")

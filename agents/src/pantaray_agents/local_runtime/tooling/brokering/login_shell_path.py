@@ -42,6 +42,9 @@ def login_shell_path() -> str:
 @functools.cache
 def _read_once() -> str | None:
     # Startup files must not run for every command.
+    # Design limit: this blocks the caller (the backend's event loop) once, for
+    # about 1 s normally and at most the timeout; move it to a worker thread if
+    # that first-command stall becomes visible in the UI.
     shell = os.environ.get("SHELL") or pwd.getpwuid(os.getuid()).pw_shell
     return _read_login_shell_path(
         shell=shell, timeout_seconds=LOGIN_SHELL_TIMEOUT_SECONDS
