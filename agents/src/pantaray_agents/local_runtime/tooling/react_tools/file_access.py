@@ -292,8 +292,8 @@ def _reject_private_app_storage(root: WorkspaceReadRoot, relative_path: str) -> 
         raise BrokerPolicyError(_PRIVATE_APP_STORAGE_ERROR)
 
 
-def _outside_private_app_storage(root: WorkspaceReadRoot) -> Callable[[Path], bool]:
-    return lambda path: not is_within_any(path, root.private_app_storage)
+def _in_private_app_storage(root: WorkspaceReadRoot) -> Callable[[Path], bool]:
+    return lambda path: is_within_any(path, root.private_app_storage)
 
 
 def _workspace_list_entries(
@@ -309,7 +309,7 @@ def _workspace_list_entries(
         max_depth=max_depth,
         limit=DISCOVERY_SCAN_LIMIT,
         scan_limit=DISCOVERY_SCAN_LIMIT,
-        include_path=_outside_private_app_storage(root),
+        exclude_subtree=_in_private_app_storage(root),
     )
     entries: list[JSONValue] = [
         {
@@ -345,7 +345,7 @@ def _workspace_glob_matches(
         pattern=pattern,
         limit=DISCOVERY_SCAN_LIMIT,
         scan_limit=DISCOVERY_SCAN_LIMIT,
-        include_path=_outside_private_app_storage(root),
+        exclude_subtree=_in_private_app_storage(root),
     )
     return [
         entry.root_relative_path for entry in result.entries
@@ -403,7 +403,7 @@ def _workspace_grep_matches(
         include_glob=include_glob,
         max_matches=min(requested_count, DISCOVERY_SCAN_LIMIT),
         scan_limit=DISCOVERY_SCAN_LIMIT,
-        include_path=_outside_private_app_storage(root),
+        exclude_subtree=_in_private_app_storage(root),
     )
     matches: list[JSONValue] = [
         {

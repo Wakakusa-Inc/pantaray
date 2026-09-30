@@ -82,9 +82,17 @@ def scan_workspace_entries(
     limit: int,
     scan_limit: int,
     include_path: Callable[[Path], bool] | None = None,
+    exclude_subtree: Callable[[Path], bool] | None = None,
     file_pattern: str | None = None,
     deadline: float | None = None,
 ) -> WorkspaceDescriptorScan:
+    """Scan entries under base_path.
+
+    include_path filters entries after they are opened and still walks into a
+    directory it drops. exclude_subtree drops an entry before it is opened, and
+    nothing under it is walked or charged to the scan budget.
+    """
+
     selected: list[WorkspaceDescriptorEntry] = []
     iterator = _entries(
         root_path=root_path,
@@ -92,6 +100,7 @@ def scan_workspace_entries(
         max_depth=max_depth,
         scan_limit=scan_limit,
         deadline=deadline,
+        exclude_subtree=exclude_subtree,
     )
     reason: DescriptorTruncationReason | None = None
     prefix = "" if base_path == "." else f"{base_path}/"
@@ -127,7 +136,7 @@ def glob_workspace_files(
     pattern: str,
     limit: int,
     scan_limit: int,
-    include_path: Callable[[Path], bool] | None = None,
+    exclude_subtree: Callable[[Path], bool] | None = None,
 ) -> WorkspaceDescriptorScan:
     return scan_workspace_entries(
         root_path=root_path,
@@ -135,7 +144,7 @@ def glob_workspace_files(
         max_depth=None,
         limit=limit,
         scan_limit=scan_limit,
-        include_path=include_path,
+        exclude_subtree=exclude_subtree,
         file_pattern=pattern,
         deadline=time.monotonic() + SEARCH_TIMEOUT_SECONDS,
     )
@@ -149,7 +158,7 @@ def grep_workspace_files(
     include_glob: str | None,
     max_matches: int,
     scan_limit: int,
-    include_path: Callable[[Path], bool] | None = None,
+    exclude_subtree: Callable[[Path], bool] | None = None,
 ) -> WorkspaceGrepScan:
     deadline = time.monotonic() + SEARCH_TIMEOUT_SECONDS
     try:
@@ -170,22 +179,14 @@ def grep_workspace_files(
         max_depth=None,
         scan_limit=scan_limit,
         deadline=deadline,
+        exclude_subtree=exclude_subtree,
     )
     try:
         for entry, descriptor in iterator:
             relative = entry.root_relative_path.removeprefix(prefix)
-            if (
-                entry.kind != "file"
-                or (
-                    include_glob is not None
-                    and not matches_workspace_glob(relative, include_glob)
-                )
-                or (
-                    include_path is not None
-                    and not include_path(
-                        root_path.joinpath(*entry.root_relative_path.split("/"))
-                    )
-                )
+            if entry.kind != "file" or (
+                include_glob is not None
+                and not matches_workspace_glob(relative, include_glob)
             ):
                 continue
             payload = _read_grep_descriptor(descriptor)
@@ -235,12 +236,20 @@ def _entries(
     base_path: str,
     max_depth: int | None,
     scan_limit: int,
-    deadline: float | None = None,
+    deadline: float | None,
+    exclude_subtree: Callable[[Path], bool] | None,
 ) -> Generator[tuple[WorkspaceDescriptorEntry, int], None, None]:
     base = _open_directory(root_path, base_path)
     relative = "/".join(_relative_components(base_path, allow_dot=True)) or "."
+    excluded = (
+        None
+        if exclude_subtree is None
+        else lambda child: exclude_subtree(root_path.joinpath(*child.split("/")))
+    )
     try:
-        yield from _walk(base, relative, 0, max_depth, [0], scan_limit, deadline)
+        yield from _walk(
+            base, relative, 0, max_depth, [0], scan_limit, deadline, excluded
+        )
     finally:
         os.close(base)
 
@@ -253,6 +262,7 @@ def _walk(
     scanned: list[int],
     scan_limit: int,
     deadline: float | None,
+    excluded: Callable[[str], bool] | None,
 ) -> Generator[tuple[WorkspaceDescriptorEntry, int], None, None]:
     try:
         context = os.scandir(descriptor)
@@ -266,6 +276,9 @@ def _walk(
             scanned[0] += 1
             if scanned[0] > scan_limit:
                 raise _ScanLimitReached
+            child_relative = item.name if relative == "." else f"{relative}/{item.name}"
+            if excluded is not None and excluded(child_relative):
+                continue
             try:
                 if item.is_symlink():
                     continue
@@ -276,7 +289,6 @@ def _walk(
             child_depth = depth + 1
             if max_depth is not None and child_depth > max_depth:
                 continue
-            child_relative = item.name if relative == "." else f"{relative}/{item.name}"
             flags = _DIRECTORY_FLAGS if is_directory else _FILE_FLAGS
             child = _open(item.name, flags, parent=descriptor)
             try:
@@ -296,6 +308,7 @@ def _walk(
                             scanned,
                             scan_limit,
                             deadline,
+                            excluded,
                         )
                 elif stat.S_ISREG(mode):
                     yield WorkspaceDescriptorEntry(child_relative, "file"), child

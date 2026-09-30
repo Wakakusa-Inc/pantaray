@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import pantaray_agents.local_runtime.tooling.react_tools.file_access as file_access_module
 import pantaray_agents.local_runtime.tooling.suggestion_research.snapshot as snapshot_module
 from pantaray_agents.agents.artifact_react import (
     ReactToolCall,
@@ -306,6 +307,54 @@ def test_read_only_file_access_hides_private_app_storage_in_a_parent_folder(
     ):
         with pytest.raises(BrokerPolicyError, match="private app storage"):
             search()
+
+
+def test_read_only_file_access_never_walks_into_private_app_storage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scan_limit = 20
+    monkeypatch.setattr(file_access_module, "DISCOVERY_SCAN_LIMIT", scan_limit)
+    db_path = _bootstrap_db(tmp_path)
+    storage = db_path.parent
+    records = storage / "records"
+    records.mkdir()
+    for index in range(scan_limit * 3):
+        (records / f"{index}.txt").write_text("needle secret\n", encoding="utf-8")
+    # Opening this would fail the whole scan, so the scan must not reach it.
+    unreadable = storage / "unreadable.txt"
+    unreadable.write_text("needle secret\n", encoding="utf-8")
+    unreadable.chmod(0)
+    (tmp_path / "sibling.txt").write_text("needle sibling\n", encoding="utf-8")
+    _register_workspace(db_path=db_path, root=tmp_path)
+    snapshot = _snapshot(db_path=db_path)
+    reader = ReadOnlyFileAccess(roots=snapshot.roots)
+    root_id = snapshot.roots[-1].root_id
+
+    try:
+        results = (
+            reader.list(root_id=root_id, path=".", max_depth=4, offset=1, limit=50),
+            reader.glob(
+                root_id=root_id, base_path=".", pattern="**/*", offset=1, limit=50
+            ),
+            reader.grep(
+                root_id=root_id,
+                base_path=".",
+                pattern="needle",
+                include_glob=None,
+                offset=1,
+                max_matches=50,
+            ),
+        )
+    finally:
+        unreadable.chmod(0o600)
+
+    listed, globbed, grepped = results
+    assert [entry["path"] for entry in listed["entries"]] == ["sibling.txt"]  # type: ignore[index]
+    assert globbed["matches"] == ["sibling.txt"]
+    assert [match["path"] for match in grepped["matches"]] == ["sibling.txt"]  # type: ignore[index]
+    for result in results:
+        assert result["truncated"] is False
 
 
 def test_workspace_read_remains_pinned_after_parent_replacement(
