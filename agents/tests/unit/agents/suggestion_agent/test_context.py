@@ -686,6 +686,7 @@ async def test_suggestion_agent_builds_recent_activity_summaries_24h_1w_1m_conte
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("tokyo_local_zone")
 async def test_prompt_receives_pending_work_direction_and_user_feedback(
     suggestion_agent,
 ) -> None:
@@ -700,7 +701,10 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
         prompt="Long-term direction: grow sustainably.",
         has_facts=False,
         has_insights=True,
-        pending_work="Observed: prepare the estimate for the other project.",
+        pending_work=(
+            "Observed: prepare the estimate for the other project.\n"
+            "- **Contract**: return it by 9/12.\n"
+        ),
     )
     suggestion_agent.repository.get_recent_suggestions = AsyncMock(
         return_value=RepositoryResult(
@@ -712,6 +716,7 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
                     "user_reply": "The review is complete.",
                     "action_status": "success",
                     "action_result": "Review finished; no findings remain.",
+                    "action_followups": ["Only review,\n do not merge."],
                 }
             ]
         )
@@ -724,13 +729,25 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
             reconsideration_reason="Periodic review.",
         )
     )
-    prompt = suggestion_agent._build_prompt(context)
+    with patch.object(
+        suggestion_agent,
+        "_get_reference_time",
+        return_value=datetime(2026, 9, 10, tzinfo=UTC),
+    ):
+        prompt = suggestion_agent._build_prompt(context)
+    # Deadlines in the TODO file are counted from the run's own date.
+    assert "## Now\n2026-09-10T09:00+09:00 (Asia/Tokyo)." in prompt
+    assert "- **Contract**: return it by 9/12." in prompt
     assert "prepare the estimate for the other project" in prompt
     assert "grow sustainably" in prompt
     assert "User reaction: rejected" in prompt
     assert "The review is complete." in prompt
     assert "Action status: success" in prompt
     assert "Latest Action result: Review finished; no findings remain." in prompt
+    assert (
+        "  User instructions during the Action (oldest first):\n"
+        "    - Only review, do not merge.\n"
+    ) in prompt
 
 
 def test_reply_and_result_previews_are_bounded_and_missing_reaction_is_not_rejection() -> (

@@ -134,6 +134,7 @@ def _terminal_tool() -> LlmToolDefinition:
                 "interaction_contract",
                 "suggestion_summary",
                 "target_context",
+                "candidates",
             ],
             "properties": {
                 "has_suggestion": {"type": "boolean"},
@@ -159,6 +160,27 @@ def _terminal_tool() -> LlmToolDefinition:
                             },
                         },
                     ]
+                },
+                "candidates": {
+                    "type": "array",
+                    "description": (
+                        "Up to five candidates you considered, including the one "
+                        "you suggest, each with why it was suggested or skipped. "
+                        "Diagnostic only; never shown to the user."
+                    ),
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["candidate", "decision", "reason"],
+                        "properties": {
+                            "candidate": {"type": "string"},
+                            "decision": {
+                                "type": "string",
+                                "enum": ["suggested", "skipped"],
+                            },
+                            "reason": {"type": "string"},
+                        },
+                    },
                 },
             },
         },

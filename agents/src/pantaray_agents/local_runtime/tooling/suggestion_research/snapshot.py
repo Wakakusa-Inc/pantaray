@@ -45,7 +45,9 @@ from pantaray_agents.schema.read_access import ReadAccessScope
 from ..outside_workspace_grant import app_owned_roots
 from .commands import commands_run_without_asking
 
-PENDING_WORK_PREVIEW_MAX_CHARS = 6_000
+# The prompt carries insights/todos.md up to this size (production peaked at 41k
+# characters); a larger file is cut with a marker and the run reads the rest.
+PENDING_WORK_MAX_CHARS = 60_000
 STABLE_MEMORY_CONTEXT_MAX_CHARS = 4_500
 STABLE_MEMORY_ITEM_MAX_CHARS = 650
 STABLE_MEMORY_TREE_MAX_CHARS = 450
@@ -130,7 +132,7 @@ def build_suggestion_research_snapshot(
                 ),
                 "",
             ),
-            limit=PENDING_WORK_PREVIEW_MAX_CHARS,
+            limit=PENDING_WORK_MAX_CHARS,
         ),
     )
     return SuggestionResearchSnapshot(

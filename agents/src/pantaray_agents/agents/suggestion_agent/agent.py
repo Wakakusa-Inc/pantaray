@@ -64,6 +64,7 @@ from pantaray_agents.schema.agent.suggestion import (
     SuggestionTargetContext,
 )
 from pantaray_agents.schema.repository_errors import repository_data_or_raise
+from pantaray_agents.utils.local_time import describe_local_time, local_zone_name
 from pantaray_agents.utils.prompt_loader import PromptConfig
 from pantaray_llm.contracts.tool_use import (
     LlmToolContinuation,
@@ -77,9 +78,12 @@ logger = logging.getLogger(__name__)
 type SuggestionAgentConfig = dict[str, JSONValue]
 type SuggestionLlmPayload = dict[str, JSONValue]
 
-# Design limit: a 64k-character application cap bounds initial input cost.
-# Revisit on normal-input overflow using measured token cost and latency.
-SUGGESTION_INITIAL_PROMPT_MAX_CHARS = 64_000
+# Design limit: the earlier 64k budget for the rest of the prompt plus insights/todos.md
+# up to the snapshot's 60k-character bound. Memory keeps that file to the user's own
+# open work, but files written before that rule reached 40k characters. If production
+# todos.md exceeds about 20 KB after Memory has run on it, revisit the Memory rules
+# rather than raising these limits.
+SUGGESTION_INITIAL_PROMPT_MAX_CHARS = 124_000
 
 
 def _normalize_target_context(
@@ -305,11 +309,13 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
 
     def _build_prompt(self, context_data: SuggestionFetchedContext) -> str:
         """プロンプトを構築する"""
+        reference_time = self._get_reference_time()
         values: dict[str, str] = {
+            "current_time": describe_local_time(reference_time, local_zone_name()),
             "short_term_insight": context_data["short_term_insight"],
             "reconsideration_reason": context_data["reconsideration_reason"],
             "stable_memory_context": context_data["stable_memory_context"],
-            "pending_work_context": self.stable_memory.pending_work
+            "pending_work_context": self.stable_memory.pending_work.strip()
             or "(No pending work recorded.)",
             "action_agent_capabilities": context_data["action_agent_capabilities"],
             "recent_suggestions": context_data["recent_suggestions"],

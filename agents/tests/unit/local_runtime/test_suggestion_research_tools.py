@@ -1710,7 +1710,7 @@ def _publish_second_fact_revision(
 
 
 @pytest.mark.parametrize("has_direction", [False, True])
-def test_todo_preview_and_full_read_do_not_invent_long_term_context(
+def test_todo_file_and_full_read_do_not_invent_long_term_context(
     tmp_path: Path,
     has_direction: bool,
 ) -> None:
@@ -1733,10 +1733,8 @@ def test_todo_preview_and_full_read_do_not_invent_long_term_context(
     )
     snapshot = _snapshot(db_path=db_path, artifact_root=artifact_root)
     assert snapshot.stable_memory.has_insights is has_direction
-    preview = snapshot.stable_memory.pending_work
-    assert "a concrete pending commitment" in preview
-    assert "[truncated; continue with read]" in preview
-    assert len(preview) <= snapshot_module.PENDING_WORK_PREVIEW_MAX_CHARS
+    # A file within the bound reaches the prompt whole.
+    assert snapshot.stable_memory.pending_work == todo.strip()
     reader = ReadOnlyFileAccess(roots=snapshot.roots)
     full = reader.read(
         root_id="insights", path="insights/todos.md", offset=1, column=1, limit=200
@@ -1752,3 +1750,58 @@ def test_todo_preview_and_full_read_do_not_invent_long_term_context(
     assert remainder["truncated"] is False
     assert full["content"] + remainder["content"] == todo
     assert "Other project: submit the estimate." in remainder["content"]
+
+
+def test_oversized_todo_file_is_cut_and_does_not_block_the_suggestion_prompt(
+    tmp_path: Path,
+) -> None:
+    from pantaray_agents.agents.suggestion_agent import SuggestionAgent
+    from pantaray_agents.agents.suggestion_agent.agent import (
+        SUGGESTION_INITIAL_PROMPT_MAX_CHARS,
+    )
+    from pantaray_agents.mock.mock_agent_repository import (
+        MockSuggestionAgentRepository,
+    )
+    from pantaray_agents.mock.mock_llm_client import MockLLMClient
+    from pantaray_agents.mock.suggestion_research import (
+        build_mock_suggestion_research_tools,
+    )
+
+    db_path, artifact_root = _runtime(tmp_path)
+    todo = "# TODOs\n" + "- **Item**: next step and evidence.\n" * 5_000
+    _publish_insight_tree(
+        db_path=db_path,
+        artifact_root=artifact_root,
+        documents=(
+            MemoryDocument("insights/index.md", "# Direction\n"),
+            MemoryDocument("insights/todos.md", todo),
+        ),
+    )
+    snapshot = _snapshot(db_path=db_path, artifact_root=artifact_root)
+    pending = snapshot.stable_memory.pending_work
+    assert len(pending) <= snapshot_module.PENDING_WORK_MAX_CHARS < len(todo)
+    assert pending.endswith("[truncated; continue with read]")
+
+    agent = SuggestionAgent(
+        config={"llm_client": MockLLMClient()},
+        repository=MockSuggestionAgentRepository(),
+        research_tools=build_mock_suggestion_research_tools(),
+        stable_memory=snapshot.stable_memory,
+    )
+    # The rest of the prompt near the old 64k budget, which no real run reached.
+    prompt = agent._build_prompt(  # noqa: SLF001
+        {
+            "short_term_insight": "insight",
+            "reconsideration_reason": "reason",
+            "stable_memory_context": snapshot.stable_memory.prompt,
+            "action_agent_capabilities": "capabilities",
+            "recent_suggestions": "suggestions",
+            "recent_activity_descriptions": "activities",
+            "recent_activity_summary_1h": "hourly",
+            "recent_activity_summaries_24h_1w_1m": "summaries",
+            "context_density_signal": "context_density: high",
+            "workspace_context_prompt": "w" * 50_000,
+        }
+    )
+    assert len(prompt) <= SUGGESTION_INITIAL_PROMPT_MAX_CHARS
+    assert "[truncated; continue with read]" in prompt

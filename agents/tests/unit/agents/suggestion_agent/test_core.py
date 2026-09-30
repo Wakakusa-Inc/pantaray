@@ -132,7 +132,7 @@ def test_suggestion_agent_build_prompt_requires_context_density_signal(
             _ = agent._build_prompt(context)  # type: ignore[arg-type]  # noqa: SLF001
 
 
-@pytest.mark.parametrize("prompt_chars", [64_000, 64_001])
+@pytest.mark.parametrize("prompt_chars", [124_000, 124_001])
 def test_suggestion_agent_build_prompt_character_budget(
     prompt_chars: int,
     mock_repository: MockSuggestionAgentRepository,
@@ -149,13 +149,13 @@ def test_suggestion_agent_build_prompt_character_budget(
     template_chars = len(agent._build_prompt(context))
     context["workspace_context_prompt"] = "文" * (prompt_chars - template_chars)
 
-    if prompt_chars == 64_000:
+    if prompt_chars == 124_000:
         rendered = agent._build_prompt(context)
         assert len(rendered) == prompt_chars
         assert context["workspace_context_prompt"] in rendered
     else:
         with pytest.raises(
-            ValueError, match="64001 characters.*64000-character budget"
+            ValueError, match="124001 characters.*124000-character budget"
         ):
             agent._build_prompt(context)
 
@@ -213,7 +213,7 @@ async def test_suggestion_agent_sends_large_activity_context_without_truncation(
     assert response.status == StatusType.SUCCESS
     prompt = mock_llm_client.last_prompt
     assert prompt is not None
-    assert 16_000 < len(prompt) < 64_000
+    assert 16_000 < len(prompt) < 124_000
     for summary in summaries.values():
         assert summary in prompt
     for i in range(3):
