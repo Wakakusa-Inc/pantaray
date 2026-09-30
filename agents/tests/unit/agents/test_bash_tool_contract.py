@@ -110,3 +110,23 @@ def test_discovery_tools_are_local_parent_tools() -> None:
     for tool in (LIST_TOOL, GLOB_TOOL, GREP_TOOL):
         assert TOOL_REGISTRY[tool.tool_id] is tool
         assert tool.tool_id in SUPERVISOR_SINGLE_REACT_TOOL_IDS
+
+
+def test_command_tools_ask_for_outside_write_folders_with_a_user_facing_reason() -> (
+    None
+):
+    # The model sees the tool description, not per-field descriptions.
+    description = BASH_TOOL.prompt_contract.description
+    assert (
+        "Give justification whenever you set use_login_environment or "
+        "additional_write_folders" in description
+    )
+    assert "Do not ask the user in chat first" in description
+    assert "language of the user's request" in description
+    assert "naming only the service the command actually uses" in description
+    assert "Do not include command names, paths, or file names" in description
+    assert (
+        "additional_write_folders and justification exactly as the bash tool"
+        in TOOL_REGISTRY["run_python"].prompt_contract.description
+    )
+    assert "approved cwd" not in _field_description("use_login_environment")

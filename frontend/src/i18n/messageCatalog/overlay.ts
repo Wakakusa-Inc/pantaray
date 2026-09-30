@@ -76,12 +76,13 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.title': 'Approval required',
     'overlay.approvalRequired.operation.bash': 'Run a local command.',
     'overlay.approvalRequired.operation.bashLoginEnvironment':
-      'Run a local command. It uses your login information.',
+      'Run a local command with access to your login information.',
     'overlay.approvalRequired.operation.runPython': 'Run Python code.',
     'overlay.approvalRequired.operation.applyPatch': 'Modify files.',
     'overlay.approvalRequired.operation.captureScreen': 'Capture the screen.',
     'overlay.approvalRequired.operation.generic': 'Run this operation.',
-    'overlay.approvalRequired.loginEnvironmentNotice': 'It uses your login information.',
+    'overlay.approvalRequired.loginEnvironmentNotice':
+      'It runs with access to your login information.',
     'overlay.approvalRequired.command': 'Command',
     'overlay.approvalRequired.pythonCode': 'Python code',
     'overlay.approvalRequired.pythonCodeDescription':
@@ -187,12 +188,12 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.title': '承認が必要です',
     'overlay.approvalRequired.operation.bash': 'ローカルコマンドを実行します。',
     'overlay.approvalRequired.operation.bashLoginEnvironment':
-      'ローカルコマンドを実行します。ログイン情報を使います。',
+      'ログイン情報を使える状態でローカルコマンドを実行します。',
     'overlay.approvalRequired.operation.runPython': 'Pythonコードを実行します。',
     'overlay.approvalRequired.operation.applyPatch': 'ファイルを変更します。',
     'overlay.approvalRequired.operation.captureScreen': '画面を撮影します。',
     'overlay.approvalRequired.operation.generic': 'この操作を実行します。',
-    'overlay.approvalRequired.loginEnvironmentNotice': 'ログイン情報を使います。',
+    'overlay.approvalRequired.loginEnvironmentNotice': 'ログイン情報を使える状態で実行します。',
     'overlay.approvalRequired.command': 'コマンド',
     'overlay.approvalRequired.pythonCode': 'Pythonコード',
     'overlay.approvalRequired.pythonCodeDescription':

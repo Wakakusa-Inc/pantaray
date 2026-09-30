@@ -183,7 +183,11 @@ def test_command_reads_follow_setting_and_login_leaves_roots_unchanged(
         return build_validated_command_request(
             context=broker_context,
             args=BashToolArgs(
-                command="gh auth status", use_login_environment=use_login_environment
+                command="gh auth status",
+                use_login_environment=use_login_environment,
+                justification=(
+                    "Check your GitHub sign-in." if use_login_environment else None
+                ),
             ),
             tool_invocation_id=None,
             tool_request_id=f"request-login-{use_login_environment}",

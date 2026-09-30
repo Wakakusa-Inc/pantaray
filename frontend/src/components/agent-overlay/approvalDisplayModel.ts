@@ -17,9 +17,6 @@ export type ApprovalOutsideFolder = {
 export type ApprovalOutsideWorkspace = {
   // Never empty: an approval without folders is not an outside-workspace one.
   folders: ApprovalOutsideFolder[];
-  // A model-written, user-facing sentence; when present it replaces the question and
-  // the tool's own description moves behind a disclosure.
-  reason: string | null;
   canAllowForConversation: boolean;
   hintKey: MessageKey;
 };
@@ -27,6 +24,9 @@ export type ApprovalOutsideWorkspace = {
 export type ApprovalDisplay = {
   operationKey: MessageKey;
   operationVars?: Record<string, string>;
+  // A model-written, user-facing sentence; when present it replaces the operation
+  // line and the tool's own description moves behind a disclosure.
+  reason: string | null;
   // The operation line already says it; a reason headline replaces that line, so the
   // panel repeats this on its own.
   usesLoginEnvironment: boolean;
@@ -93,7 +93,6 @@ function readOutsideWorkspace(summary: Record<string, unknown>): ApprovalOutside
   return folders.length > 0
     ? {
         folders,
-        reason: readStringValue(record, 'reason'),
         canAllowForConversation: record.can_allow_for_conversation === true,
         hintKey:
           folders.length === 1
@@ -108,10 +107,12 @@ export function buildApprovalDisplay(
   t: ApprovalDisplayTranslator
 ): ApprovalDisplay {
   const toolDisplay = buildToolApprovalDisplay(approvalPanel, t);
+  const reason = readStringValue(approvalPanel.commandSummary, 'reason');
   const outsideWorkspace = readOutsideWorkspace(approvalPanel.commandSummary);
   if (!outsideWorkspace) {
     return {
       ...toolDisplay,
+      reason,
       outsideWorkspace: null,
       decisionLabelKeys: {
         approved_once: 'overlay.approvalRequired.approveOnce',
@@ -131,6 +132,7 @@ export function buildApprovalDisplay(
   return {
     ...toolDisplay,
     ...question,
+    reason,
     outsideWorkspace,
     decisionLabelKeys: {
       approved_once: 'overlay.approvalRequired.outsideWorkspace.approveOnce',
