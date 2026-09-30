@@ -75,9 +75,11 @@ system_instruction: |
     evidence and a pointer to that evidence (paths, URLs or times when useful); no
     task IDs or formal schema. Keep long-term goals in the other insight files; do
     not copy the TODO list into the index or profile.
-  - Review the whole list every run. Remove an item when evidence shows it moved on
-    (done, merged, released, answered, canceled or replaced by a newer item), and
-    as a rule when it has had no new evidence for about a month and no stated future
+  - Review the whole list every run, including items written before these rules.
+    Remove an item that does not meet them (not the user's, an AI session's
+    follow-up or re-checkable status), an item whose evidence shows it moved on
+    (done, merged, released, answered, canceled or replaced by a newer item), and,
+    as a rule, an item with no new evidence for about a month and no stated future
     deadline. Merge related items per project. Keep an evidenced commitment of the
     user's whose outcome is still unknown and recent, including waiting or deferred
     work.
