@@ -45,7 +45,9 @@ import {
 } from '../settings/approvalPreferencesFetch';
 import { createWorkspaceSettingsFetcher } from '../settings/workspaceSettingsFetch';
 import { broadcastUiLanguage, loadUiLanguage } from '../ui/uiLanguage';
+import { getWelcomeSuggestionText } from '../ui/mainProcessCopy';
 import type { DesktopRuntime } from './desktopRuntime';
+import { postWelcomeSuggestion } from './welcomeSuggestion';
 import {
   createGlobalShortcutController,
   createGlobalShortcutStore,
@@ -240,6 +242,15 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
     screenshotLib: params.screenshotLib,
     execPromise: params.execPromise,
     onCaptureStatusChanged: () => void params.updateUi.refreshCaptureStatus(),
+    // The runtime greets only an owner who has no data yet, so every start may ask.
+    onRecordingStarted: (userId) => {
+      const { accelerator, failure } = shortcutController.getState();
+      // A failure means the accelerator is configured but not registered: it would not work.
+      const answer = getWelcomeSuggestionText(params.getUiLanguage(), failure ? null : accelerator);
+      postWelcomeSuggestion({ requestJson, userId, answer }).catch((error: unknown) => {
+        params.logger?.error?.('WELCOME_SUGGESTION_ERR', { err: error });
+      });
+    },
   });
   const rebuildMenus = () =>
     safely(() => {

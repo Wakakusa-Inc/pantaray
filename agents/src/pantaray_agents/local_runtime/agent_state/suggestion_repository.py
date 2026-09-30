@@ -8,6 +8,9 @@ from pydantic import ValidationError
 from pantaray_agents.local_runtime.memory_catalog.domain_registration import (
     register_inline_domain_memory,
 )
+from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
+    WELCOME_SUGGESTION_PROMPT_NAME,
+)
 from pantaray_agents.local_runtime.storage.transactions import (
     immediate_transaction,
 )
@@ -347,6 +350,8 @@ class LocalSuggestionRepository(
                     FROM agent_suggestions AS suggestions
                     WHERE suggestions.user_id = ?
                       AND suggestions.has_suggestion = 1
+                      -- The welcome greets; it proposed nothing to build on.
+                      AND suggestions.prompt_name IS NOT ?
                       AND suggestions.created_at >= ?
                     ORDER BY suggestions.created_at DESC
                     LIMIT ?
@@ -395,7 +400,7 @@ class LocalSuggestionRepository(
                  AND result_event.event_id = result_process.terminal_event_id
                 ORDER BY recent.created_at DESC
                 """,
-                (user_id, cutoff_iso, limit),
+                (user_id, WELCOME_SUGGESTION_PROMPT_NAME, cutoff_iso, limit),
             ).fetchall()
         history: list[DBRow] = []
         for row in rows:

@@ -3,12 +3,26 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict, Field
 
 from pantaray_agents.agents.suggestion_agent import SuggestionAgent
 from pantaray_agents.auth_http import get_current_user_id_from_token
 from pantaray_agents.dependencies import (
     get_local_suggestion_state_repository,
     get_suggestion_agent,
+)
+from pantaray_agents.local_runtime.memory_catalog.connection import (
+    open_memory_catalog_connection,
+)
+from pantaray_agents.local_runtime.runtime.bootstrap import read_local_runtime_db_config
+from pantaray_agents.local_runtime.runtime.identity import (
+    OwnerMismatchError,
+    verify_current_owner,
+)
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
+from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
+    WELCOME_SUGGESTION_MAX_CHARS,
+    record_welcome_suggestion,
 )
 from pantaray_agents.schema.agent.suggestion import (
     SuggestionFinalState,
@@ -20,6 +34,17 @@ from pantaray_agents.schema.agent.suggestion import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/agents/users", tags=["Suggestion Agent"])
+
+
+class WelcomeSuggestionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Electron main writes it, in the user's language and with their shortcut.
+    answer: str = Field(min_length=1, max_length=WELCOME_SUGGESTION_MAX_CHARS)
+
+
+class WelcomeSuggestionResponse(BaseModel):
+    created: bool
 
 
 async def _get_suggestion_state_repository(
@@ -182,3 +207,44 @@ async def suggestion_state(
         final_state=final_state,
         metadata=metadata,
     )
+
+
+@router.post(
+    "/{user_id}/suggestions/welcome",
+    response_model=WelcomeSuggestionResponse,
+)
+async def create_welcome_suggestion(
+    user_id: str,
+    body: WelcomeSuggestionRequest,
+    resolved_user_id: str = Depends(get_current_user_id_from_token),
+) -> WelcomeSuggestionResponse:
+    """Greet an owner who has no data yet; for anyone else this is a no-op."""
+
+    if not resolved_user_id or user_id != resolved_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="user_id mismatch"
+        )
+    answer = body.answer.strip()
+    if not answer:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="answer must not be blank",
+        )
+    try:
+        verify_current_owner(user_id)
+    except OwnerMismatchError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="owner mismatch"
+        ) from exc
+    db_path, busy_timeout_ms = read_local_runtime_db_config()
+    with open_memory_catalog_connection(
+        db_path=db_path, busy_timeout_ms=busy_timeout_ms
+    ) as connection:
+        created = record_welcome_suggestion(
+            connection=connection,
+            user_id=user_id,
+            answer=answer,
+            # History accepts canonical UTC milliseconds only.
+            now=now_utc_iso(),
+        )
+    return WelcomeSuggestionResponse(created=created)
