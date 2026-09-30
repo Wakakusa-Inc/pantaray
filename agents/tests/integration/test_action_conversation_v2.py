@@ -280,6 +280,12 @@ def test_a_reply_to_the_welcome_continues_it_as_an_ordinary_conversation(
     assert client.post(welcome_path, json={"answer": "again"}).json() == {
         "created": False
     }
+    # An unanswered welcome is listed in history instead of breaking it.
+    history = client.get("/api/agent/history", params={"limit": 25, "status": "all"})
+    assert history.status_code == 200, history.text
+    assert [
+        (item["kind"], item.get("suggestion_id")) for item in history.json()["items"]
+    ] == [("suggestion", welcome_suggestion_id(USER_ID))]
 
     request = _message("welcome-reply", "今開いている資料を要約して")
     request["target"] = {

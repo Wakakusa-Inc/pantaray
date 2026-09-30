@@ -19,6 +19,7 @@ from pantaray_agents.local_runtime.runtime.identity import (
     OwnerMismatchError,
     verify_current_owner,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
     WELCOME_SUGGESTION_MAX_CHARS,
     record_welcome_suggestion,
@@ -30,7 +31,6 @@ from pantaray_agents.schema.agent.suggestion import (
     SuggestionStateResponse,
     SuggestionStreamingState,
 )
-from pantaray_agents.utils.timestamps import utc_now_iso8601_utc_z
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/agents/users", tags=["Suggestion Agent"])
@@ -244,6 +244,7 @@ async def create_welcome_suggestion(
             connection=connection,
             user_id=user_id,
             answer=answer,
-            now=utc_now_iso8601_utc_z(),
+            # History accepts canonical UTC milliseconds only.
+            now=now_utc_iso(),
         )
     return WelcomeSuggestionResponse(created=created)
