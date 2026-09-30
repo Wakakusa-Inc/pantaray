@@ -187,8 +187,6 @@ export function ApprovalPanel({
   t,
 }: ApprovalPanelProps) {
   const display = buildApprovalDisplay(approvalPanel, t);
-  const reason = display.outsideWorkspace?.reason ?? null;
-
   const folderPaths =
     display.outsideWorkspace === null ? null : display.outsideWorkspace.folders.length === 1 ? (
       <ApprovalFolderPath>{display.outsideWorkspace.folders[0].path}</ApprovalFolderPath>
@@ -227,9 +225,9 @@ export function ApprovalPanel({
     <ApprovalPanelCard>
       <ApprovalPanelTitle>{t('overlay.approvalRequired.title')}</ApprovalPanelTitle>
       <ApprovalOperationText>
-        {reason ?? t(display.operationKey, display.operationVars)}
+        {display.reason ?? t(display.operationKey, display.operationVars)}
       </ApprovalOperationText>
-      {reason ? (
+      {display.reason ? (
         // A reason is for readers who cannot read commands: it leads, the folders
         // follow, and the command stays one click away.
         <>
@@ -238,12 +236,14 @@ export function ApprovalPanel({
               {t('overlay.approvalRequired.loginEnvironmentNotice')}
             </ApprovalOperationText>
           ) : null}
-          <ApprovalDetailGroup>
-            <ApprovalDetailLabel>
-              {t('overlay.approvalRequired.outsideWorkspace.folders')}
-            </ApprovalDetailLabel>
-            {folderPaths}
-          </ApprovalDetailGroup>
+          {folderPaths ? (
+            <ApprovalDetailGroup>
+              <ApprovalDetailLabel>
+                {t('overlay.approvalRequired.outsideWorkspace.folders')}
+              </ApprovalDetailLabel>
+              {folderPaths}
+            </ApprovalDetailGroup>
+          ) : null}
           <ApprovalDisclosure>
             <ApprovalDisclosureSummary>
               {t('overlay.approvalRequired.details')}

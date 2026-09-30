@@ -35,7 +35,6 @@ const OUTSIDE_WORKSPACE_SUMMARY = {
   target_paths: ['/Users/me/Documents/Reports/q3.md'],
   outside_workspace: {
     folders: [{ path: '/Users/me/Documents/Reports', display_name: 'Reports' }],
-    reason: null,
     can_allow_for_conversation: true,
   },
 };
@@ -45,12 +44,12 @@ const TWO_FOLDER_COMMAND_SUMMARY = {
   cwd: '/Users/me/Documents/Reports',
   timeout_ms: 60000,
   use_login_environment: false,
+  reason: null,
   outside_workspace: {
     folders: [
       { path: '/Users/me/Documents/Reports', display_name: 'Reports' },
       { path: '/Users/me/.cache/tool', display_name: 'tool' },
     ],
-    reason: null,
     can_allow_for_conversation: true,
   },
 };
@@ -61,9 +60,32 @@ function withReason(reason: string, useLoginEnvironment = false) {
   return {
     ...TWO_FOLDER_COMMAND_SUMMARY,
     use_login_environment: useLoginEnvironment,
-    outside_workspace: { ...TWO_FOLDER_COMMAND_SUMMARY.outside_workspace, reason },
+    reason,
   };
 }
+
+function runPythonBlocker(
+  commandSummary: ActionApprovalBlocker['commandSummary']
+): ActionApprovalBlocker {
+  return {
+    ...applyPatchBlocker({}),
+    toolId: 'run_python',
+    intentClass: 'process_exec_local',
+    commandSummary: { summary_kind: 'run_python', ...commandSummary },
+  };
+}
+
+const LOGIN_ONLY_COMMAND_SUMMARY = {
+  command: 'gh pr list',
+  cwd: '/repo',
+  timeout_ms: 120000,
+  use_login_environment: true,
+};
+
+const LOGIN_NOTICE = {
+  ja: 'ログイン情報を使える状態で実行します。',
+  en: 'It runs with access to your login information.',
+} as const;
 
 function renderPanel(language: UiLanguage, blocker: ActionApprovalBlocker) {
   const handlers = {
@@ -224,7 +246,7 @@ describe('ApprovalPanel', () => {
     expect(
       screen.getByText('/Users/me/Documents/Reports', { selector: 'dd' }).closest('details')
     ).toBe(disclosure);
-    expect(screen.queryByText('ログイン情報を使います。', { exact: false })).toBeNull();
+    expect(screen.queryByText(LOGIN_NOTICE.ja, { exact: false })).toBeNull();
     const summary = screen.getByText('詳細');
     expect(summary.tagName).toBe('SUMMARY');
     fireEvent.click(summary);
@@ -255,23 +277,81 @@ describe('ApprovalPanel', () => {
     expect(screen.getByText('Folders it will change')).toBeTruthy();
     expect(screen.getByText('Details').tagName).toBe('SUMMARY');
     expect(screen.getByText('touch made.txt').closest('details')?.open).toBe(false);
-    expect(screen.queryByText('It uses your login information.', { exact: false })).toBeNull();
+    expect(screen.queryByText(LOGIN_NOTICE.en, { exact: false })).toBeNull();
     expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy();
   });
 
   // The reason is model-written; whether the command runs with the user's sign-ins
   // is not, and it must stay in view while the command is collapsed.
   it('keeps the login-environment notice outside the disclosure under a reason', () => {
-    for (const [language, notice] of [
-      ['ja', 'ログイン情報を使います。'],
-      ['en', 'It uses your login information.'],
-    ] as const) {
+    for (const language of ['ja', 'en'] as const) {
       renderPanel(language, bashBlocker(withReason(COMMAND_REASON, true)));
 
       expect(screen.getByText(COMMAND_REASON)).toBeTruthy();
-      expect(screen.getByText(notice).closest('details')).toBeNull();
+      expect(screen.getByText(LOGIN_NOTICE[language]).closest('details')).toBeNull();
       expect(screen.getByText('touch made.txt').closest('details')?.open).toBe(false);
       expect(screen.getAllByRole('listitem')).toHaveLength(2);
+      cleanup();
+    }
+  });
+
+  it('leads a login-environment command with its reason even without outside folders', () => {
+    for (const [language, folderLabel] of [
+      ['ja', '変更するフォルダ'],
+      ['en', 'Folders it will change'],
+    ] as const) {
+      const { container } = renderPanel(
+        language,
+        bashBlocker({ ...LOGIN_ONLY_COMMAND_SUMMARY, reason: COMMAND_REASON })
+      );
+
+      expect(screen.getByText(COMMAND_REASON)).toBeTruthy();
+      expect(screen.getByText(LOGIN_NOTICE[language]).closest('details')).toBeNull();
+      expect(screen.getByText('gh pr list').closest('details')?.open).toBe(false);
+      expect(screen.queryByText(folderLabel)).toBeNull();
+      expect(container.querySelector('ul')).toBeNull();
+      expect(screen.getAllByRole('button')).toHaveLength(2);
+      cleanup();
+    }
+  });
+
+  it('leads a Python run that writes outside the workspace with its reason', () => {
+    const reason = 'To save the chart image, it will write a file in the Reports folder.';
+    renderPanel(
+      'en',
+      runPythonBlocker({
+        cwd: '/Users/me/Documents/Reports',
+        code_size_bytes: 2048,
+        args_count: 0,
+        timeout_ms: 120000,
+        reason,
+        outside_workspace: OUTSIDE_WORKSPACE_SUMMARY.outside_workspace,
+      })
+    );
+
+    expect(screen.getByText(reason)).toBeTruthy();
+    expect(screen.queryByText('Run Python code.')).toBeNull();
+    expect(screen.getByText('Folders it will change')).toBeTruthy();
+    expect(screen.getByText('/Users/me/Documents/Reports', { selector: 'p' })).toBeTruthy();
+    expect(
+      screen.getByText('Generated Python code will run in the workspace.').closest('details')?.open
+    ).toBe(false);
+    expect(screen.queryByText(LOGIN_NOTICE.en)).toBeNull();
+  });
+
+  it('says a command without a reason runs with access to login information', () => {
+    for (const [language, operation] of [
+      ['ja', 'ログイン情報を使える状態でローカルコマンドを実行します。'],
+      ['en', 'Runs a local command with access to your login information.'],
+    ] as const) {
+      const { container } = renderPanel(
+        language,
+        bashBlocker({ ...LOGIN_ONLY_COMMAND_SUMMARY, reason: null })
+      );
+
+      expect(screen.getByText(operation)).toBeTruthy();
+      expect(screen.getByText('gh pr list').closest('details')).toBeNull();
+      expect(container.querySelector('details')).toBeNull();
       cleanup();
     }
   });
