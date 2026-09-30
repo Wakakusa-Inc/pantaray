@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime
 from pathlib import Path
 
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.storage.transactions import immediate_transaction
 
 from . import revision_inspection
@@ -88,7 +88,7 @@ def rollback_or_quarantine(
                 """,
                 (
                     valid_revision.revision_id,
-                    datetime.now(UTC).isoformat(),
+                    now_utc_iso(),
                     node.user_id,
                     node.node_id,
                     current_revision.revision_id,
@@ -104,7 +104,7 @@ def rollback_or_quarantine(
         complete_repair_job(
             connection=connection,
             job=job,
-            completed_at=datetime.now(UTC).isoformat(),
+            completed_at=now_utc_iso(),
         )
     if valid_revision is not None:
         emit_memory_catalog_event(

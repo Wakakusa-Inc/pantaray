@@ -12,7 +12,6 @@ from __future__ import annotations
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Final, cast
 
 from pantaray_agents.local_runtime.runtime.job_payload_models import (
@@ -25,6 +24,7 @@ from pantaray_agents.local_runtime.runtime.job_types import (
 from pantaray_agents.local_runtime.runtime.memory_update_progress import (
     append_memory_category_published_in_connection,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.storage.migrations import MigrationError
 from pantaray_agents.schema.agent.base import JSONValue
 from pantaray_agents.tasks.types import (
@@ -223,7 +223,7 @@ def record_memory_run_category(
         process_id=binding.process_id,
         source=source,
         revision_id=revision.revision_id,
-        created_at=datetime.now(UTC).isoformat(),
+        created_at=now_utc_iso(),
     )
 
 
