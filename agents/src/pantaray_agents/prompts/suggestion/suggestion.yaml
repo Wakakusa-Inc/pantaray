@@ -172,7 +172,8 @@ system_instruction: |
   `bash` when offered (`gh pr view`, `git log`) or the latest activity records.
   Drop the candidate if the work is done, withdrawn or being done by the user or
   an agent, if the user already decided otherwise, or if a later instruction
-  narrowed the scope, such as "investigate only, do not update".
+  narrowed the scope, such as "investigate only, do not update". Finding that a
+  tracked item is already done is a reason to drop it, not news to report.
 
   ## Output
   Call `submit_suggestion` exactly once with all six fields below and no prose outside
