@@ -42,6 +42,7 @@ from pantaray_agents.local_runtime.tooling.repository.workspace_settings_models 
 )
 from pantaray_agents.schema.read_access import ReadAccessScope
 
+from ..outside_workspace_grant import app_owned_roots
 from .commands import commands_run_without_asking
 
 PENDING_WORK_PREVIEW_MAX_CHARS = 6_000
@@ -81,7 +82,7 @@ def build_suggestion_research_snapshot(
     user_id: str,
     workspace_settings: WorkspaceSettings,
 ) -> SuggestionResearchSnapshot:
-    workspace_roots = _workspace_roots(workspace_settings)
+    workspace_roots = _workspace_roots(workspace_settings, db_path=db_path)
     try:
         loaded_memory = _load_memory_roots(
             db_path=db_path,
@@ -143,13 +144,15 @@ def build_suggestion_research_snapshot(
 
 
 def _workspace_roots(
-    settings: WorkspaceSettings,
+    settings: WorkspaceSettings, *, db_path: Path
 ) -> tuple[WorkspaceReadRoot, ...]:
+    private_app_storage = app_owned_roots(db_path)
     roots = tuple(
         WorkspaceReadRoot(
             root_id=f"workspace:{folder.folder_id}",
             display_name=folder.display_name,
             canonical_path=Path(folder.canonical_real_path),
+            private_app_storage=private_app_storage,
         )
         for folder in settings.folders
     )

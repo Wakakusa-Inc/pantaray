@@ -96,7 +96,8 @@ from .test_memory_artifact_publication import (
     _publication,
     _runtime,
 )
-from .test_workspace_settings_repository import TIMESTAMP, _bootstrap_db
+from .test_workspace_settings_repository import TIMESTAMP
+from .test_workspace_settings_repository import _bootstrap_db as _bootstrap_app_db
 
 BUSY_TIMEOUT_MS = 1_000
 QUERY_EMBEDDING = (1.0, *(0.0 for _ in range(511)))
@@ -144,6 +145,13 @@ def _search_result(
             "context_handle": item.item.context_handle,
         }
     ], epoch
+
+
+def _bootstrap_db(tmp_path: Path) -> Path:
+    # App storage lives apart from the folders a test registers as the user's own.
+    app_data = tmp_path / "app-data"
+    app_data.mkdir()
+    return _bootstrap_app_db(app_data)
 
 
 def _register_workspace(*, db_path: Path, root: Path) -> None:
@@ -242,6 +250,64 @@ def test_read_only_file_access_reads_only_registered_roots(
         )
 
 
+def test_read_only_file_access_hides_private_app_storage_in_a_parent_folder(
+    tmp_path: Path,
+) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    storage = db_path.parent
+    (storage / "notes.txt").write_text("needle secret\n", encoding="utf-8")
+    (tmp_path / "sibling.txt").write_text("needle sibling\n", encoding="utf-8")
+    _register_workspace(db_path=db_path, root=tmp_path)
+    snapshot = _snapshot(db_path=db_path)
+    reader = ReadOnlyFileAccess(roots=snapshot.roots)
+    root_id = snapshot.roots[-1].root_id
+
+    listed = reader.list(root_id=root_id, path=".", max_depth=3, offset=1, limit=50)
+    globbed = reader.glob(
+        root_id=root_id, base_path=".", pattern="**/*", offset=1, limit=50
+    )
+    grepped = reader.grep(
+        root_id=root_id,
+        base_path=".",
+        pattern="needle",
+        include_glob=None,
+        offset=1,
+        max_matches=50,
+    )
+
+    assert [entry["path"] for entry in listed["entries"]] == ["sibling.txt"]  # type: ignore[index]
+    assert globbed["matches"] == ["sibling.txt"]
+    assert [match["path"] for match in grepped["matches"]] == ["sibling.txt"]  # type: ignore[index]
+    alias = storage.with_name(storage.name.upper())
+    private_paths = [f"{storage.name}/notes.txt", f"{storage.name}/{db_path.name}"]
+    if alias.exists() and alias.samefile(storage):
+        private_paths.append(f"{alias.name}/notes.txt")
+    for path in private_paths:
+        with pytest.raises(BrokerPolicyError) as caught:
+            reader.read(root_id=root_id, path=path, offset=1, column=1, limit=10)
+        assert "private app storage" in str(caught.value), path
+        assert "memory_search" in str(caught.value), path
+        assert "memory_sql" not in str(caught.value), path
+    for search in (
+        lambda: reader.list(
+            root_id=root_id, path=storage.name, max_depth=1, offset=1, limit=10
+        ),
+        lambda: reader.glob(
+            root_id=root_id, base_path=storage.name, pattern="*", offset=1, limit=10
+        ),
+        lambda: reader.grep(
+            root_id=root_id,
+            base_path=storage.name,
+            pattern="needle",
+            include_glob=None,
+            offset=1,
+            max_matches=10,
+        ),
+    ):
+        with pytest.raises(BrokerPolicyError, match="private app storage"):
+            search()
+
+
 def test_workspace_read_remains_pinned_after_parent_replacement(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -272,7 +338,7 @@ def test_workspace_read_remains_pinned_after_parent_replacement(
 
     monkeypatch.setattr(descriptor_access.os, "open", racing_open)
     reader = ReadOnlyFileAccess(
-        roots=(WorkspaceReadRoot("workspace", "Workspace", root),)
+        roots=(WorkspaceReadRoot("workspace", "Workspace", root, ()),)
     )
 
     result = reader.read(
@@ -314,7 +380,7 @@ def test_workspace_list_remains_pinned_after_base_replacement(
 
     monkeypatch.setattr(descriptor_access.os, "scandir", racing_scandir)
     reader = ReadOnlyFileAccess(
-        roots=(WorkspaceReadRoot("workspace", "Workspace", root),)
+        roots=(WorkspaceReadRoot("workspace", "Workspace", root, ()),)
     )
 
     result = reader.list(
@@ -357,7 +423,7 @@ def test_workspace_glob_remains_pinned_after_base_replacement(
 
     monkeypatch.setattr(descriptor_access.os, "scandir", racing_scandir)
     reader = ReadOnlyFileAccess(
-        roots=(WorkspaceReadRoot("workspace", "Workspace", root),)
+        roots=(WorkspaceReadRoot("workspace", "Workspace", root, ()),)
     )
 
     result = reader.glob(
@@ -398,7 +464,7 @@ def test_workspace_grep_reads_scanned_file_after_base_replacement(
 
     monkeypatch.setattr(descriptor_access.os, "scandir", racing_scandir)
     reader = ReadOnlyFileAccess(
-        roots=(WorkspaceReadRoot("workspace", "Workspace", root),)
+        roots=(WorkspaceReadRoot("workspace", "Workspace", root, ()),)
     )
 
     result = reader.grep(
@@ -428,7 +494,7 @@ def test_workspace_grep_preserves_one_based_pagination(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     reader = ReadOnlyFileAccess(
-        roots=(WorkspaceReadRoot("workspace", "Workspace", root),)
+        roots=(WorkspaceReadRoot("workspace", "Workspace", root, ()),)
     )
 
     result = reader.grep(
@@ -454,7 +520,7 @@ def test_workspace_grep_preserves_bounded_multibyte_line_output(tmp_path: Path) 
     line = "needle" + "あ" * 600
     (root / "matches.txt").write_text(line + "\n", encoding="utf-8")
     reader = ReadOnlyFileAccess(
-        roots=(WorkspaceReadRoot("workspace", "Workspace", root),)
+        roots=(WorkspaceReadRoot("workspace", "Workspace", root, ()),)
     )
 
     result = reader.grep(

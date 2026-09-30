@@ -121,7 +121,13 @@ def scan_workspace_entries(
 
 
 def glob_workspace_files(
-    *, root_path: Path, base_path: str, pattern: str, limit: int, scan_limit: int
+    *,
+    root_path: Path,
+    base_path: str,
+    pattern: str,
+    limit: int,
+    scan_limit: int,
+    include_path: Callable[[Path], bool] | None = None,
 ) -> WorkspaceDescriptorScan:
     return scan_workspace_entries(
         root_path=root_path,
@@ -129,6 +135,7 @@ def glob_workspace_files(
         max_depth=None,
         limit=limit,
         scan_limit=scan_limit,
+        include_path=include_path,
         file_pattern=pattern,
         deadline=time.monotonic() + SEARCH_TIMEOUT_SECONDS,
     )
@@ -142,6 +149,7 @@ def grep_workspace_files(
     include_glob: str | None,
     max_matches: int,
     scan_limit: int,
+    include_path: Callable[[Path], bool] | None = None,
 ) -> WorkspaceGrepScan:
     deadline = time.monotonic() + SEARCH_TIMEOUT_SECONDS
     try:
@@ -166,9 +174,18 @@ def grep_workspace_files(
     try:
         for entry, descriptor in iterator:
             relative = entry.root_relative_path.removeprefix(prefix)
-            if entry.kind != "file" or (
-                include_glob is not None
-                and not matches_workspace_glob(relative, include_glob)
+            if (
+                entry.kind != "file"
+                or (
+                    include_glob is not None
+                    and not matches_workspace_glob(relative, include_glob)
+                )
+                or (
+                    include_path is not None
+                    and not include_path(
+                        root_path.joinpath(*entry.root_relative_path.split("/"))
+                    )
+                )
             ):
                 continue
             payload = _read_grep_descriptor(descriptor)
