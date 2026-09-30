@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
@@ -13,9 +14,13 @@ from tests.unit.local_runtime.ripgrep_backend_test_support import (
 from pantaray_agents.local_runtime.runtime.runtime_env import (
     read_local_runtime_artifact_root,
 )
+from pantaray_agents.local_runtime.tooling.brokering import broker_discovery_ripgrep
 from pantaray_agents.local_runtime.tooling.brokering.broker import (
     BrokerPolicyError,
     execute_broker_tool,
+)
+from pantaray_agents.local_runtime.tooling.brokering.broker_discovery_ripgrep import (
+    RIPGREP_TRUSTED_PATH,
 )
 from pantaray_agents.local_runtime.tooling.brokering.manifest_paths import (
     load_tool_results_root,
@@ -310,3 +315,105 @@ async def test_apply_patch_refuses_private_app_storage(tmp_path: Path) -> None:
     )
     assert written.status == "success"
     assert (workspace / "own.txt").read_text(encoding="utf-8") == "x\n"
+
+
+def _seed_registered_parent(tmp_path: Path) -> tuple[Path, object, Path, Path]:
+    """A registered folder that holds app storage next to the user's own files."""
+
+    db_path, context = bootstrap_path_policy_runtime_db(
+        tmp_path, allowed_tool_ids=_TOOL_IDS
+    )
+    _add_folder_root(db_path=db_path, manifest_id=context.manifest_id, folder=tmp_path)
+    public = tmp_path / "docs" / "public.txt"
+    public.parent.mkdir()
+    public.write_text("needle public\n", encoding="utf-8")
+    own = context.workspace_path / "work.txt"  # type: ignore[attr-defined]
+    own.write_text("needle work\n", encoding="utf-8")
+    return db_path, context, public, own
+
+
+def _paths(outcome: object, key: str) -> list[Path]:
+    items = outcome.output[key]  # type: ignore[attr-defined]
+    return [Path(str(item["path"])) for item in items]
+
+
+@pytest.mark.asyncio
+async def test_list_from_a_parent_does_not_walk_private_app_storage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pantaray_agents.local_runtime.tooling.brokering import broker_discovery
+
+    db_path, context, public, _own = _seed_registered_parent(tmp_path)
+    # Other Actions' folders sit beside this Action's, on the way to its roots.
+    actions = context.workspace_path.parent.parent  # type: ignore[attr-defined]
+    for index in range(100):
+        other = actions / f"other-{index}"
+        other.mkdir()
+        (other / "notes.txt").write_text("needle secret\n", encoding="utf-8")
+    # Enough for the user's files and the path down to the Action's own roots,
+    # not for anything in app storage.
+    monkeypatch.setattr(broker_discovery, "DISCOVERY_MAX_SCANNED_PATHS", 30)
+
+    outcome = await _run(
+        db_path=db_path,
+        context=context,
+        tool_id="list",
+        args={"path": str(tmp_path), "max_depth": 6, "limit": 50},
+    )
+
+    assert outcome.output["truncation_reason"] is None
+    paths = _paths(outcome, "entries")
+    assert public in paths
+    # max_depth 6 reaches the Action's workspace folder inside app storage.
+    assert context.workspace_path in paths  # type: ignore[attr-defined]
+    assert not any(path.name.startswith("other-") for path in paths)
+    assert db_path not in paths
+
+
+@pytest.mark.skipif(
+    shutil.which("rg", path=RIPGREP_TRUSTED_PATH) is None,
+    reason="ripgrep is not installed in a trusted location",
+)
+@pytest.mark.asyncio
+async def test_search_from_a_parent_does_not_read_private_app_storage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path, context, public, own = _seed_registered_parent(tmp_path)
+    results = context.tool_results_path  # type: ignore[attr-defined]
+    results.mkdir(parents=True, exist_ok=True)
+    result_file = results / "result.txt"
+    result_file.write_text("needle result\n", encoding="utf-8")
+    bulk = db_path.parent / "bulk"
+    bulk.mkdir()
+    # Past ripgrep's whole output budget (2 MiB) in matching lines alone.
+    for index in range(3):
+        (bulk / f"big-{index}.txt").write_text(
+            "needle secret\n" * 60_000, encoding="utf-8"
+        )
+
+    grep = await _run(
+        db_path=db_path,
+        context=context,
+        tool_id="grep",
+        args=_search_args("grep", str(tmp_path)),
+    )
+
+    assert grep.output["truncation_reason"] is None
+    assert sorted(_paths(grep, "matches")) == sorted([public, own, result_file])
+
+    # File names spend the output budget too; lower it so a few hundred do.
+    monkeypatch.setattr(broker_discovery_ripgrep, "RIPGREP_MAX_STDOUT_BYTES", 4_096)
+    for index in range(300):
+        (bulk / f"private-{index:04}.txt").write_text("", encoding="utf-8")
+
+    glob = await _run(
+        db_path=db_path,
+        context=context,
+        tool_id="glob",
+        args=_search_args("glob", str(tmp_path)),
+    )
+
+    assert glob.output["truncation_reason"] is None
+    assert sorted(_paths(glob, "matches")) == sorted([public, own, result_file])

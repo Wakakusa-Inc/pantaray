@@ -36,6 +36,7 @@ from .broker_protocol import (
 from .manifest_paths import (
     ResolvedManifestPath,
 )
+from .private_app_storage import private_app_storage
 from .tool_path_policy import (
     hidden_read_path_filter,
     resolve_read_tool_path,
@@ -117,6 +118,7 @@ def run_list_executor(
         limit=request.limit + 1,
         scan_limit=DISCOVERY_MAX_SCANNED_PATHS,
         include_path=lambda path: not is_hidden(path),
+        exclude_subtree=private_app_storage(context).prunes,
     )
     visible_paths = bounded.selected
     truncation_reason = bounded.truncation_reason
@@ -166,6 +168,7 @@ def run_glob_executor(
     )
     _reject_unsafe_glob_pattern(request.pattern, field_name="pattern")
     is_hidden = hidden_read_path_filter(context)
+    scope = private_app_storage(context).search_scope(base.path)
     backend_result = run_ripgrep_files(
         cwd=base.path,
         glob_pattern=request.pattern,
@@ -175,6 +178,8 @@ def run_glob_executor(
             context=context,
             base=base,
         ),
+        pruned_relative_paths=scope.pruned,
+        extra_search_paths=scope.own_roots,
         include_path=lambda path: not is_hidden(path),
     )
     selected = _resolve_ripgrep_relative_paths(
@@ -401,6 +406,7 @@ def run_grep_executor(
     if request.include_glob is not None:
         _reject_unsafe_glob_pattern(request.include_glob, field_name="include_glob")
     is_hidden = hidden_read_path_filter(context)
+    scope = private_app_storage(context).search_scope(base.path)
     backend_result = run_ripgrep_grep(
         cwd=base.path,
         pattern=request.pattern,
@@ -411,6 +417,8 @@ def run_grep_executor(
             context=context,
             base=base,
         ),
+        pruned_relative_paths=scope.pruned,
+        extra_search_paths=scope.own_roots,
         include_path=lambda path: not is_hidden(path),
     )
     matches: list[dict[str, JSONValue]] = []

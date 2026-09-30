@@ -35,7 +35,8 @@ def list_discovery_paths(
     max_depth: int | None,
     limit: int,
     scan_limit: int,
-    include_path: Callable[[Path], bool] | None = None,
+    include_path: Callable[[Path], bool],
+    exclude_subtree: Callable[[Path], bool],
 ) -> BoundedDiscoveryPaths:
     result = scan_workspace_entries(
         root_path=base.root.canonical_real_path,
@@ -44,6 +45,7 @@ def list_discovery_paths(
         limit=limit,
         scan_limit=scan_limit,
         include_path=include_path,
+        exclude_subtree=exclude_subtree,
     )
     return BoundedDiscoveryPaths(
         selected=[

@@ -107,6 +107,8 @@ def run_ripgrep_files(
     limit: int,
     follow_symlinks: bool = False,
     excluded_relative_path: str | None = None,
+    pruned_relative_paths: tuple[str, ...] = (),
+    extra_search_paths: tuple[str, ...] = (),
     include_path: Callable[[Path], bool] | None = None,
 ) -> RipgrepGlobResult:
     matches: list[str] = []
@@ -139,6 +141,10 @@ def run_ripgrep_files(
                 if excluded_relative_path
                 else ()
             ),
+            *_pruning_args(pruned_relative_paths),
+            "--",
+            ".",
+            *extra_search_paths,
         ),
         cwd=cwd,
         handle_line=handle_line,
@@ -163,6 +169,8 @@ def run_ripgrep_grep(
     max_matches: int,
     follow_symlinks: bool = False,
     excluded_relative_path: str | None = None,
+    pruned_relative_paths: tuple[str, ...] = (),
+    extra_search_paths: tuple[str, ...] = (),
     include_path: Callable[[Path], bool] | None = None,
 ) -> RipgrepGrepResult:
     matches: list[RipgrepGrepMatch] = []
@@ -218,7 +226,8 @@ def run_ripgrep_grep(
         argv.extend(("--glob", include_glob))
     if excluded_relative_path is not None:
         argv.extend(("--glob", _literal_exclusion_glob(excluded_relative_path)))
-    argv.extend(("--", pattern, "."))
+    argv.extend(_pruning_args(pruned_relative_paths))
+    argv.extend(("--", pattern, ".", *extra_search_paths))
     result = _run_ripgrep_lines(
         argv=tuple(argv),
         cwd=cwd,
@@ -248,22 +257,30 @@ def _is_excluded_relative_path(path: str, excluded: str | None) -> bool:
     )
 
 
+def _pruning_args(relative_paths: tuple[str, ...]) -> tuple[str, ...]:
+    # An excluded directory is not descended, so nothing under it is read or
+    # charged to the output budget; an explicit search path still is.
+    return tuple(
+        argument
+        for relative_path in relative_paths
+        for argument in ("--glob", _literal_exclusion_glob(relative_path))
+    )
+
+
 def _literal_exclusion_glob(relative_path: str) -> str:
-    path = PurePosixPath(relative_path)
-    parent = "" if path.parent == PurePosixPath(".") else f"{path.parent.as_posix()}/"
-    escaped_parent = "".join(
-        f"\\{character}" if character in r"\*?[]{}" else character
-        for character in parent
+    # Every component matches case-insensitively, like the APFS volume it names.
+    escaped = "/".join(
+        "".join(
+            f"[{character.lower()}{character.upper()}]"
+            if character.isascii() and character.isalpha()
+            else f"\\{character}"
+            if character in r"\*?[]{}"
+            else character
+            for character in component
+        )
+        for component in PurePosixPath(relative_path).parts
     )
-    casefolded_name = "".join(
-        f"[{character.lower()}{character.upper()}]"
-        if character.isascii() and character.isalpha()
-        else f"\\{character}"
-        if character in r"\*?[]{}"
-        else character
-        for character in path.name
-    )
-    return f"!/{escaped_parent}{casefolded_name}"
+    return f"!/{escaped}"
 
 
 def _resolve_ripgrep_executable() -> Path:

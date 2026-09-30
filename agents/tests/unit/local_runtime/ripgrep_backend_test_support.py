@@ -31,11 +31,18 @@ def _fake_files(
     limit: int,
     follow_symlinks: bool = False,
     excluded_relative_path: str | None = None,
+    pruned_relative_paths: tuple[str, ...] = (),
+    extra_search_paths: tuple[str, ...] = (),
     include_path: Callable[[Path], bool] | None = None,
 ) -> RipgrepGlobResult:
     matches: list[str] = []
     truncated = False
-    for relative_path in _iter_workspace_files(cwd, follow_symlinks=follow_symlinks):
+    for relative_path in _iter_workspace_files(
+        cwd,
+        follow_symlinks=follow_symlinks,
+        pruned_relative_paths=pruned_relative_paths,
+        extra_search_paths=extra_search_paths,
+    ):
         if _is_excluded_relative_path(relative_path, excluded_relative_path):
             continue
         if include_path is not None and not include_path(cwd / relative_path):
@@ -62,6 +69,8 @@ def _fake_grep(
     max_matches: int,
     follow_symlinks: bool = False,
     excluded_relative_path: str | None = None,
+    pruned_relative_paths: tuple[str, ...] = (),
+    extra_search_paths: tuple[str, ...] = (),
     include_path: Callable[[Path], bool] | None = None,
 ) -> RipgrepGrepResult:
     try:
@@ -75,7 +84,12 @@ def _fake_grep(
 
     matches: list[RipgrepGrepMatch] = []
     truncated = False
-    for relative_path in _iter_workspace_files(cwd, follow_symlinks=follow_symlinks):
+    for relative_path in _iter_workspace_files(
+        cwd,
+        follow_symlinks=follow_symlinks,
+        pruned_relative_paths=pruned_relative_paths,
+        extra_search_paths=extra_search_paths,
+    ):
         if _is_excluded_relative_path(relative_path, excluded_relative_path):
             continue
         if include_path is not None and not include_path(cwd / relative_path):
@@ -109,16 +123,31 @@ def _fake_grep(
 
 
 def _iter_workspace_files(
-    workspace_path: Path, *, follow_symlinks: bool = False
+    workspace_path: Path,
+    *,
+    follow_symlinks: bool = False,
+    pruned_relative_paths: tuple[str, ...] = (),
+    extra_search_paths: tuple[str, ...] = (),
 ) -> Iterator[str]:
-    for dirpath, dirnames, filenames in os.walk(
-        workspace_path,
-        followlinks=follow_symlinks,
-    ):
-        dirnames.sort()
-        for filename in sorted(filenames):
-            path = Path(dirpath) / filename
-            yield path.relative_to(workspace_path).as_posix()
+    # Like ripgrep: a pruned directory is not descended from ".", while an
+    # explicit search path is walked even when it lies under one.
+    pruned = {path.casefold() for path in pruned_relative_paths}
+    for start in (".", *extra_search_paths):
+        for dirpath, dirnames, filenames in os.walk(
+            workspace_path / start,
+            followlinks=follow_symlinks,
+        ):
+            relative_dir = Path(dirpath).relative_to(workspace_path)
+            if start == ".":
+                dirnames[:] = [
+                    name
+                    for name in dirnames
+                    if (relative_dir / name).as_posix().casefold() not in pruned
+                ]
+            dirnames.sort()
+            for filename in sorted(filenames):
+                path = Path(dirpath) / filename
+                yield path.relative_to(workspace_path).as_posix()
 
 
 def _matches_relative_glob(relative_path: str, pattern: str) -> bool:
