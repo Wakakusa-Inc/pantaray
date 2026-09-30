@@ -15,15 +15,12 @@ from .broker_tool_input_schema import (
     broker_tool_input_spec_from_model,
 )
 
-# When to ask for access beyond the workspace defaults. What each access field
-# takes is in that field's description, which the model reads with the schema.
+# When and how to ask for access beyond the workspace defaults is in the access
+# fields' descriptions, which the model reads with the schema.
 _ACCESS_REQUEST_GUIDE = (
-    "If a call important to the task fails because it cannot write outside the "
-    "workspace (for example 'Operation not permitted' or 'Read-only file system' "
-    "under the home folder), or you know it writes there (for example a CLI that "
-    "keeps its state in ~/.toolname), rerun the same call with "
-    "additional_write_folders. Do not ask the user in chat first, and do not work "
-    "around it with other tools or locations."
+    "When a call important to the task needs to write outside the workspace, "
+    "rerun the same call with additional_write_folders. Do not ask the user in "
+    "chat first, and do not work around it with other tools or locations."
 )
 
 # Shared with run_python, whose calls ask for outside write folders the same way.
@@ -32,7 +29,11 @@ WRITE_FOLDER_REQUEST_FIELD_PRESENTATION = (
         name="additional_write_folders",
         prompt_type="json",
         description=(
-            "Folders outside the workspace this call needs to write; omit otherwise. "
+            "Folders outside the workspace this call must write. Set it only after "
+            "a call failed because it could not write there (for example 'Operation "
+            "not permitted' or 'Read-only file system'), or when the command writes "
+            "there on every run (for example a CLI that stores its state under the "
+            "home folder, like codex exec); never just in case, and never for reads. "
             "Absolute paths, or paths starting with ~/ for the user's real home; only "
             "the folders needed, each the most specific existing folder. Pantaray's "
             "own storage and folders that contain it (/, the home folder, ~/Library) "
@@ -98,9 +99,7 @@ BASH_TOOL_FIELD_PRESENTATION = (
             "repository, cloud CLIs), or when a normal run failed with an "
             "authentication error.\n"
             "- Writes stay limited to workspace folders and approved folders; "
-            "keep clone and output paths there. A CLI that saves its state under "
-            "the real home (for example ~/.codex) also needs that folder in "
-            "additional_write_folders."
+            "keep clone and output paths there."
         ),
         llm_order=30,
     ),
