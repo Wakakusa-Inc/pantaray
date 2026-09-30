@@ -10,7 +10,6 @@ from pantaray_agents.agents.action_agent.agent_runtime_facade import (
     clone_runtime_tool_registry,
     coerce_action_token_budget,
     load_runtime_approval_session_by_request,
-    now_iso,
 )
 from pantaray_agents.agents.action_agent.runtime.graph import (
     ActionGraphRuntime,
@@ -59,6 +58,7 @@ from pantaray_agents.application.action.runtime_entrypoint import (
 from pantaray_agents.local_runtime.runtime.bootstrap import (
     read_local_runtime_db_config,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.tooling.models import StoredApprovalSession
 from pantaray_agents.repositories.runtime_ports import ActionRepositoryPort
 from pantaray_agents.schema.agent.action import (
@@ -113,7 +113,7 @@ class ActionAgent(
         self._initialize_runtime_support()
 
     def _now_iso(self) -> str:
-        return now_iso()
+        return now_utc_iso()
 
     @property
     def executing_prompt_name(self) -> str:
@@ -180,7 +180,7 @@ class ActionAgent(
             default_prompt_name=self.executing_prompt_name,
             default_prompt_version="1.0",
             logger=self._logger,
-            now_provider=now_iso,
+            now_provider=now_utc_iso,
         )
         self._response_service = ActionResponseService(
             ResponseDeps(persistence=self._persistence)
@@ -195,14 +195,14 @@ class ActionAgent(
                 logger=self._logger,
                 load_approval_session_by_request=self.load_approval_session_by_request,
                 build_agent_error=self._response_service.build_agent_error,
-                now_provider=now_iso,
+                now_provider=now_utc_iso,
             )
         )
         self._cancellation_service = ActionCancellationService(
             CancellationDeps(
                 repository=self.repository,
                 logger=self._logger,
-                now_provider=now_iso,
+                now_provider=now_utc_iso,
                 build_agent_error=self._response_service.build_agent_error,
             )
         )

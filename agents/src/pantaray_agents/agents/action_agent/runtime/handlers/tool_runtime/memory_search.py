@@ -33,6 +33,7 @@ from pantaray_agents.local_runtime.memory_catalog.search_service import (
     execute_memory_search,
 )
 from pantaray_agents.local_runtime.runtime.bootstrap import read_local_runtime_db_config
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.schema.agent.base import JSONValue
 from pantaray_agents.schema.repositories.repository import DBRow
 from pantaray_agents.utils.local_time import describe_utc_timestamp
@@ -42,7 +43,6 @@ from .shared import (
     MemorySearchPayload,
     ToolRuntimeContext,
     UnprojectedToolExecutionResult,
-    now_iso,
 )
 from .validation import validate_tool_args
 
@@ -117,8 +117,8 @@ async def run_memory_search_tool(
         step_id=step_id,
         tool_id=tool_def.tool_id,
         status="success",
-        started_at=now_iso(),
-        completed_at=now_iso(),
+        started_at=now_utc_iso(),
+        completed_at=now_utc_iso(),
         output=serialized_payload,
     )
 
