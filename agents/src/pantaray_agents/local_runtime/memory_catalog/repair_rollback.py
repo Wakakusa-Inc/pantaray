@@ -26,13 +26,22 @@ def rollback_or_quarantine(
     current_revision: MemoryRevision,
     job: RepairJob,
 ) -> bool:
+    # Walk the parent chain: created_at ties within one millisecond, so it
+    # cannot order a node's revisions.
     candidates = connection.execute(
         """
-        SELECT revision_id FROM memory_revisions
-        WHERE user_id = ? AND node_id = ? AND revision_id != ?
-        ORDER BY created_at DESC
+        WITH RECURSIVE ancestors(revision_id, depth) AS (
+            SELECT parent_revision_id, 1 FROM memory_revision_parents
+            WHERE user_id = :user_id AND child_revision_id = :revision_id
+            UNION ALL
+            SELECT parents.parent_revision_id, ancestors.depth + 1
+            FROM memory_revision_parents AS parents
+            JOIN ancestors ON parents.child_revision_id = ancestors.revision_id
+            WHERE parents.user_id = :user_id
+        )
+        SELECT revision_id FROM ancestors ORDER BY depth
         """,
-        (node.user_id, node.node_id, current_revision.revision_id),
+        {"user_id": node.user_id, "revision_id": current_revision.revision_id},
     ).fetchall()
     valid_revision: MemoryRevision | None = None
     for row in candidates:
