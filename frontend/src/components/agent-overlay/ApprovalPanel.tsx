@@ -39,6 +39,12 @@ const ApprovalFolderPath = styled.p`
   word-break: break-all;
 `;
 
+const ApprovalFolderList = styled.ul`
+  margin: 0;
+  padding: 0;
+  list-style: none;
+`;
+
 const ApprovalHint = styled.p`
   margin: 12px 0 0;
   font-family: var(--font-sans);
@@ -170,8 +176,17 @@ export function ApprovalPanel({
       <ApprovalOperationText>
         {t(display.operationKey, display.operationVars)}
       </ApprovalOperationText>
-      {display.outsideWorkspace ? (
-        <ApprovalFolderPath>{display.outsideWorkspace.folderPath}</ApprovalFolderPath>
+      {display.outsideWorkspace && display.outsideWorkspace.folders.length === 1 ? (
+        <ApprovalFolderPath>{display.outsideWorkspace.folders[0].path}</ApprovalFolderPath>
+      ) : null}
+      {display.outsideWorkspace && display.outsideWorkspace.folders.length > 1 ? (
+        <ApprovalFolderList>
+          {display.outsideWorkspace.folders.map((folder) => (
+            <ApprovalFolderPath as="li" key={folder.path}>
+              {folder.path}
+            </ApprovalFolderPath>
+          ))}
+        </ApprovalFolderList>
       ) : null}
       <ApprovalDetailGroup>
         {display.primaryValue ? (
@@ -212,7 +227,7 @@ export function ApprovalPanel({
       </ApprovalActionRow>
       {display.outsideWorkspace && onOpenWorkspaceSettings ? (
         <ApprovalHint>
-          {t('overlay.approvalRequired.outsideWorkspace.hint')}{' '}
+          {t(display.outsideWorkspace.hintKey)}{' '}
           <ApprovalHintLink type="button" onClick={onOpenWorkspaceSettings}>
             {t('overlay.approvalRequired.outsideWorkspace.openSettings')}
           </ApprovalHintLink>

@@ -26,7 +26,7 @@ from ..tool_result_validation import ToolOutputValidationError
 from .broker_command_validation import (
     build_validated_command_request,
     build_validated_python_request,
-    verify_command_cwd_unchanged,
+    verify_outside_workspace_folders_unchanged,
 )
 from .broker_common import (
     APPLY_PATCH_TOOL_ID,
@@ -478,7 +478,9 @@ async def execute_broker_tool(
                 request=validated,
             )
         else:
-            verify_command_cwd_unchanged(context=context, request=validated)
+            verify_outside_workspace_folders_unchanged(
+                context=context, request=validated
+            )
             outcome = await run_command_via_sandbox(
                 context=context,
                 request=validated,

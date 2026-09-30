@@ -20,7 +20,7 @@ def build_apply_patch_summary(
     }
     return _with_outside_workspace(
         summary,
-        outside_workspace_folder,
+        () if outside_workspace_folder is None else (outside_workspace_folder,),
         can_allow_for_conversation=outside_workspace_grantable,
     )
 
@@ -31,7 +31,7 @@ def build_bash_summary(
     cwd_relative_path: str,
     timeout_ms: int,
     use_login_environment: bool,
-    outside_workspace_folder: Path | None = None,
+    outside_workspace_folders: tuple[Path, ...] = (),
 ) -> dict[str, JSONValue]:
     summary: dict[str, JSONValue] = {
         "summary_kind": "bash",
@@ -40,9 +40,9 @@ def build_bash_summary(
         "timeout_ms": timeout_ms,
         "use_login_environment": use_login_environment,
     }
-    # An outside command cwd is approvable only when it could be granted.
+    # An outside command folder is approvable only when it could be granted.
     return _with_outside_workspace(
-        summary, outside_workspace_folder, can_allow_for_conversation=True
+        summary, outside_workspace_folders, can_allow_for_conversation=True
     )
 
 
@@ -52,7 +52,7 @@ def build_run_python_summary(
     code: str,
     args_count: int,
     timeout_ms: int,
-    outside_workspace_folder: Path | None = None,
+    outside_workspace_folders: tuple[Path, ...] = (),
 ) -> dict[str, JSONValue]:
     encoded_code = code.encode("utf-8")
     summary: dict[str, JSONValue] = {
@@ -63,24 +63,43 @@ def build_run_python_summary(
         "args_count": args_count,
         "timeout_ms": timeout_ms,
     }
-    # An outside command cwd is approvable only when it could be granted.
+    # An outside command folder is approvable only when it could be granted.
     return _with_outside_workspace(
-        summary, outside_workspace_folder, can_allow_for_conversation=True
+        summary, outside_workspace_folders, can_allow_for_conversation=True
     )
 
 
 def _with_outside_workspace(
     summary: dict[str, JSONValue],
-    folder: Path | None,
+    folders: tuple[Path, ...],
     *,
     can_allow_for_conversation: bool,
 ) -> dict[str, JSONValue]:
-    if folder is not None:
-        # The approval UI reads this exact shape to name the folder being opened
-        # and to offer "Allow for this conversation".
+    if folders:
+        # The approval UI reads this exact shape to name the folders being opened
+        # and to offer "Allow for this conversation", which grants every folder.
         summary["outside_workspace"] = {
-            "folder_path": str(folder),
-            "folder_display_name": folder.name or str(folder),
+            "folders": [
+                {"path": str(folder), "display_name": folder.name or str(folder)}
+                for folder in folders
+            ],
+            "reason": None,
             "can_allow_for_conversation": can_allow_for_conversation,
         }
     return summary
+
+
+def outside_workspace_folder_paths(summary: dict[str, JSONValue]) -> tuple[str, ...]:
+    """The folders outside the workspace that an approval summary opens."""
+
+    outside = summary.get("outside_workspace")
+    if not isinstance(outside, dict):
+        return ()
+    folders = outside.get("folders")
+    if not isinstance(folders, list):
+        return ()
+    return tuple(
+        path
+        for folder in folders
+        if isinstance(folder, dict) and isinstance(path := folder.get("path"), str)
+    )

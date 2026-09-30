@@ -35,6 +35,7 @@ from .broker_protocol import (
 from .command_approval_summaries import (
     build_bash_summary,
     build_run_python_summary,
+    outside_workspace_folder_paths,
 )
 from .command_runtime import build_command_env
 from .outside_workspace import OutsideWorkspaceCwd
@@ -53,9 +54,9 @@ class _CommandCwd:
     path: Path
     # PATH lookups for project tools (.venv/bin, node_modules/.bin) stay under it.
     execution_root: Path
-    # Set when the cwd is a folder outside the workspace; running there needs
-    # the user's approval of this exact tool call.
-    outside_workspace_folder: Path | None
+    # Folders outside the workspace the command may write, today only an outside
+    # cwd; running with any needs the user's approval of this exact tool call.
+    outside_workspace_folders: tuple[Path, ...]
 
 
 def _resolve_command_cwd(*, context: BrokerContext, raw_cwd: str | None) -> _CommandCwd:
@@ -64,12 +65,12 @@ def _resolve_command_cwd(*, context: BrokerContext, raw_cwd: str | None) -> _Com
         return _CommandCwd(
             path=resolved.path,
             execution_root=resolved.path,
-            outside_workspace_folder=resolved.path,
+            outside_workspace_folders=(resolved.path,),
         )
     return _CommandCwd(
         path=resolved.path,
         execution_root=resolved.process_scope_root,
-        outside_workspace_folder=None,
+        outside_workspace_folders=(),
     )
 
 
@@ -86,7 +87,7 @@ def _resolve_command_sandbox_roots(
     *,
     context: BrokerContext,
     action_temp_dir: Path,
-    outside_workspace_folder: Path | None,
+    outside_workspace_folders: tuple[Path, ...],
 ) -> ExecSandboxRoots:
     try:
         linked_plan = action_plan_has_external_hardlinks(
@@ -110,37 +111,37 @@ def _resolve_command_sandbox_roots(
         context=context,
         candidate_roots=candidates.write_roots,
     )
-    if outside_workspace_folder is None:
+    if not outside_workspace_folders:
         return ExecSandboxRoots(
             read_roots=candidates.read_roots, write_roots=write_roots
         )
     # Denied outright rather than dropped from the roots, so an approved
-    # command never runs without the folder it was approved for.
+    # command never runs without the folders it was approved for.
     authorize_direct_workspace_writes(
-        context=context, resolved_paths=(outside_workspace_folder,)
+        context=context, resolved_paths=outside_workspace_folders
     )
     return ExecSandboxRoots(
-        read_roots=(*candidates.read_roots, outside_workspace_folder),
-        write_roots=(*write_roots, outside_workspace_folder),
+        read_roots=(*candidates.read_roots, *outside_workspace_folders),
+        write_roots=(*write_roots, *outside_workspace_folders),
     )
 
 
-def verify_command_cwd_unchanged(
+def verify_outside_workspace_folders_unchanged(
     *, context: BrokerContext, request: ValidatedCommandRequest
 ) -> None:
-    """Re-resolve an approved outside-workspace cwd right before launch."""
+    """Re-resolve every approved outside-workspace folder right before launch."""
 
-    if "outside_workspace" not in request.command_summary_json:
-        return
-    resolved = resolve_exec_tool_cwd(context=context, raw_cwd=request.cwd)
-    # The approved summary names request.cwd as the folder being opened.
-    if not (
-        isinstance(resolved, OutsideWorkspaceCwd) and resolved.path == Path(request.cwd)
-    ):
-        raise BrokerPolicyError(
-            "command cwd changed after approval",
-            code=EXEC_CWD_RETARGETED,
-        )
+    for folder in outside_workspace_folder_paths(request.command_summary_json):
+        # Each folder must still be the same outside folder it was approved as,
+        # by the rule that admitted it: the one for an outside command cwd.
+        resolved = resolve_exec_tool_cwd(context=context, raw_cwd=folder)
+        if not (
+            isinstance(resolved, OutsideWorkspaceCwd) and resolved.path == Path(folder)
+        ):
+            raise BrokerPolicyError(
+                "command folder changed after approval",
+                code=EXEC_CWD_RETARGETED,
+            )
 
 
 def build_validated_command_request(
@@ -193,14 +194,14 @@ def build_validated_command_request(
     sandbox_roots = _resolve_command_sandbox_roots(
         context=context,
         action_temp_dir=resolved_action_temp_dir,
-        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+        outside_workspace_folders=resolved_cwd.outside_workspace_folders,
     )
     command_summary_json = build_bash_summary(
         command=command,
         cwd_relative_path=str(command_cwd),
         timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
         use_login_environment=use_login_environment,
-        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+        outside_workspace_folders=resolved_cwd.outside_workspace_folders,
     )
     approval_session_id, approval_source = ensure_tool_authorization(
         context=context,
@@ -208,7 +209,7 @@ def build_validated_command_request(
         tool_request_id=tool_request_id,
         command_summary=command_summary_json,
         requested_at=requested_at,
-        require_user_prompt=resolved_cwd.outside_workspace_folder is not None,
+        require_user_prompt=bool(resolved_cwd.outside_workspace_folders),
     )
     storage = resolve_action_storage_paths(
         db_path=context.db_path,
@@ -287,14 +288,14 @@ def build_validated_python_request(
     sandbox_roots = _resolve_command_sandbox_roots(
         context=context,
         action_temp_dir=resolved_action_temp_dir,
-        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+        outside_workspace_folders=resolved_cwd.outside_workspace_folders,
     )
     command_summary_json = build_run_python_summary(
         cwd_relative_path=str(command_cwd),
         code=args.code,
         args_count=len(args.args),
         timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
-        outside_workspace_folder=resolved_cwd.outside_workspace_folder,
+        outside_workspace_folders=resolved_cwd.outside_workspace_folders,
     )
     approval_session_id, approval_source = ensure_tool_authorization(
         context=context,
@@ -302,7 +303,7 @@ def build_validated_python_request(
         tool_request_id=tool_request_id,
         command_summary=command_summary_json,
         requested_at=requested_at,
-        require_user_prompt=resolved_cwd.outside_workspace_folder is not None,
+        require_user_prompt=bool(resolved_cwd.outside_workspace_folders),
     )
     storage = resolve_action_storage_paths(
         db_path=context.db_path,
@@ -359,5 +360,5 @@ __all__ = [
     "EXEC_CWD_RETARGETED",
     "build_validated_command_request",
     "build_validated_python_request",
-    "verify_command_cwd_unchanged",
+    "verify_outside_workspace_folders_unchanged",
 ]

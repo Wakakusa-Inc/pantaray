@@ -102,6 +102,8 @@ export const OVERLAY_MESSAGES = defineMessages({
       'Allow for this conversation',
     'overlay.approvalRequired.outsideWorkspace.hint':
       'Add this folder to your workspace folders and this check won’t appear next time.',
+    'overlay.approvalRequired.outsideWorkspace.hintMultipleFolders':
+      'Add these folders to your workspace folders and this check won’t appear next time.',
     'overlay.approvalRequired.outsideWorkspace.openSettings': 'Open workspace folder settings',
     'overlay.approvalRequired.submitFailed':
       'Failed to submit approval decision. Refresh and try again.',
@@ -208,6 +210,8 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.outsideWorkspace.approveForConversation': 'この会話では許可',
     'overlay.approvalRequired.outsideWorkspace.hint':
       'このフォルダを作業フォルダに登録すると、次からはこの確認は出なくなります。',
+    'overlay.approvalRequired.outsideWorkspace.hintMultipleFolders':
+      'これらのフォルダを作業フォルダに登録すると、次からはこの確認は出なくなります。',
     'overlay.approvalRequired.outsideWorkspace.openSettings': '作業フォルダの設定を開く',
     'overlay.approvalRequired.submitFailed':
       '承認操作に失敗しました。最新の状態に更新してからもう一度お試しください。',

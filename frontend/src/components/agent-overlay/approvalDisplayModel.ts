@@ -9,10 +9,16 @@ export type ApprovalDetail = {
 
 export type ApprovalDecision = 'approved_once' | 'approved_for_conversation' | 'denied';
 
+export type ApprovalOutsideFolder = {
+  path: string;
+  displayName: string;
+};
+
 export type ApprovalOutsideWorkspace = {
-  folderPath: string;
-  folderDisplayName: string;
+  // Never empty: an approval without folders is not an outside-workspace one.
+  folders: ApprovalOutsideFolder[];
   canAllowForConversation: boolean;
+  hintKey: MessageKey;
 };
 
 export type ApprovalDisplay = {
@@ -59,19 +65,33 @@ function buildGenericPrimaryValue(summary: Record<string, unknown>): string {
     .join('\n');
 }
 
+function readOutsideFolder(value: unknown): ApprovalOutsideFolder | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const path = readStringValue(record, 'path');
+  const displayName = readStringValue(record, 'display_name');
+  return path && displayName ? { path, displayName } : null;
+}
+
 // Any tool that would act outside the registered workspace carries this key, so
 // the panel keys on it rather than on the tool.
 function readOutsideWorkspace(summary: Record<string, unknown>): ApprovalOutsideWorkspace | null {
   const value = summary.outside_workspace;
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  const folderPath = readStringValue(record, 'folder_path');
-  const folderDisplayName = readStringValue(record, 'folder_display_name');
-  return folderPath && folderDisplayName
+  const folders = Array.isArray(record.folders)
+    ? record.folders
+        .map(readOutsideFolder)
+        .filter((folder): folder is ApprovalOutsideFolder => folder !== null)
+    : [];
+  return folders.length > 0
     ? {
-        folderPath,
-        folderDisplayName,
+        folders,
         canAllowForConversation: record.can_allow_for_conversation === true,
+        hintKey:
+          folders.length === 1
+            ? 'overlay.approvalRequired.outsideWorkspace.hint'
+            : 'overlay.approvalRequired.outsideWorkspace.hintMultipleFolders',
       }
     : null;
 }
@@ -92,10 +112,18 @@ export function buildApprovalDisplay(
       },
     };
   }
+  // The question names a single folder; with several, the folder list names them
+  // under the tool's own description.
+  const question: Pick<ApprovalDisplay, 'operationKey' | 'operationVars'> =
+    outsideWorkspace.folders.length === 1
+      ? {
+          operationKey: 'overlay.approvalRequired.outsideWorkspace.operation',
+          operationVars: { folder: outsideWorkspace.folders[0].displayName },
+        }
+      : { operationKey: toolDisplay.operationKey };
   return {
     ...toolDisplay,
-    operationKey: 'overlay.approvalRequired.outsideWorkspace.operation',
-    operationVars: { folder: outsideWorkspace.folderDisplayName },
+    ...question,
     outsideWorkspace,
     decisionLabelKeys: {
       approved_once: 'overlay.approvalRequired.outsideWorkspace.approveOnce',

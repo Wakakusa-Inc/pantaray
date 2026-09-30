@@ -20,11 +20,37 @@ function applyPatchBlocker(
   };
 }
 
+function bashBlocker(
+  commandSummary: ActionApprovalBlocker['commandSummary']
+): ActionApprovalBlocker {
+  return {
+    ...applyPatchBlocker({}),
+    toolId: 'bash',
+    intentClass: 'process_exec_local',
+    commandSummary: { summary_kind: 'bash', ...commandSummary },
+  };
+}
+
 const OUTSIDE_WORKSPACE_SUMMARY = {
   target_paths: ['/Users/me/Documents/Reports/q3.md'],
   outside_workspace: {
-    folder_path: '/Users/me/Documents/Reports',
-    folder_display_name: 'Reports',
+    folders: [{ path: '/Users/me/Documents/Reports', display_name: 'Reports' }],
+    reason: null,
+    can_allow_for_conversation: true,
+  },
+};
+
+const TWO_FOLDER_COMMAND_SUMMARY = {
+  command: 'touch made.txt',
+  cwd: '/Users/me/Documents/Reports',
+  timeout_ms: 60000,
+  use_login_environment: false,
+  outside_workspace: {
+    folders: [
+      { path: '/Users/me/Documents/Reports', display_name: 'Reports' },
+      { path: '/Users/me/.cache/tool', display_name: 'tool' },
+    ],
+    reason: null,
     can_allow_for_conversation: true,
   },
 };
@@ -120,6 +146,59 @@ describe('ApprovalPanel', () => {
 
     expect(screen.getByRole('button', { name: '今回だけ許可' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'この会話では許可' })).toBeNull();
+  });
+
+  it('asks about the folder of a command run outside the workspace', () => {
+    renderPanel(
+      'ja',
+      bashBlocker({
+        ...TWO_FOLDER_COMMAND_SUMMARY,
+        outside_workspace: {
+          ...TWO_FOLDER_COMMAND_SUMMARY.outside_workspace,
+          folders: TWO_FOLDER_COMMAND_SUMMARY.outside_workspace.folders.slice(0, 1),
+        },
+      })
+    );
+
+    expect(
+      screen.getByText('『Reports』フォルダのファイルを変更しようとしています。許可しますか？')
+    ).toBeTruthy();
+    expect(screen.getByText('touch made.txt')).toBeTruthy();
+    expect(screen.queryByRole('list')).toBeNull();
+    expect(screen.getByRole('button', { name: 'この会話では許可' })).toBeTruthy();
+  });
+
+  it('lists every folder of an approval that opens several', () => {
+    renderPanel('ja', bashBlocker(TWO_FOLDER_COMMAND_SUMMARY));
+
+    expect(screen.getByText('ローカルコマンドを実行します。')).toBeTruthy();
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '/Users/me/Documents/Reports',
+      '/Users/me/.cache/tool',
+    ]);
+    expect(
+      screen.getByText(
+        'これらのフォルダを作業フォルダに登録すると、次からはこの確認は出なくなります。',
+        { exact: false }
+      )
+    ).toBeTruthy();
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
+      '許可しない',
+      '今回だけ許可',
+      'この会話では許可',
+      '作業フォルダの設定を開く',
+    ]);
+  });
+
+  it('names several folders in English too', () => {
+    renderPanel('en', bashBlocker(TWO_FOLDER_COMMAND_SUMMARY));
+
+    expect(
+      screen.getByText(
+        'Add these folders to your workspace folders and this check won’t appear next time.',
+        { exact: false }
+      )
+    ).toBeTruthy();
   });
 
   it('keeps the existing wording for an approval inside the workspace', () => {
