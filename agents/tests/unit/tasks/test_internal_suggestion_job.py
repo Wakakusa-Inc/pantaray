@@ -1230,7 +1230,13 @@ async def test_a_model_request_started_after_revocation_is_refused(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "switched", ["owner_after_the_answer", "owner_during_the_run", "permit_revoked"]
+    "switched",
+    [
+        "owner_after_the_answer",
+        "owner_during_the_run",
+        "permit_revoked",
+        "permit_revoked_during_the_run",
+    ],
 )
 async def test_a_run_that_lost_its_access_is_discarded_not_requeued(
     tmp_path: Path,
@@ -1300,7 +1306,7 @@ async def test_a_run_that_lost_its_access_is_discarded_not_requeued(
         )
     )
     job = "pantaray_agents.tasks.internal_jobs.suggestion"
-    if switched == "permit_revoked":
+    if switched in ("permit_revoked", "permit_revoked_during_the_run"):
         # The run reads activity under a permit; the same account signs in again.
         monkeypatch.setattr(f"{job}.context_source_control", SimpleNamespace(gate=gate))
         monkeypatch.setattr(
@@ -1335,6 +1341,11 @@ async def test_a_run_that_lost_its_access_is_discarded_not_requeued(
             _sign_in("user-2", "2")
             # The next model call is where a run without an activity permit notices.
             await require_current_route_identity()
+        if switched == "permit_revoked_during_the_run":
+            # Same owner: only the permit and the route change mid-run.
+            gate.revoke("user-1")
+            _sign_in("user-1", "2")
+            await require_current_route_identity()
         return SuggestionAgentResponse(
             suggestion_id="suggestion-1",
             user_id="user-1",
@@ -1366,7 +1377,7 @@ async def test_a_run_that_lost_its_access_is_discarded_not_requeued(
             busy_timeout_ms=1_000,
             requeue_on_change=True,
         ):
-            if switched == "owner_during_the_run":
+            if switched.endswith("_during_the_run"):
                 with pytest.raises(DeferredLocalJob):
                     await _run_suggestion_job(payload)
             else:
@@ -1386,6 +1397,6 @@ async def test_a_run_that_lost_its_access_is_discarded_not_requeued(
             "SELECT status FROM jobs WHERE job_id = 'job-1'"
         ).fetchone()
     assert (suggestion, steps) == (("canceled", None), 0)
-    if switched != "owner_during_the_run":
+    if not switched.endswith("_during_the_run"):
         # Decided before the route check, so the job is not put back in the queue.
         assert job_status == "running"

@@ -337,11 +337,15 @@ async def _run_suggestion_job(payload: SuggestionJobRuntimePayload) -> None:
         )
     except DeferredLocalJob:
         # A model call saw the route change and put the job back in the queue.
-        # After an account switch the previous owner's job is never claimed
-        # again, so what this run recorded is discarded here.
-        if job_owner_changed():
+        # A requeue restores neither a switched owner nor a revoked permit, so
+        # what this run recorded is discarded here, as after the answer below.
+        if _run_access_revoked(
+            user_id=payload["user_id"], activity_start=activity_start
+        ):
             await _discard_suggestion(
-                repository=repository, payload=payload, reason="the owner changed"
+                repository=repository,
+                payload=payload,
+                reason="access was lost during the run",
             )
         raise
     except Exception as exc:
