@@ -21,7 +21,6 @@ from .broker_tool_input_schema import (
 RUN_PYTHON_TOOL_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="code",
-        prompt_type="string",
         description=(
             "Generated Python source code to run for temporary computation "
             "or structured processing.\n"
@@ -31,21 +30,17 @@ RUN_PYTHON_TOOL_FIELD_PRESENTATION = (
             "- Do not use it for direct known-content edits that should be "
             "represented as apply_patch."
         ),
-        llm_order=10,
     ),
     BrokerToolFieldPresentation(
         name="args",
-        prompt_type="json",
         description=(
             "Optional argv values passed to the generated script.\n"
             "- Each value must be a string.\n"
             "- Keep data small enough to fit in the tool request."
         ),
-        llm_order=20,
     ),
     BrokerToolFieldPresentation(
         name="cwd",
-        prompt_type="string",
         description=(
             "Optional workspace cwd.\n"
             "- Use the current workspace marker, an absolute local workspace "
@@ -57,7 +52,6 @@ RUN_PYTHON_TOOL_FIELD_PRESENTATION = (
             "- File paths used by the script should be inside registered "
             "workspaces or approved folders."
         ),
-        llm_order=30,
     ),
     *WRITE_FOLDER_REQUEST_FIELD_PRESENTATION,
 )

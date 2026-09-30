@@ -46,7 +46,7 @@ from pantaray_agents.schema.repositories.repository import DBRow, RepositoryResu
 from pantaray_agents.utils.prompt_loader import PromptConfig
 from pantaray_llm.contracts.tool_use import LlmToolDefinition
 
-_FORMATTER = ActionAgentFormatter(tool_registry={})
+_FORMATTER = ActionAgentFormatter()
 _PROMPT_TEMPLATE = "{action_history}"
 
 

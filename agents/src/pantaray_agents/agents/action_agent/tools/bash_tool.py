@@ -27,7 +27,6 @@ _ACCESS_REQUEST_GUIDE = (
 WRITE_FOLDER_REQUEST_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="additional_write_folders",
-        prompt_type="json",
         description=(
             "Folders outside the workspace this call must write. Set it only after "
             "a call failed because it could not write there (for example 'Operation "
@@ -40,11 +39,9 @@ WRITE_FOLDER_REQUEST_FIELD_PRESENTATION = (
             "cannot be requested. The call waits for the user's approval and, once "
             "approved, can write only there besides the workspace."
         ),
-        llm_order=40,
     ),
     BrokerToolFieldPresentation(
         name="justification",
-        prompt_type="string",
         description=(
             "Give justification whenever you set use_login_environment or "
             "additional_write_folders, and only then. It is shown to the user, as "
@@ -57,24 +54,20 @@ WRITE_FOLDER_REQUEST_FIELD_PRESENTATION = (
             "With additional_write_folders, say what allowing the change lets you "
             "do. Do not include command names, paths, or file names."
         ),
-        llm_order=50,
     ),
 )
 
 BASH_TOOL_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="command",
-        prompt_type="string",
         description=(
             "Non-interactive shell command or script. "
             "Pipes, redirections, heredocs, environment assignments, "
             "and multiple commands are supported."
         ),
-        llm_order=10,
     ),
     BrokerToolFieldPresentation(
         name="cwd",
-        prompt_type="string",
         description=(
             "Set cwd to a workspace path.\n"
             "- Use the current workspace marker, an absolute local path "
@@ -85,11 +78,9 @@ BASH_TOOL_FIELD_PRESENTATION = (
             "that location.\n"
             "- Command path arguments are relative to cwd."
         ),
-        llm_order=20,
     ),
     BrokerToolFieldPresentation(
         name="use_login_environment",
-        prompt_type="boolean",
         description=(
             "Default false. Set true to run with the user's login environment "
             "(real HOME, Keychain, ssh-agent) so CLIs the user signed in to in "
@@ -101,7 +92,6 @@ BASH_TOOL_FIELD_PRESENTATION = (
             "- Writes stay limited to workspace folders and approved folders; "
             "keep clone and output paths there."
         ),
-        llm_order=30,
     ),
     *WRITE_FOLDER_REQUEST_FIELD_PRESENTATION,
 )

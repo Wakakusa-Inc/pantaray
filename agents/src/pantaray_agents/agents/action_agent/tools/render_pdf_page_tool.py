@@ -28,23 +28,19 @@ RENDER_PDF_PAGE_TIMEOUT_MS = 30_000
 RENDER_PDF_PAGE_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="path",
-        prompt_type="string",
         description=(
             "Local path of a PDF, Word (.docx), PowerPoint (.pptx) or Excel "
             "(.xlsx) file, the same path read takes. Allowed paths follow "
             "Read/search access in Workspace Path Rules."
         ),
-        llm_order=10,
     ),
     BrokerToolFieldPresentation(
         name="pages",
-        prompt_type="array",
         description=(
             "1-based page numbers to look at, listed one by one: pages 1 to 5 "
             f"is [1, 2, 3, 4, 5]. At most {MAX_RENDERED_PAGES} per call, with "
             "no repeats. A slide or a sheet number is its page number."
         ),
-        llm_order=20,
     ),
 )
 

@@ -42,7 +42,7 @@ from pantaray_llm.contracts.input_block import LlmInputImageBlock, LlmInputTextB
 
 _NOW = "Current time: 2026-09-19T00:00:00Z"
 _RENDERING = PromptRenderingService(
-    PromptRenderingDeps(formatter=ActionAgentFormatter(tool_registry={}))
+    PromptRenderingDeps(formatter=ActionAgentFormatter())
 )
 _IMAGE = b"screenshot-bytes"
 _IMAGE_SHA256 = hashlib.sha256(_IMAGE).hexdigest()

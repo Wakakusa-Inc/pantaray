@@ -96,7 +96,6 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                     name="sql",
                     schema={"type": "string", "minLength": 1},
                     required=True,
-                    prompt_type="string",
                     description=(
                         "Single read-only SELECT statement.\n"
                         "- WITH ... SELECT is allowed.\n"
@@ -104,7 +103,6 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                         "- Do not include multiple statements, PRAGMA, writes, DDL, "
                         "ATTACH, or manual account-scope authorization filters."
                     ),
-                    llm_order=10,
                 ),
                 field_spec(
                     name="limit",
@@ -113,13 +111,11 @@ MEMORY_SQL_TOOL = ToolDefinition.from_spec(
                         "minimum": 1,
                         "maximum": MAX_MEMORY_SQL_LIMIT,
                     },
-                    prompt_type="integer",
                     description=(
                         "Optional max rows to return.\n"
                         f"- Default: {DEFAULT_MEMORY_SQL_LIMIT}.\n"
                         f"- Maximum: {MAX_MEMORY_SQL_LIMIT}."
                     ),
-                    llm_order=20,
                 ),
             )
         ),

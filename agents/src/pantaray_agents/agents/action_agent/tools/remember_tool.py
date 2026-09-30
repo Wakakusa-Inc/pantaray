@@ -56,12 +56,10 @@ REMEMBER_TOOL = ToolDefinition.from_spec(
                         "maxLength": _NOTE_MAX_LENGTH,
                     },
                     required=True,
-                    prompt_type="string",
                     description=(
                         "The user's request in their own words, with the context "
                         "needed to understand it later."
                     ),
-                    llm_order=10,
                 ),
             )
         ),

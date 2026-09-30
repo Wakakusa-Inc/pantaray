@@ -800,7 +800,7 @@ async def test_assistant_utterance_precedes_reply_and_survives_checkpoint(
     state = _state_with_execution_context(context)
     state["suggestion_id"] = None
     updated = await initialize_context(agent, state, _runtime(agent, request=request))  # type: ignore[arg-type]
-    formatter = ActionAgentFormatter(tool_registry={})
+    formatter = ActionAgentFormatter()
     first = formatter.format_history(updated, omit_before_step_number=10)
     assert first.index("- Assistant Message (phase: commentary):") < first.index(
         "- User Request:"

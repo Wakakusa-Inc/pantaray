@@ -69,75 +69,55 @@ DISCOVERY_WARNING_SCHEMA = cast(
 LIST_TOOL_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="path",
-        prompt_type="string",
         description=DISCOVERY_LOCAL_PATH_DESCRIPTION,
-        llm_order=10,
     ),
     BrokerToolFieldPresentation(
         name="max_depth",
-        prompt_type="integer",
         description=(
             f"Maximum directory depth to include from path, 0-{LIST_MAX_DEPTH}. "
             "Prefer 1 for an Explorer/Finder-like directory view."
         ),
-        llm_order=20,
     ),
     BrokerToolFieldPresentation(
         name="limit",
-        prompt_type="integer",
         description=(
             f"Maximum number of entries to return, 1-{DISCOVERY_RESULT_LIMIT_MAX}. "
             "This is a hard cap, not a page size; list has no offset."
         ),
-        llm_order=30,
     ),
 )
 
 GLOB_TOOL_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="base_path",
-        prompt_type="string",
         description=DISCOVERY_LOCAL_PATH_DESCRIPTION,
-        llm_order=10,
     ),
     BrokerToolFieldPresentation(
         name="pattern",
-        prompt_type="string",
         description="Glob pattern relative to base_path, for example `**/*.py`.",
-        llm_order=20,
     ),
     BrokerToolFieldPresentation(
         name="limit",
-        prompt_type="integer",
         description="Maximum number of matches to return.",
-        llm_order=30,
     ),
 )
 
 GREP_TOOL_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="base_path",
-        prompt_type="string",
         description=DISCOVERY_LOCAL_PATH_DESCRIPTION,
-        llm_order=10,
     ),
     BrokerToolFieldPresentation(
         name="pattern",
-        prompt_type="string",
         description="Regular expression to search for.",
-        llm_order=20,
     ),
     BrokerToolFieldPresentation(
         name="include_glob",
-        prompt_type="string",
         description="Optional glob relative to base_path, for example `**/*.py`.",
-        llm_order=30,
     ),
     BrokerToolFieldPresentation(
         name="max_matches",
-        prompt_type="integer",
         description="Maximum number of matching lines to return.",
-        llm_order=40,
     ),
 )
 

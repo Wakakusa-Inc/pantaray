@@ -18,46 +18,37 @@ from .broker_tool_input_schema import (
 READ_TOOL_FIELD_PRESENTATION = (
     BrokerToolFieldPresentation(
         name="path",
-        prompt_type="string",
         description=(
             "Local path such as `.`, `README.md`, `src/app.py`, or an "
             "absolute path. Allowed paths follow Read/search access in "
             "Workspace Path Rules."
         ),
-        llm_order=10,
     ),
     BrokerToolFieldPresentation(
         name="offset",
-        prompt_type="integer",
         description=(
             "Optional 1-based starting line or directory entry index. "
             "Omit or use 1 for the first page. Use next_offset from a "
             "prior read result when continuing."
         ),
-        llm_order=20,
     ),
     BrokerToolFieldPresentation(
         name="column",
-        prompt_type="integer",
         description=(
             "Optional 1-based starting column for a text file. Omit or use 1 "
             "for a new line; when next_column is not null, continue with both "
             "next_offset and next_column."
         ),
-        llm_order=30,
     ),
     BrokerToolFieldPresentation(
         name="limit",
-        prompt_type="integer",
         description=(
             "Optional count of lines or directory entries to return "
             "starting at offset. Defaults to 2000."
         ),
-        llm_order=40,
     ),
     BrokerToolFieldPresentation(
         name="start_unit",
-        prompt_type="integer",
         description=(
             "Documents only: the 1-based unit the extracted text starts at "
             "(a page, sheet, slide, cell or paragraph, as unit_kind says), so "
@@ -65,7 +56,6 @@ READ_TOOL_FIELD_PRESENTATION = (
             "the first unit, and continue with next_start_unit. Keep the same "
             "start_unit while paging that text with offset."
         ),
-        llm_order=50,
     ),
 )
 

@@ -51,9 +51,7 @@ WEB_SEARCH_TOOL = ToolDefinition.from_spec(
                         "pattern": r"\S",
                     },
                     required=True,
-                    prompt_type="string",
                     description="Focused Tavily search query to execute.",
-                    llm_order=10,
                 ),
                 field_spec(
                     name="topic",
@@ -62,13 +60,11 @@ WEB_SEARCH_TOOL = ToolDefinition.from_spec(
                         "enum": list(WEB_SEARCH_TOPICS),
                     },
                     required=False,
-                    prompt_type="string",
                     description=(
                         "Optional Tavily search topic. Use general for broad web "
                         "search, news for recent reporting, or finance for market "
                         "and company information."
                     ),
-                    llm_order=20,
                 ),
                 field_spec(
                     name="country",
@@ -77,12 +73,10 @@ WEB_SEARCH_TOOL = ToolDefinition.from_spec(
                         "enum": list(WEB_SEARCH_COUNTRIES),
                     },
                     required=False,
-                    prompt_type="string",
                     description=(
                         "Optional Tavily country hint. Only use this with the "
                         "general topic when regional results matter."
                     ),
-                    llm_order=30,
                 ),
             )
         ),

@@ -35,9 +35,6 @@ from .base import (
 )
 
 ACTION_MEMORY_SEARCH_FOCUS_VALUES = MEMORY_SEARCH_FOCUS_VALUES
-MEMORY_SEARCH_FOCUS_PROMPT_TYPE = (
-    f"enum[{','.join(repr(value) for value in ACTION_MEMORY_SEARCH_FOCUS_VALUES)}]"
-)
 
 
 def validate_memory_search_args(args: Mapping[str, JSONValue]) -> None:
@@ -194,9 +191,7 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                     name="query",
                     schema={"type": "string", "minLength": 1},
                     required=True,
-                    prompt_type="string",
                     description="Natural-language or keyword query for memory recall.",
-                    llm_order=10,
                 ),
                 field_spec(
                     name="focus",
@@ -204,12 +199,10 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                         "type": "string",
                         "enum": list(ACTION_MEMORY_SEARCH_FOCUS_VALUES),
                     },
-                    prompt_type=MEMORY_SEARCH_FOCUS_PROMPT_TYPE,
                     description=(
                         "Optional broad search focus. Default all. This is a source "
                         "selection hint, not a table name."
                     ),
-                    llm_order=20,
                 ),
                 field_spec(
                     name="time_hint",
@@ -225,24 +218,20 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                             },
                         },
                     },
-                    prompt_type="object",
                     description=(
                         "Optional ranking hint. Results near center are boosted, but "
                         "other relevant results can still appear."
                     ),
-                    llm_order=30,
                     children=(
                         field_spec(
                             name="center",
                             schema={"type": "string", "format": "date-time"},
                             required=True,
-                            prompt_type="datetime",
                             description=(
                                 "ISO8601 timestamp to rank nearby memories higher. "
                                 "Times shown to you are local with an offset; pass "
                                 "the same offset, e.g. 2026-09-27T06:50+09:00."
                             ),
-                            llm_order=10,
                         ),
                         field_spec(
                             name="radius_hours",
@@ -252,9 +241,7 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                                 "maximum": MEMORY_SEARCH_MAX_TIME_HINT_RADIUS_HOURS,
                             },
                             required=True,
-                            prompt_type="integer",
                             description="Ranking radius around center, in hours.",
-                            llm_order=20,
                         ),
                     ),
                 ),
@@ -265,9 +252,7 @@ MEMORY_SEARCH_TOOL = ToolDefinition.from_spec(
                         "minimum": 1,
                         "maximum": MEMORY_SEARCH_MAX_LIMIT,
                     },
-                    prompt_type="integer",
                     description=f"Optional result limit. Default: {MEMORY_SEARCH_DEFAULT_LIMIT}.",
-                    llm_order=40,
                 ),
             )
         ),
