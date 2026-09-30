@@ -3,6 +3,7 @@ from __future__ import annotations
 import mimetypes
 import os
 import stat
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import cast
@@ -34,7 +35,7 @@ from .read_path_resolver import (
     action_reference_paths,
     resolve_read_target,
 )
-from .tool_path_policy import is_private_action_plan_path
+from .tool_path_policy import hidden_read_path_filter
 
 SAMPLE_BYTES = 4_096
 MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
@@ -255,6 +256,7 @@ def _read_bounded_directory_entries(
     entries: list[dict[str, JSONValue]] = []
     visible_index = 0
     scanned = 0
+    is_hidden = hidden_read_path_filter(context)
     with os.scandir(target.real_path) as iterator:
         for child in iterator:
             scanned += 1
@@ -268,7 +270,7 @@ def _read_bounded_directory_entries(
                         READ_DIRECTORY_SCAN_BUDGET_RETRY_HINT if not entries else None
                     ),
                 )
-            entry = _directory_entry(child, context=context, target=target)
+            entry = _directory_entry(child, is_hidden=is_hidden, target=target)
             if entry is None:
                 continue
             visible_index += 1
@@ -295,7 +297,7 @@ def _read_bounded_directory_entries(
 def _directory_entry(
     child: os.DirEntry[str],
     *,
-    context: BrokerContext,
+    is_hidden: Callable[[Path], bool],
     target: ReadTarget,
 ) -> dict[str, JSONValue] | None:
     if child.name in _INTERNAL_DIRECTORY_NAMES:
@@ -305,7 +307,7 @@ def _directory_entry(
         if child.is_symlink():
             if not target.allow_symlink_directory_entries:
                 return None
-        if is_private_action_plan_path(context=context, path=child_path):
+        if is_hidden(child_path):
             return None
         kind = "directory" if child.is_dir() else "file"
     except OSError:

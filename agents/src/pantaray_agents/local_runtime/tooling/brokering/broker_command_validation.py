@@ -6,7 +6,6 @@ from typing import cast
 
 from pantaray_agents.schema.read_access import READ_ACCESS_SCOPE_FULL_ACCESS
 
-from ...runtime.runtime_env import read_local_runtime_artifact_root
 from ..action_plan_document import (
     ACTION_PLAN_FILENAME,
     ActionPlanDocumentError,
@@ -14,6 +13,7 @@ from ..action_plan_document import (
 )
 from ..action_session_temp_paths import resolve_action_storage_paths
 from ..models import BrokerNetworkPolicy
+from ..outside_workspace_grant import app_owned_roots
 from ..repository.command_network_settings import load_command_network_enabled
 from ..sandbox.runtime_policy import resolve_runtime_budget
 from .action_subagent_broker_authority import (
@@ -223,10 +223,7 @@ def build_validated_command_request(
         approval_session_id=approval_session_id,
         approval_source=approval_source,
         action_plan_path=str(context.scratch_root_path / ACTION_PLAN_FILENAME),
-        private_storage_roots=[
-            str(storage.storage_base),
-            str(read_local_runtime_artifact_root().resolve()),
-        ],
+        private_storage_roots=[str(root) for root in app_owned_roots(context.db_path)],
         action_workspace_root=str(storage.workspace),
         published_results_root=str(storage.tool_results),
         app_runtime_python=str(resolved_app_runtime_python),
@@ -320,10 +317,7 @@ def build_validated_python_request(
         approval_session_id=approval_session_id,
         approval_source=approval_source,
         action_plan_path=str(context.scratch_root_path / ACTION_PLAN_FILENAME),
-        private_storage_roots=[
-            str(storage.storage_base),
-            str(read_local_runtime_artifact_root().resolve()),
-        ],
+        private_storage_roots=[str(root) for root in app_owned_roots(context.db_path)],
         action_workspace_root=str(storage.workspace),
         published_results_root=str(storage.tool_results),
         app_runtime_python=str(resolved_app_runtime_python),

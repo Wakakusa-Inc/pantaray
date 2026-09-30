@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
@@ -37,7 +37,7 @@ from .manifest_paths import (
     ResolvedManifestPath,
 )
 from .tool_path_policy import (
-    is_private_action_plan_path,
+    hidden_read_path_filter,
     resolve_read_tool_path,
 )
 
@@ -110,17 +110,13 @@ def run_list_executor(
 ) -> UnprojectedBrokerToolOutcome:
     ensure_session_capabilities(context=context)
     base = _resolve_directory(context=context, raw_path=request.path, field_name="path")
+    is_hidden = hidden_read_path_filter(context)
     bounded = list_discovery_paths(
         base=base,
         max_depth=request.max_depth,
         limit=request.limit + 1,
         scan_limit=DISCOVERY_MAX_SCANNED_PATHS,
-        include_path=lambda path: (
-            not is_private_action_plan_path(
-                context=context,
-                path=path,
-            )
-        ),
+        include_path=lambda path: not is_hidden(path),
     )
     visible_paths = bounded.selected
     truncation_reason = bounded.truncation_reason
@@ -169,6 +165,7 @@ def run_glob_executor(
         field_name="base_path",
     )
     _reject_unsafe_glob_pattern(request.pattern, field_name="pattern")
+    is_hidden = hidden_read_path_filter(context)
     backend_result = run_ripgrep_files(
         cwd=base.path,
         glob_pattern=request.pattern,
@@ -178,15 +175,10 @@ def run_glob_executor(
             context=context,
             base=base,
         ),
-        include_path=lambda path: (
-            not is_private_action_plan_path(
-                context=context,
-                path=path,
-            )
-        ),
+        include_path=lambda path: not is_hidden(path),
     )
     selected = _resolve_ripgrep_relative_paths(
-        context=context,
+        is_hidden=is_hidden,
         base=base,
         relative_paths=backend_result.relative_paths,
     )
@@ -220,7 +212,7 @@ def run_glob_executor(
 
 def _resolve_ripgrep_relative_paths(
     *,
-    context: BrokerContext,
+    is_hidden: Callable[[Path], bool],
     base: ResolvedManifestPath,
     relative_paths: Iterable[str],
 ) -> list[DiscoveryPath]:
@@ -231,7 +223,7 @@ def _resolve_ripgrep_relative_paths(
         except OSError:
             continue
         if (
-            not is_private_action_plan_path(context=context, path=path)
+            not is_hidden(path)
             and is_safe_discovery_path(base=base, path=path)
             and safe_is_file(path)
         ):
@@ -272,7 +264,7 @@ def _discovery_entry_json(entry: dict[str, object]) -> dict[str, JSONValue]:
 
 def _resolve_ripgrep_match(
     *,
-    context: BrokerContext,
+    is_hidden: Callable[[Path], bool],
     base: ResolvedManifestPath,
     match: RipgrepGrepMatch,
 ) -> ResolvedGrepMatch | None:
@@ -281,7 +273,7 @@ def _resolve_ripgrep_match(
     except OSError:
         return None
     if (
-        is_private_action_plan_path(context=context, path=path)
+        is_hidden(path)
         or not is_safe_discovery_path(base=base, path=path)
         or not safe_is_file(path)
     ):
@@ -295,14 +287,14 @@ def _resolve_ripgrep_match(
 
 def _append_grep_match(
     *,
-    context: BrokerContext,
+    is_hidden: Callable[[Path], bool],
     matches: list[dict[str, JSONValue]],
     output_bytes: int,
     base: ResolvedManifestPath,
     match: RipgrepGrepMatch,
 ) -> GrepAppendResult:
     resolved_match = _resolve_ripgrep_match(
-        context=context,
+        is_hidden=is_hidden,
         base=base,
         match=match,
     )
@@ -408,6 +400,7 @@ def run_grep_executor(
     )
     if request.include_glob is not None:
         _reject_unsafe_glob_pattern(request.include_glob, field_name="include_glob")
+    is_hidden = hidden_read_path_filter(context)
     backend_result = run_ripgrep_grep(
         cwd=base.path,
         pattern=request.pattern,
@@ -418,12 +411,7 @@ def run_grep_executor(
             context=context,
             base=base,
         ),
-        include_path=lambda path: (
-            not is_private_action_plan_path(
-                context=context,
-                path=path,
-            )
-        ),
+        include_path=lambda path: not is_hidden(path),
     )
     matches: list[dict[str, JSONValue]] = []
     truncation_reason: DiscoveryTruncationReason | None = (
@@ -432,7 +420,7 @@ def run_grep_executor(
     output_bytes = 0
     for backend_match in backend_result.matches:
         append_result = _append_grep_match(
-            context=context,
+            is_hidden=is_hidden,
             matches=matches,
             output_bytes=output_bytes,
             base=base,

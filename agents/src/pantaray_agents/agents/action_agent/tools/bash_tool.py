@@ -78,7 +78,9 @@ BASH_TOOL = ToolDefinition.from_spec(
                 "commands that write files as their normal side effect are still "
                 "command execution. Use list, glob, grep, or read for file discovery "
                 "and inspection. For short waits, use sleep 10 or sleep 0.5, then "
-                "check status in a separate call."
+                "check status in a separate call. Read Pantaray's own records "
+                "(suggestions, actions, insights, activity logs) with memory_sql, "
+                "not by opening the app database."
             ),
             pitfalls=(
                 "Set cwd to a directory under Workspace Roots, or outside them only "

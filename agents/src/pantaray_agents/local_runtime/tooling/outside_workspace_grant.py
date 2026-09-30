@@ -17,6 +17,7 @@ from pantaray_agents.local_runtime.runtime.runtime_env import (
 )
 from pantaray_agents.schema.agent.base import JSONValue
 
+from .action_session_temp_paths import resolve_local_runtime_storage_base
 from .repository.manifests import insert_approved_folder_root_in_connection
 from .workspace_manifest_roots import ManifestRoot
 from .workspace_root_authority import (
@@ -32,9 +33,11 @@ class OutsideWorkspaceGrantError(ValueError):
 
 
 def app_owned_roots(db_path: Path) -> tuple[Path, ...]:
+    """Pantaray's private app storage: the app data folder and the artifact root."""
+
     return (
+        resolve_local_runtime_storage_base(db_path=db_path),
         read_local_runtime_artifact_root().resolve(),
-        db_path.parent.resolve(),
     )
 
 
