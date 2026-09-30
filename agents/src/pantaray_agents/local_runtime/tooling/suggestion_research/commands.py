@@ -227,11 +227,7 @@ class SuggestionCommandSession:
             busy_timeout_ms=self.busy_timeout_ms,
             user_id=self.user_id,
         )
-        # Only a login-environment command extends the read setting to processes.
-        full_disk_read = (
-            use_login_environment
-            and self.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
-        )
+        full_disk_read = self.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
         budget = resolve_runtime_budget(
             sandbox_profile="workspace_process_exec"
         ).sandbox_launch

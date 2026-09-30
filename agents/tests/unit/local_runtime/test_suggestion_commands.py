@@ -229,12 +229,13 @@ async def test_a_command_gets_no_writable_folder_and_the_network_setting(
     ("login", "scope", "whole_disk"),
     [
         (True, "full_access", True),
-        (False, "full_access", False),
+        (False, "full_access", True),
         (True, "workspace", False),
+        (False, "workspace", False),
     ],
 )
 @pytest.mark.asyncio
-async def test_only_a_login_command_extends_full_read_access_to_the_disk(
+async def test_command_reads_follow_the_read_access_setting(
     allowed_db: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

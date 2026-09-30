@@ -159,7 +159,7 @@ async def test_shell_input_rejects_nul_before_process_launch(tmp_path: Path) -> 
 
 
 @pytest.mark.parametrize("read_access_scope", ["workspace", "full_access"])
-def test_login_environment_reads_follow_setting_and_writes_stay_put(
+def test_command_reads_follow_setting_and_login_leaves_roots_unchanged(
     tmp_path: Path, read_access_scope: str
 ) -> None:
     db_path, context = _bootstrap_runtime_db(
@@ -192,12 +192,8 @@ def test_login_environment_reads_follow_setting_and_writes_stay_put(
     normal = validate(use_login_environment=False)
     login = validate(use_login_environment=True)
 
-    assert "/" not in normal.real_read_roots
-    assert login.real_read_roots == (
-        ["/", *normal.real_read_roots]
-        if read_access_scope == "full_access"
-        else normal.real_read_roots
-    )
+    assert ("/" in normal.real_read_roots) is (read_access_scope == "full_access")
+    assert login.real_read_roots == normal.real_read_roots
     assert login.real_write_roots == normal.real_write_roots
     assert login.private_storage_roots == normal.private_storage_roots
     assert login.command_summary_json["use_login_environment"] is True

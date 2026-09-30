@@ -177,12 +177,8 @@ def build_validated_command_request(
     executable_source_kind: BrokerExecutableSourceKind = "trusted_system_executable"
     resolved_argv = [str(resolved_executable), "--noprofile", "--norc", "-c", command]
     use_login_environment = args.use_login_environment
-    # The read-access setting already lets the read tool see the whole disk;
-    # only a login-environment command extends that reach to processes.
-    full_disk_read = (
-        use_login_environment
-        and context.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
-    )
+    # Commands read what the read-access setting allows, like the read tool.
+    full_disk_read = context.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
     env = build_command_env(
         command_cwd=command_cwd,
         execution_kind=execution_kind,
