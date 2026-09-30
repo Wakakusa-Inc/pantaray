@@ -80,15 +80,6 @@ def _validate_members(members: Sequence[InputMember]) -> None:
                 alias_to_canonical[alias.name] = member.canonical_name
             continue
 
-        prompt_children = member.prompt_children or ()
-        if prompt_children and member.children:
-            raise ValueError(
-                f"Field '{member.name}' cannot define both children and prompt_children."
-            )
-        if member.runtime_injected and member.llm_visible:
-            raise ValueError(
-                f"Field '{member.name}' is runtime_injected and must be hidden from LLM."
-            )
         if member.children:
             _validate_members(member.children)
 

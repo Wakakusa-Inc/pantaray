@@ -55,13 +55,11 @@ WEB_EXTRACT_TOOL = ToolDefinition.from_spec(
                         },
                     },
                     required=True,
-                    prompt_type="string[]",
                     description=(
                         "Page URLs to extract via the cloud search wrapper (max 5). "
                         "This app blocks obvious local/internal forms, "
                         "and the cloud wrapper enforces the final fetch policy."
                     ),
-                    llm_order=10,
                 ),
                 field_spec(
                     name="query",
@@ -71,13 +69,11 @@ WEB_EXTRACT_TOOL = ToolDefinition.from_spec(
                         "pattern": r"\S",
                     },
                     required=False,
-                    prompt_type="string",
                     description=(
                         "Optional intent string used only to rerank extracted "
                         "content chunks. Describe what information matters in "
                         "the extracted pages."
                     ),
-                    llm_order=20,
                 ),
             )
         ),

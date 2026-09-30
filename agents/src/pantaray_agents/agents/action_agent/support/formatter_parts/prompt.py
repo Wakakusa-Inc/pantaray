@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-
 from pantaray_agents.agents.action_agent.runtime.state import (
     ActionAgentState,
 )
 from pantaray_agents.agents.action_agent.runtime.state.context import get_context_view
-from pantaray_agents.agents.action_agent.tools import ToolDefinition
 from pantaray_agents.utils.local_time import describe_utc_timestamp
 from pantaray_agents.utils.memory_source_policy import (
     MEMORY_SOURCE_GROUPS,
@@ -20,8 +17,6 @@ from .shared import MemorySourceCoverageSlotMap
 
 
 class PromptFormattingMixin:
-    _tool_registry: Mapping[str, ToolDefinition]
-
     def format_memory_source_coverage(self, state: ActionAgentState) -> str:
         coverage = get_context_view(state)["memory_source_coverage"]
         evaluated_at = coverage["evaluated_at"].strip()

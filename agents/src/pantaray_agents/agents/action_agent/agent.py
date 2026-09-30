@@ -7,7 +7,6 @@ from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 
 from pantaray_agents.agents.action_agent.agent_runtime_facade import (
-    clone_runtime_tool_registry,
     coerce_action_token_budget,
     load_runtime_approval_session_by_request,
 )
@@ -26,10 +25,6 @@ from pantaray_agents.agents.action_agent.services.token_accounting_service impor
 )
 from pantaray_agents.agents.action_agent.support.formatter import (
     ActionAgentFormatter,
-)
-from pantaray_agents.agents.action_agent.tools import (
-    TOOL_REGISTRY,
-    ToolDefinition,
 )
 from pantaray_agents.agents.core import BaseAgent
 from pantaray_agents.application.action.cancellation_service import (
@@ -102,10 +97,7 @@ class ActionAgent(
         self.repository = repository
         # プロンプト設定のロード（system_instruction と prompt を分離）
         self._executing_config = self._load_prompt_config(self.EXECUTING_PROMPT_NAME)
-        runtime_tool_registry: dict[str, ToolDefinition] = clone_runtime_tool_registry(
-            TOOL_REGISTRY
-        )
-        formatter = ActionAgentFormatter(runtime_tool_registry)
+        formatter = ActionAgentFormatter()
         self._prompt_rendering_service = PromptRenderingService(
             PromptRenderingDeps(formatter=formatter)
         )

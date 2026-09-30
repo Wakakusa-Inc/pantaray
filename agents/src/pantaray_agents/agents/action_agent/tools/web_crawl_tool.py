@@ -51,13 +51,11 @@ WEB_CRAWL_TOOL = ToolDefinition.from_spec(
                         "pattern": r"^https?://\S+$",
                     },
                     required=True,
-                    prompt_type="string",
                     description=(
                         "Starting URL for the cloud crawl wrapper. This app blocks "
                         "obvious local/internal forms, and the cloud wrapper "
                         "enforces the final fetch policy."
                     ),
-                    llm_order=10,
                 ),
                 field_spec(
                     name="instructions",
@@ -67,13 +65,11 @@ WEB_CRAWL_TOOL = ToolDefinition.from_spec(
                         "pattern": r"\S",
                     },
                     required=False,
-                    prompt_type="string",
                     description=(
                         "Optional natural-language crawl instructions. Use this "
                         "to tell the crawler what pages or topics to prioritize "
                         "within the site area."
                     ),
-                    llm_order=20,
                 ),
             )
         ),

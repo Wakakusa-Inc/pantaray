@@ -240,7 +240,7 @@ async def test_a_partial_read_of_agents_md_still_keeps_the_whole_file(
         )
     )
     action.resume()
-    rendered = ActionAgentFormatter(tool_registry={}).format_history(
+    rendered = ActionAgentFormatter().format_history(
         action.state, omit_before_step_number=2
     )
     assert "SECOND RULE" in rendered
@@ -438,8 +438,6 @@ def test_attached_instructions_survive_output_omission() -> None:
     assert "BODY" not in str(result.output)
 
     state = cast(ActionAgentState, {"history_by_scope": {"S": [think, entry]}})
-    rendered = ActionAgentFormatter(tool_registry={}).format_history(
-        state, omit_before_step_number=3
-    )
+    rendered = ActionAgentFormatter().format_history(state, omit_before_step_number=3)
     assert "RULES" in rendered
     assert "BODY" not in rendered

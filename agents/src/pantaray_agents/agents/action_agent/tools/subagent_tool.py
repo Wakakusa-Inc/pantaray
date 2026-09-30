@@ -96,17 +96,13 @@ def _wait_result_union_schema() -> dict[str, JSONValue]:
 def _required_field(
     name: str,
     schema: SchemaMapping,
-    prompt_type: str,
     description: str,
-    order: int,
 ) -> FieldSpec:
     return field_spec(
         name=name,
         schema=schema,
         required=True,
-        prompt_type=prompt_type,
         description=description,
-        llm_order=order,
     )
 
 
@@ -140,9 +136,7 @@ SPAWN_SUBAGENT_TOOL = ToolDefinition.from_spec(
                             setting.selector for setting in SUBAGENT_MODEL_SETTINGS
                         ],
                     },
-                    "string",
                     _MODEL_GUIDANCE,
-                    10,
                 ),
                 _required_field(
                     "task",
@@ -150,9 +144,7 @@ SPAWN_SUBAGENT_TOOL = ToolDefinition.from_spec(
                         **_NON_BLANK_STRING,
                         "maxLength": ACTION_SUBAGENT_TASK_MAX_CODE_POINTS,
                     },
-                    "string",
                     "Complete bounded task delegated to the subagent.",
-                    20,
                 ),
                 _required_field(
                     "context_refs",
@@ -161,9 +153,7 @@ SPAWN_SUBAGENT_TOOL = ToolDefinition.from_spec(
                         "items": _NON_BLANK_STRING,
                         "maxItems": ACTION_SUBAGENT_REF_LIST_MAX_ITEMS,
                     },
-                    "string[]",
                     "Opaque durable context references for the child.",
-                    30,
                 ),
                 _required_field(
                     "resource_claims",
@@ -172,9 +162,7 @@ SPAWN_SUBAGENT_TOOL = ToolDefinition.from_spec(
                         "items": _RESOURCE_CLAIM_SCHEMA,
                         "maxItems": ACTION_SUBAGENT_REF_LIST_MAX_ITEMS,
                     },
-                    "json[]",
                     "Exact workspace or external resources the child may write.",
-                    40,
                 ),
             ),
             description="Spawn one configured subagent from the current Supervisor THINK.",
@@ -210,9 +198,7 @@ SEND_MESSAGE_TO_SUBAGENT_TOOL = ToolDefinition.from_spec(
                 _required_field(
                     "child_process_id",
                     _NON_BLANK_STRING,
-                    "string",
                     "Exact child process identity returned by spawn_subagent.",
-                    10,
                 ),
                 _required_field(
                     "message_id",
@@ -220,9 +206,7 @@ SEND_MESSAGE_TO_SUBAGENT_TOOL = ToolDefinition.from_spec(
                         **_NON_BLANK_STRING,
                         "maxLength": ACTION_SUBAGENT_MESSAGE_ID_MAX_CODEPOINTS,
                     },
-                    "string",
                     "Stable identity for exact retry of this message.",
-                    20,
                 ),
                 _required_field(
                     "content",
@@ -230,9 +214,7 @@ SEND_MESSAGE_TO_SUBAGENT_TOOL = ToolDefinition.from_spec(
                         **_NON_BLANK_STRING,
                         "maxLength": ACTION_SUBAGENT_MESSAGE_MAX_CODEPOINTS,
                     },
-                    "string",
                     "Private correction or additional context for the child.",
-                    30,
                 ),
             ),
             description="Durably accept one private parent-to-child message.",
@@ -272,9 +254,7 @@ WAIT_SUBAGENTS_TOOL = ToolDefinition.from_spec(
                         "maxItems": ACTION_SUBAGENT_MAX_ACTIVE_CHILDREN_PER_PARENT,
                         "uniqueItems": True,
                     },
-                    "string[]",
                     "One to four exact child process identities owned by this parent.",
-                    10,
                 ),
             ),
             description="Wait for a bounded set of this parent's subagents.",
@@ -317,9 +297,7 @@ CANCEL_SUBAGENT_TOOL = ToolDefinition.from_spec(
                 _required_field(
                     "child_process_id",
                     _NON_BLANK_STRING,
-                    "string",
                     "Exact child process identity owned by this parent.",
-                    10,
                 ),
             ),
             description="Request cancellation and observe one owned subagent.",

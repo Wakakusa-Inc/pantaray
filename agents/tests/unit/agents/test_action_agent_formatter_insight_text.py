@@ -5,7 +5,7 @@ from pantaray_agents.agents.action_agent.support.formatter import ActionAgentFor
 
 @pytest.mark.usefixtures("tokyo_local_zone")
 def test_short_term_insight_lines_show_local_time() -> None:
-    text = ActionAgentFormatter(tool_registry={}).build_insight_text(
+    text = ActionAgentFormatter().build_insight_text(
         None,
         [
             {

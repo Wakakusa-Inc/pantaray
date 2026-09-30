@@ -24,7 +24,6 @@ from pantaray_agents.schema.agent.base import JSONValue
 
 if TYPE_CHECKING:  # pragma: no cover
     from pantaray_agents.agents.action_agent.agent import ActionAgent
-    from pantaray_agents.agents.action_agent.tools import ToolDefinition
 
 
 class ActionGraphRuntimeCreateInput(BaseModel):
@@ -35,12 +34,6 @@ class ActionGraphRuntimeCreateInput(BaseModel):
     request: ActionAgentRequest
     state_config: ActionAgentStateConfig
     intervening_user_step: ActionResumeUserStep | None
-
-
-def clone_runtime_tool_registry(
-    tool_registry: Mapping[str, ToolDefinition],
-) -> dict[str, ToolDefinition]:
-    return dict(tool_registry)
 
 
 def load_runtime_approval_session_by_request(

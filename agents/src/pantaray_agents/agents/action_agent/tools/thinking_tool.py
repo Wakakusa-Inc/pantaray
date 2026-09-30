@@ -42,16 +42,12 @@ THINKING_TOOL = ToolDefinition.from_spec(
                     name="query",
                     schema={"type": "string"},
                     required=True,
-                    prompt_type="string",
                     description="Question or topic to examine in depth.",
-                    llm_order=10,
                 ),
                 field_spec(
                     name="context",
                     schema={"type": "string"},
-                    prompt_type="string",
                     description="Optional supplemental context (free text).",
-                    llm_order=20,
                 ),
             )
         ),

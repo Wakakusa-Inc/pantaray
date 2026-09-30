@@ -72,12 +72,10 @@ DRAFT_FINAL_ANSWER_TOOL = ToolDefinition.from_spec(
                     name="answer",
                     schema=_NON_EMPTY_STRING_SCHEMA,
                     required=True,
-                    prompt_type="string",
                     description=(
                         "Final-answer draft to store for the current execution "
                         "scope. Calling this again replaces the previous draft."
                     ),
-                    llm_order=10,
                 ),
             ),
             description=(
