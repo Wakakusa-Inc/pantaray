@@ -45,7 +45,6 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
 )
 from pantaray_agents.agents.suggestion_agent.react import run_suggestion_react
 from pantaray_agents.agents.suggestion_agent.research import SuggestionResearchTools
-from pantaray_agents.agents.suggestion_agent.todo_index import build_todo_index
 from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.repositories.runtime_ports import (
     SuggestionRepositoryPort,
@@ -79,9 +78,11 @@ logger = logging.getLogger(__name__)
 type SuggestionAgentConfig = dict[str, JSONValue]
 type SuggestionLlmPayload = dict[str, JSONValue]
 
-# Design limit: a 64k-character application cap bounds initial input cost.
-# Revisit on normal-input overflow using measured token cost and latency.
-SUGGESTION_INITIAL_PROMPT_MAX_CHARS = 64_000
+# Design limit: the prompt carries insights/todos.md whole (40k characters and 41
+# items in September 2026 production data; the rest of the prompt was about 35k).
+# The cap bounds initial input cost; if todos.md alone passes 80k characters,
+# prune it on the Memory side or index it instead of raising the cap.
+SUGGESTION_INITIAL_PROMPT_MAX_CHARS = 160_000
 
 
 def _normalize_target_context(
@@ -313,10 +314,7 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
             "short_term_insight": context_data["short_term_insight"],
             "reconsideration_reason": context_data["reconsideration_reason"],
             "stable_memory_context": context_data["stable_memory_context"],
-            "pending_work_context": build_todo_index(
-                self.stable_memory.pending_work,
-                today=reference_time.astimezone().date(),
-            )
+            "pending_work_context": self.stable_memory.pending_work.strip()
             or "(No pending work recorded.)",
             "action_agent_capabilities": context_data["action_agent_capabilities"],
             "recent_suggestions": context_data["recent_suggestions"],

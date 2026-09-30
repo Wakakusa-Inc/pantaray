@@ -118,7 +118,6 @@ def build_suggestion_research_snapshot(
             )
             for root in memory_roots
         ),
-        # The whole file: the agent renders a bounded index of it.
         pending_work=next(
             (
                 doc.content

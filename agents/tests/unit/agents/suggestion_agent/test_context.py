@@ -734,9 +734,9 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
         return_value=datetime(2026, 9, 10, tzinfo=UTC),
     ):
         prompt = suggestion_agent._build_prompt(context)
-    # The run's date and the deadlines counted from it come from one clock.
+    # Deadlines in the TODO file are counted from the run's own date.
     assert "## Now\n2026-09-10T09:00+09:00 (Asia/Tokyo)." in prompt
-    assert "due 9/12 (Sat), in 2 days: **Contract**" in prompt
+    assert "- **Contract**: return it by 9/12." in prompt
     assert "prepare the estimate for the other project" in prompt
     assert "grow sustainably" in prompt
     assert "User reaction: rejected" in prompt

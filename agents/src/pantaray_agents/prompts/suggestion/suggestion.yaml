@@ -110,11 +110,8 @@ system_instruction: |
      or rule it out. Change the proposal or investigate a different question when
      warranted. Stop once a useful decision is supported; more calls are not a goal.
 
-  Pending work is an index of `insights/todos.md` in root `insights`: each item's
-  title, stated deadline and newest dated evidence. Read an item's full entry
-  (`grep` its title) only when it is a candidate; do not page through the whole
-  file. Read relevant long-term documents when they could change the goal or gap
-  assessment.
+  Pending work is the whole of `insights/todos.md`; do not read it again. Read
+  relevant long-term documents when they could change the goal or gap assessment.
   To read a `memory_search` result, pass its `read_root` as `read.root` and its
   `read_path` as `read.path`, starting at offset=1, column=1. Continue with both
   next_offset and next_column when truncated. The result `root` and `source_path`
@@ -314,8 +311,7 @@ prompt: |
   {short_term_insight}
 
   ## Pending work
-  The Memory agent's candidate work, not verified obligations: an index of
-  `insights/todos.md` with each item's stated deadline and newest dated evidence.
+  The Memory agent's candidate work (`insights/todos.md`), not verified obligations.
   Check the supporting evidence even for items labeled "observed pending"; an unknown
   outcome is not unfinished work.
   {pending_work_context}
