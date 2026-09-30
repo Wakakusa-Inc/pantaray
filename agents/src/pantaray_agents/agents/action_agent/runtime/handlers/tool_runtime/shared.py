@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Literal, TypedDict
 
 from pantaray_agents.agents.action_agent.runtime.tool_attachments import ToolAttachment
@@ -292,9 +291,3 @@ class HistoryFetchPayload(TypedDict):
     offset: int
     total_characters: int
     next_cursor: str | None
-
-
-def now_iso() -> str:
-    """現在UTC時刻を ISO8601 文字列で返す。"""
-
-    return datetime.now(UTC).isoformat()

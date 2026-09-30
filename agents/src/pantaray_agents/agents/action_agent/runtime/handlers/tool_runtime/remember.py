@@ -22,7 +22,6 @@ from .shared import (
     ToolExecutionActor,
     ToolValidationError,
     UnprojectedToolExecutionResult,
-    now_iso,
 )
 from .validation import validate_tool_args
 
@@ -60,7 +59,7 @@ async def run_remember_tool(
                     f"{note}\n"
                 ),
             )
-    timestamp = now_iso()
+    timestamp = now_utc_iso()
     return UnprojectedToolExecutionResult(
         step_id=step_id,
         tool_id=tool_def.tool_id,

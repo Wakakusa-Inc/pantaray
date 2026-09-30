@@ -24,12 +24,13 @@ from pantaray_agents.local_runtime.memory_catalog.repository import (
     ensure_preparing_node,
 )
 from pantaray_agents.local_runtime.runtime.bootstrap import read_local_runtime_db_config
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.storage.migrations.connection import (
     configure_connection,
 )
 from pantaray_agents.schema.agent.base import JSONValue
 
-from .shared import UnprojectedToolExecutionResult, now_iso
+from .shared import UnprojectedToolExecutionResult
 
 COMMON_DRAFT_NEXT_STEP = (
     "Review the stored draft. If it is ready to finalize, use the finalization "
@@ -98,8 +99,8 @@ async def run_draft_final_answer_tool(
         step_id=step_id,
         tool_id=tool_def.tool_id,
         status="success",
-        started_at=now_iso(),
-        completed_at=now_iso(),
+        started_at=now_utc_iso(),
+        completed_at=now_utc_iso(),
         output=cast(JSONValue, result_payload),
     )
 

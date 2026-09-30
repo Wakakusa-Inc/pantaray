@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from typing import Literal
 
 from pantaray_agents.agents.action_agent.runtime.tool_attachments import (
@@ -47,6 +46,7 @@ from pantaray_agents.local_runtime.runtime.screen_capture_broker import (
     announce_screen_capture_request,
     screen_capture_broker,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.storage.migrations import MigrationError
 from pantaray_agents.local_runtime.tooling.brokering.attachment_reference import (
     ATTACHMENT_BLOB_REF_PREFIX,
@@ -463,7 +463,7 @@ def _captured_result(
         tool_id=step.tool_def.tool_id,
         status="success",
         started_at=step.requested_at,
-        completed_at=datetime.now(UTC).isoformat(),
+        completed_at=now_utc_iso(),
         output=output,
         attachments=[attachment],
     )
@@ -481,7 +481,7 @@ def _error_result(
         tool_id=step.tool_def.tool_id,
         status="error",
         started_at=step.requested_at,
-        completed_at=datetime.now(UTC).isoformat(),
+        completed_at=now_utc_iso(),
         output=build_runtime_tool_error_output(
             error_type=code,
             message=message,

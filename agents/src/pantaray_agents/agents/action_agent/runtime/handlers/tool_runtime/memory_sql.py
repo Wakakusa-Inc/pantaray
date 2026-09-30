@@ -15,9 +15,10 @@ from pantaray_agents.agents.action_agent.services.memory_sql import (
     run_local_memory_sql,
 )
 from pantaray_agents.agents.action_agent.tools import ToolDefinition
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.schema.agent.base import JSONValue
 
-from .shared import ToolValidationError, UnprojectedToolExecutionResult, now_iso
+from .shared import ToolValidationError, UnprojectedToolExecutionResult
 from .validation import validate_tool_args
 
 
@@ -69,8 +70,8 @@ async def run_memory_sql_tool(
         step_id=step_id,
         tool_id=tool_def.tool_id,
         status="success",
-        started_at=now_iso(),
-        completed_at=now_iso(),
+        started_at=now_utc_iso(),
+        completed_at=now_utc_iso(),
         output=cast(JSONValue, payload),
     )
 

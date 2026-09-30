@@ -59,6 +59,7 @@ from pantaray_agents.agents.core.tool_call_repair import (
 )
 from pantaray_agents.application.action.ports import ActionAssistantMessageEmission
 from pantaray_agents.config_tunables import load_local_runtime_tunables
+from pantaray_agents.local_runtime.runtime.utc_timestamps import format_utc_iso
 from pantaray_agents.schema.action_tool_call import ActionToolCallOrigin
 from pantaray_agents.schema.agent.action import StepType
 from pantaray_llm.contracts.action_turn import LlmActionTurnResponse
@@ -448,7 +449,7 @@ async def execution_think_step(  # noqa: C901
     if await runtime.services.cancellation.check_cancellation(state):
         return state
 
-    decided_at = step_completed_at.isoformat()
+    decided_at = format_utc_iso(step_completed_at)
     adopted_state = state
     state = copy.deepcopy(state)
     llm_turn = (
@@ -520,7 +521,7 @@ async def execution_think_step(  # noqa: C901
                 else cast(dict[str, object], dict(batch.calls[0].call.args))
             ),
             status="error" if parse_failed else "success",
-            started_at=step_started_at.isoformat(),
+            started_at=format_utc_iso(step_started_at),
             completed_at=decided_at,
             history_started_at=_resolve_history_started_at(state),
             history_completed_at=decided_at,

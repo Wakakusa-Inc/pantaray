@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from pantaray_agents.agents.action_agent.runtime.tool_attachments import (
     coerce_tool_attachments,
 )
 from pantaray_agents.agents.action_agent.tools import ToolDefinition
 from pantaray_agents.local_runtime.runtime.bootstrap import read_local_runtime_db_config
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.tooling.brokering.broker import (
     BrokerApprovalDeniedError,
     BrokerApprovalRequiredError,
@@ -48,7 +47,7 @@ def _build_error_preparation(
     tool_def: ToolDefinition,
     error: BaseException,
 ) -> ToolExecutionPreparation:
-    completed_at = datetime.now(UTC).isoformat()
+    completed_at = now_utc_iso()
     effective_error = (
         error.cause if isinstance(error, FinalizedBrokerPolicyError) else error
     )
@@ -202,7 +201,7 @@ async def run_broker_tool_wrapper(
     except (BrokerPolicyError, BrokerExecutionError) as exc:
         return _build_error_preparation(step_id=step_id, tool_def=tool_def, error=exc)
 
-    completed_at = datetime.now(UTC).isoformat()
+    completed_at = now_utc_iso()
     if isinstance(outcome, BrokerPreflightOutcome):
         return ToolExecutionPreparation(
             result=UnprojectedToolExecutionResult(

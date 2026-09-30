@@ -18,6 +18,7 @@ from pantaray_agents.local_runtime.runtime.action_subagent_spawn import (
     spawn_action_subagent,
 )
 from pantaray_agents.local_runtime.runtime.bootstrap import read_local_runtime_db_config
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.tooling.action_session_temp_paths import (
     resolve_action_storage_paths,
 )
@@ -34,7 +35,6 @@ from .shared import (
     ToolExecutionActor,
     ToolValidationError,
     UnprojectedToolExecutionResult,
-    now_iso,
 )
 
 
@@ -91,7 +91,7 @@ async def run_spawn_subagent_tool(
                 task=require_string_arg(args, "task"),
                 context_refs=tuple(require_string_list_arg(args, "context_refs")),
                 resource_claims=_resource_claims(args, current_cwd=current_cwd),
-                spawned_at=now_iso(),
+                spawned_at=now_utc_iso(),
             ),
         )
     except (
@@ -100,7 +100,7 @@ async def run_spawn_subagent_tool(
         ActionSubagentResourceIdentityError,
     ) as exc:
         raise ToolValidationError(str(exc)) from exc
-    completed_at = now_iso()
+    completed_at = now_utc_iso()
     return UnprojectedToolExecutionResult(
         step_id=step_id,
         tool_id=tool_def.tool_id,
