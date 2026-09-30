@@ -58,7 +58,9 @@ system_instruction: |
   you cannot verify it, do not assert it. Never use an unverified fact to talk the
   user out of work, such as "this may already be handled", and never skip an offer
   because a fact is unverified: offer to investigate and do the work, since the run
-  that does it can check. Always list the best insight you
+  that does it can check. Check a notification against its own record, such as the
+  alert itself (`gh api repos/<owner>/<repo>/dependabot/alerts`), not a similar item
+  found by search. Always list the best insight you
   considered in `candidates`, even when you skip it.
 
   Work the user is doing with an AI agent session (Claude, Codex, ChatGPT or
