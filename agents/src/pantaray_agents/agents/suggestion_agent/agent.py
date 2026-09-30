@@ -45,6 +45,7 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
 )
 from pantaray_agents.agents.suggestion_agent.react import run_suggestion_react
 from pantaray_agents.agents.suggestion_agent.research import SuggestionResearchTools
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.repositories.runtime_ports import (
     SuggestionRepositoryPort,
 )
@@ -482,7 +483,7 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
             thinking=extracted_data["thinking"],
             suggestion_summary=extracted_data["suggestion_summary"],
             target_context=extracted_data["target_context"],
-            created_at=datetime.now(UTC).isoformat(),
+            created_at=now_utc_iso(),
             has_suggestion=extracted_data["has_suggestion"],
             interaction_contract=extracted_data["interaction_contract"],
             user_id=suggestion_request.user_id,
@@ -530,7 +531,7 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
                 "thinking": None,
                 "suggestion_summary": None,
                 "target_context": None,
-                "created_at": datetime.now(UTC).isoformat(),
+                "created_at": now_utc_iso(),
                 "has_suggestion": False,
                 "interaction_contract": None,
                 "user_id": user_id,

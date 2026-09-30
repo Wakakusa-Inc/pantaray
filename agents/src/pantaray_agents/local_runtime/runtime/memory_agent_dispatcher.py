@@ -10,6 +10,7 @@ from typing import Final, cast
 from pantaray_agents.local_runtime.memory_catalog.connection import (
     open_memory_catalog_connection,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import format_utc_iso
 from pantaray_agents.tasks.types import MemoryUpdateActionTerminal
 from pantaray_agents.utils.structured_logging import log_structured_event
 
@@ -69,7 +70,7 @@ def dispatch_memory_agent_triggers_once(
     if not user_id.strip():
         raise ValueError("user_id must not be empty")
     current = datetime.now(UTC) if now is None else now
-    handled_at = _iso_z(current)
+    handled_at = format_utc_iso(current)
     with open_memory_catalog_connection(
         db_path=db_path,
         busy_timeout_ms=busy_timeout_ms,
@@ -231,10 +232,6 @@ def _mark_dispatched(
             "pending Memory Agent trigger ownership was lost"
         )
     return MemoryAgentDispatchOutcome(trigger=trigger, job_id=job_id)
-
-
-def _iso_z(value: datetime) -> str:
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _log_dispatch_result(result: MemoryAgentDispatchResult) -> None:
