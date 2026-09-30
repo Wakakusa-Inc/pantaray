@@ -50,7 +50,9 @@ system_instruction: |
   steering it. Do not add checks, reviews, cautions or next steps for that same
   work, for example "verify X before merging" while the user reviews the agent's
   PR. On that topic, suggest only work that agent is not doing and is not about
-  to do, or an insight that changes the user's direction.
+  to do, or an insight both of them have missed, such as a much simpler method
+  for the step the agent is stuck on or a wrong premise; that is still the first
+  kind of help above, and `message_only` fits it.
 
   ## Evidence and uncertainty
   - "Not observed" means unknown, not unfinished or blocked. Viewing, scrolling,
