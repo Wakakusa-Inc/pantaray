@@ -12,6 +12,7 @@ from tests.unit.local_runtime.path_access_policy_support import (
     bootstrap_path_policy_runtime_db,
 )
 
+from pantaray_agents.agents.action_agent.runtime import agents_md
 from pantaray_agents.agents.action_agent.runtime.agents_md import (
     AGENTS_MD_MAX_BYTES,
     attach_repository_agents_md,
@@ -266,6 +267,45 @@ def test_files_the_read_tool_may_not_open_are_not_attached(
     attached = action.attach("list", {"path": str(project / "escape")})
 
     assert attached == _block(tmp_path.resolve(), "ROOT RULE\n")
+
+
+def test_an_in_repository_symlink_is_attached_for_its_own_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    action = _Action(tmp_path, monkeypatch)
+    repo = _repository(tmp_path)
+    (repo / "sub" / "CLAUDE.md").write_text("SHARED RULE\n", encoding="utf-8")
+    (repo / "sub" / "AGENTS.md").unlink()
+    (repo / "sub" / "AGENTS.md").symlink_to("CLAUDE.md")
+
+    attached = action.attach("list", {"path": str(repo / "sub")})
+
+    assert attached == (
+        _block(repo, "ROOT RULE\n") + "\n\n" + _block(repo / "sub", "SHARED RULE\n")
+    )
+
+
+def test_a_symlink_swapped_in_after_validation_reads_nothing_outside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    action = _Action(tmp_path, monkeypatch)
+    repo = _repository(tmp_path / "work")
+    outside = tmp_path / "outside.md"
+    outside.write_text("OUTSIDE SECRET\n", encoding="utf-8")
+    validate = agents_md.resolve_read_tool_path
+
+    def validate_then_swap(**kwargs: Any) -> Any:
+        resolved = validate(**kwargs)
+        if kwargs.get("must_be_file") and resolved.path == repo / "sub" / "AGENTS.md":
+            resolved.path.unlink()
+            resolved.path.symlink_to(outside)
+        return resolved
+
+    monkeypatch.setattr(agents_md, "resolve_read_tool_path", validate_then_swap)
+
+    attached = action.attach("list", {"path": str(repo / "sub")})
+
+    assert attached == _block(repo, "ROOT RULE\n")
 
 
 def test_workspace_scope_never_looks_above_the_registered_root(

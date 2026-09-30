@@ -20,6 +20,11 @@ from pathlib import Path
 
 from pantaray_agents.agents.action_agent.runtime.state import ActionAgentState
 from pantaray_agents.agents.action_agent.runtime.state.context import ensure_context
+from pantaray_agents.local_runtime.descriptor_access import (
+    DescriptorPathError,
+    DescriptorPathMissingError,
+    open_regular_file_descriptor,
+)
 from pantaray_agents.local_runtime.tooling.brokering.broker_common import (
     APPLY_PATCH_TOOL_ID,
     BASH_TOOL_ID,
@@ -55,7 +60,15 @@ def load_pantaray_agents_md() -> str:
     """The Pantaray-wide instructions block, or ``""`` when there is none."""
 
     path = Path.home() / ".pantaray" / AGENTS_MD_FILENAME
-    data = _read_instruction_bytes(path, max_bytes=AGENTS_MD_MAX_BYTES)
+    try:
+        # O_NONBLOCK so a FIFO planted under the name cannot block the open.
+        descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return ""
+    except OSError:
+        logger.warning("Skipping unreadable AGENTS.md: %s", path)
+        return ""
+    data = _read_regular_file(descriptor, path, max_bytes=AGENTS_MD_MAX_BYTES)
     if data is None:
         return ""
     return _render_block(PANTARAY_AGENTS_MD_DISPLAY_DIR, data)
@@ -87,16 +100,16 @@ def attach_repository_agents_md(
             )
         except (BrokerPolicyError, OSError):
             continue
-        for path in _instruction_files(read_context, touched):
-            key = str(path)
+        for scope, project_root, relative in _instruction_files(read_context, touched):
+            key = str(project_root / relative)
             if key in attached or remaining == 0:
                 continue
-            data = _read_instruction_bytes(path, max_bytes=remaining)
+            data = _read_repository_file(project_root, relative, max_bytes=remaining)
             if data is None:
                 continue
             attached.append(key)
             remaining -= len(data)
-            blocks.append(_render_block(str(path.parent), data))
+            blocks.append(_render_block(str(scope), data))
     context["agents_md_attached_paths"] = attached
     return "\n\n".join(blocks) if blocks else None
 
@@ -124,8 +137,13 @@ def _touched_paths(tool_id: str, args: Mapping[str, JSONValue]) -> Iterator[str]
 
 def _instruction_files(
     context: BrokerContext, touched: ResolvedManifestPath
-) -> Iterator[Path]:
-    """Readable AGENTS.md files from the project root down to the touched dir."""
+) -> Iterator[tuple[Path, Path, Path]]:
+    """Readable AGENTS.md files from the project root down to the touched dir.
+
+    Each is ``(directory it governs, project root, real path below the root)``;
+    the real path, not the link, is what gets opened, so an in-repository
+    ``AGENTS.md -> CLAUDE.md`` still works.
+    """
 
     directory = touched.path if touched.path.is_dir() else touched.path.parent
     in_workspace = touched.root in context.manifest_roots
@@ -157,7 +175,7 @@ def _instruction_files(
         except (BrokerPolicyError, OSError):
             continue
         if readable.path.is_relative_to(project_root):
-            yield readable.path
+            yield ancestor, project_root, readable.path.relative_to(project_root)
 
 
 def _lineage(directory: Path, boundary: Path | None) -> list[Path]:
@@ -169,22 +187,36 @@ def _lineage(directory: Path, boundary: Path | None) -> list[Path]:
     return lineage[::-1]
 
 
-def _read_instruction_bytes(path: Path, *, max_bytes: int) -> bytes | None:
-    """At most ``max_bytes`` of a regular, non-blank file; ``None`` otherwise.
+def _read_repository_file(
+    project_root: Path, relative: Path, *, max_bytes: int
+) -> bytes | None:
+    """Open the validated real path without following any symlink below the root.
 
-    Never raises: an instruction file that cannot be read is skipped, not a
-    failure of the call or the Action.
+    A file or directory swapped for a symlink after validation fails to open and
+    is skipped, so the swap cannot redirect the read outside what was checked.
     """
 
+    path = project_root / relative
     try:
-        # O_NONBLOCK so a FIFO planted under the name cannot block the open.
-        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
-    except FileNotFoundError:
+        descriptor = open_regular_file_descriptor(
+            root_path=project_root, relative_path=str(relative)
+        )
+    except DescriptorPathMissingError:
         return None
-    except OSError:
+    except (DescriptorPathError, OSError):
         logger.warning("Skipping unreadable AGENTS.md: %s", path)
         return None
-    with os.fdopen(fd, "rb") as file:
+    return _read_regular_file(descriptor, path, max_bytes=max_bytes)
+
+
+def _read_regular_file(descriptor: int, path: Path, *, max_bytes: int) -> bytes | None:
+    """At most ``max_bytes`` of a regular, non-blank file; ``None`` otherwise.
+
+    Takes ownership of ``descriptor``. Never raises: an instruction file that
+    cannot be read is skipped, not a failure of the call or the Action.
+    """
+
+    with os.fdopen(descriptor, "rb") as file:
         try:
             if not stat.S_ISREG(os.fstat(file.fileno()).st_mode):
                 return None
