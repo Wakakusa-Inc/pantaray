@@ -58,8 +58,8 @@ export function createScreenshotSyncManager(params: {
   ) => Promise<SourceTransitionResult>;
   containSource: (userId: string) => Promise<void>;
   onCaptureStatusChanged?: () => void;
-  /** Recording ran for this user for the first time; called once, after the start succeeded. */
-  onFirstRecordingStarted?: (userId: string) => void;
+  /** Capture started for this owner; called once per owner in a run, after the start succeeded. */
+  onRecordingStarted?: (userId: string) => void;
   createProcess?: typeof createZaneiProcess;
 }) {
   let owner: LocalOwner | null = null;
@@ -77,6 +77,18 @@ export function createScreenshotSyncManager(params: {
     request: Extract<SourceTransition, { kind: 'activate' }>;
   } | null = null;
   let pending = Promise.resolve();
+  /** Owners `onRecordingStarted` already heard about in this run. */
+  const reportedStarts = new Set<string>();
+  const reportRecordingStarted = (userId: string) => {
+    if (reportedStarts.has(userId)) return;
+    reportedStarts.add(userId);
+    try {
+      params.onRecordingStarted?.(userId);
+    } catch (error) {
+      // The hook is a courtesy; the start the user asked for already succeeded.
+      console.error('Recording start hook failed:', error);
+    }
+  };
   const settingsPath = () =>
     resolveScopedSettingsPath({
       userDataDir: params.userDataDir,
@@ -320,11 +332,7 @@ export function createScreenshotSyncManager(params: {
     if (!activation) return;
     const restorePaused = activation.request.capture_paused;
     const activatedFor = activation.userId;
-    let firstRecording = false;
     try {
-      // No preference means recording has never run for this user; `markEnabled` below
-      // writes the first one, so this is the only moment that can tell.
-      firstRecording = !restorePaused && storedPreference() === null;
       const result = await params.transitionSource(activation.userId, activation.request);
       if (result.kind !== 'applied' || result.state.kind !== 'ready') {
         throw new Error(`Context source activation ${result.kind}.`);
@@ -345,14 +353,7 @@ export function createScreenshotSyncManager(params: {
       await suspend('shutdown');
       throw error;
     }
-    if (firstRecording) {
-      try {
-        params.onFirstRecordingStarted?.(activatedFor);
-      } catch (error) {
-        // The greeting is a courtesy; the start the user asked for already succeeded.
-        console.error('First recording start hook failed:', error);
-      }
-    }
+    if (!restorePaused) reportRecordingStarted(activatedFor);
   }
   /**
    * Starts the recorder this user's stored preference calls for.
@@ -494,6 +495,7 @@ export function createScreenshotSyncManager(params: {
         capturePaused = false;
         markEnabled();
         notify();
+        reportRecordingStarted(startedFor.id);
         return 'started';
       }),
     stop: () =>

@@ -24,6 +24,7 @@ from .migrated_db import prepare_test_database
 
 BUSY_TIMEOUT_MS = 1_000
 USER_ID = "user-1"
+GUEST_ID = "guest-1"
 WELCOME = "まずはあなたの仕事を理解するところから始めます。"
 
 
@@ -49,14 +50,61 @@ def _bootstrap_db(tmp_path: Path) -> Path:
         migrations=load_default_migrations(),
     )
     with sqlite3.connect(db_path) as connection:
-        connection.execute(
+        connection.executemany(
             """
             INSERT INTO users(user_id, ui_language, created_at, updated_at)
             VALUES (?, 'ja', '2026-03-24T00:00:00Z', '2026-03-24T00:00:00Z')
             """,
-            (USER_ID,),
+            [(USER_ID,), (GUEST_ID,)],
         )
     return db_path
+
+
+def _add_suggestion(connection: sqlite3.Connection, user_id: str) -> None:
+    connection.execute(
+        """
+        INSERT INTO agent_suggestions(
+            suggestion_id, user_id, status, answer, prompt_name, prompt_version,
+            has_suggestion, interaction_contract, created_at, updated_at
+        ) VALUES (
+            'prior-suggestion', ?, 'success', 'Earlier', 'suggestion', 'v1', 1,
+            'message_only', '2026-03-24T00:00:00.000Z', '2026-03-24T00:00:00.000Z'
+        )
+        """,
+        (user_id,),
+    )
+
+
+def _add_activity_log(connection: sqlite3.Connection, user_id: str) -> None:
+    connection.execute(
+        """
+        INSERT INTO activity_logs(
+            log_id, user_id, period_start, period_end, description, status,
+            prompt_name, prompt_version
+        ) VALUES (
+            'prior-log', ?, '2026-03-24T00:00:00.000Z', '2026-03-24T00:05:00.000Z',
+            'Wrote the proposal', 'success', 'activity', 'v1'
+        )
+        """,
+        (user_id,),
+    )
+
+
+def _add_action(connection: sqlite3.Connection, user_id: str) -> None:
+    # A conversation the user started, which has no Suggestion behind it.
+    connection.execute(
+        """
+        INSERT INTO agent_actions(
+            action_id, user_id, initial_user_message_id, status,
+            execution_target_json, final_output, prompt_name, prompt_version,
+            created_at, updated_at
+        ) VALUES (
+            'prior-action', ?, 'prior-message', 'success', '{}', 'Done', 'action',
+            'v1', '2026-03-24T00:00:00.000Z', '2026-03-24T00:00:00.000Z'
+        )
+        """,
+        (user_id,),
+    )
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:
@@ -101,6 +149,43 @@ def test_the_welcome_is_a_finished_message_only_suggestion_stored_once(
     assert processes[0]["status"] == "completed"
     assert processes[0]["suggestion_id"] == welcome_suggestion_id(USER_ID)
     assert processes[0]["completed_at"] == now
+
+
+@pytest.mark.parametrize(
+    "add_prior_data", [_add_suggestion, _add_activity_log, _add_action]
+)
+def test_an_owner_who_already_has_data_is_not_greeted(
+    tmp_path: Path, add_prior_data
+) -> None:
+    # An existing user who upgrades, or an account that signs in again.
+    db_path = _bootstrap_db(tmp_path)
+    with _connect(db_path) as connection:
+        add_prior_data(connection, USER_ID)
+
+    assert _record(db_path, now=_iso(datetime.now(UTC))) is False
+
+    with _connect(db_path) as connection:
+        welcome = connection.execute(
+            "SELECT COUNT(*) FROM agent_suggestions WHERE suggestion_id = ?",
+            (welcome_suggestion_id(USER_ID),),
+        ).fetchone()[0]
+        processes = connection.execute(
+            "SELECT COUNT(*) FROM processes WHERE user_id = ?", (USER_ID,)
+        ).fetchone()[0]
+    assert (welcome, processes) == (0, 0)
+
+
+def test_an_account_is_greeted_although_the_guest_before_it_recorded(
+    tmp_path: Path,
+) -> None:
+    # The guest's rows stay with the guest; the account starts empty.
+    db_path = _bootstrap_db(tmp_path)
+    with _connect(db_path) as connection:
+        _add_suggestion(connection, GUEST_ID)
+        _add_activity_log(connection, GUEST_ID)
+        _add_action(connection, GUEST_ID)
+
+    assert _record(db_path, now=_iso(datetime.now(UTC))) is True
 
 
 def test_a_live_session_relays_the_welcome_it_started_before(tmp_path: Path) -> None:

@@ -266,7 +266,8 @@ export function formatMacAccelerator(accelerator: string): string {
 }
 
 /**
- * The message shown the first time recording starts, before there is anything to suggest.
+ * The message shown when recording starts for an owner with no data, before there is anything
+ * to suggest.
  * It names the shortcut the user actually has, or only the button when none is set.
  */
 export function getWelcomeSuggestionText(lang: UiLanguage, accelerator: string | null): string {

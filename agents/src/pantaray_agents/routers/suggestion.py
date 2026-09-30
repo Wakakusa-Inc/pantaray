@@ -218,7 +218,7 @@ async def create_welcome_suggestion(
     body: WelcomeSuggestionRequest,
     resolved_user_id: str = Depends(get_current_user_id_from_token),
 ) -> WelcomeSuggestionResponse:
-    """Greet the user the first time recording starts; a repeat is a no-op."""
+    """Greet an owner who has no data yet; for anyone else this is a no-op."""
 
     if not resolved_user_id or user_id != resolved_user_id:
         raise HTTPException(

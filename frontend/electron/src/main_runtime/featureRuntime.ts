@@ -242,7 +242,8 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
     screenshotLib: params.screenshotLib,
     execPromise: params.execPromise,
     onCaptureStatusChanged: () => void params.updateUi.refreshCaptureStatus(),
-    onFirstRecordingStarted: (userId) => {
+    // The runtime greets only an owner who has no data yet, so every start may ask.
+    onRecordingStarted: (userId) => {
       const { accelerator, failure } = shortcutController.getState();
       // A failure means the accelerator is configured but not registered: it would not work.
       const answer = getWelcomeSuggestionText(params.getUiLanguage(), failure ? null : accelerator);

@@ -10,7 +10,9 @@ const { zaneiConfig, zaneiSubjectPaths } = require('../electron/dist/context/zan
 const {
   ALWAYS_DENIED_APP_NAMES, ALWAYS_DENIED_BUNDLE_IDS,
 } = require('../electron/dist/privacy/alwaysDeniedCaptureApps');
-const { resolveScopedSettingsPath } = require('../electron/dist/settings/scope');
+const {
+  initializeAccountSettingsScope, resolveScopedSettingsPath,
+} = require('../electron/dist/settings/scope');
 
 function fixture(t, overrides = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pantaray-zanei-test-'));
@@ -623,24 +625,23 @@ test('a start left waiting for permission stores nothing until a later start rec
   assert.equal(f.enabled(), true);
 });
 
-test('only the first recording ever greets, once it actually runs', async t => {
-  const firsts = [];
-  const f = fixture(t, { onFirstRecordingStarted: userId => firsts.push(userId) });
+test('a start is reported once it actually runs, and once per owner in a run', async t => {
+  const starts = [];
+  const f = fixture(t, { onRecordingStarted: userId => starts.push(userId) });
   f.process.start = async () => { f.calls.push('start'); return {
     binding: { store_id: 'store', protocol_version: 1 }, permissionsReady: false,
   }; };
-  // Waiting for macOS permission records nothing, so it is not the first recording yet.
+  // Waiting for macOS permission records nothing yet.
   assert.equal(await f.manager.start(), 'permission_pending');
-  assert.deepEqual(firsts, []);
+  assert.deepEqual(starts, []);
   f.setReport({ running: true, permissions_ok: true, paused: false,
     heartbeat_freshness: 'fresh', store_write_state: 'healthy', degraded: {} });
   await f.manager.getCaptureStatusSnapshot();
-  assert.deepEqual(firsts, ['alice']);
+  assert.deepEqual(starts, ['alice']);
   f.process.start = async () => { f.calls.push('start'); return {
     binding: { store_id: 'store', protocol_version: 1 }, permissionsReady: true,
   }; };
-  // Turning it off and on, a relaunch that restores it, or a full restart all follow a
-  // recording that already ran.
+  // Turning it off and on, and a restart that restores it, ask the runtime nothing new.
   await f.manager.stop();
   assert.equal(await f.manager.start(), 'started');
   await f.manager.pause('signed_out');
@@ -649,22 +650,59 @@ test('only the first recording ever greets, once it actually runs', async t => {
   await f.manager.pause('shutdown');
   await f.manager.restoreRecorder();
   assert.equal(await f.manager.start(), 'started');
-  assert.deepEqual(firsts, ['alice']);
+  assert.deepEqual(starts, ['alice']);
 });
 
-test('a greeting that fails does not fail the start the user asked for', async t => {
-  const f = fixture(t, { onFirstRecordingStarted: () => { throw new Error('greeting failed'); } });
+test('recording restored from a stored "on" is reported, since the runtime decides', async t => {
+  // A user who upgrades already has the preference; the runtime sees their data.
+  const starts = [];
+  const f = fixture(t, { onRecordingStarted: userId => starts.push(userId) });
+  f.setStored(true);
+  await f.manager.restoreRecorder();
+  assert.equal(f.manager.getStatus(), true);
+  assert.deepEqual(starts, ['alice']);
+});
+
+test('a recorder restored paused is reported only when the user turns capture on', async t => {
+  const starts = [];
+  const f = fixture(t, { onRecordingStarted: userId => starts.push(userId) });
+  f.setStored(false);
+  await f.manager.restoreRecorder();
+  assert.deepEqual(starts, []);
+  // Lifting the pause in place is the moment capture starts.
+  assert.equal(await f.manager.start(), 'started');
+  assert.deepEqual(starts, ['alice']);
+});
+
+test('an account a guest signs in to is reported although it inherited the guest settings', async t => {
+  const starts = [];
+  const f = fixture(t, { onRecordingStarted: userId => starts.push(userId) });
+  f.manager.setOwner({ id: 'guest-1', kind: 'guest' });
+  assert.equal(await f.manager.start(), 'started');
+  // Signing in copies the guest's settings, recording preference included, to the account.
+  await f.manager.pause('signed_out');
+  initializeAccountSettingsScope({ userDataDir: f.dir, accountUserId: 'bob' });
+  assert.equal(fs.existsSync(resolveScopedSettingsPath({
+    userDataDir: f.dir, userId: 'bob', fileName: 'screenshot-settings.json' })), true);
+  f.manager.setOwner({ id: 'bob', kind: 'account' });
+  await f.manager.restoreRecorder();
+  assert.equal(f.manager.getStatus(), true);
+  assert.deepEqual(starts, ['guest-1', 'bob']);
+});
+
+test('a start hook that fails does not fail the start the user asked for', async t => {
+  const f = fixture(t, { onRecordingStarted: () => { throw new Error('greeting failed'); } });
   const logged = [];
   t.mock.method(console, 'error', (...args) => logged.push(args[0]));
   assert.equal(await f.manager.start(), 'started');
   assert.equal(f.manager.getStatus(), true);
-  assert.deepEqual(logged, ['First recording start hook failed:']);
+  assert.deepEqual(logged, ['Recording start hook failed:']);
 });
 
-test('a failed first activation stores nothing and greets no one', async t => {
-  const firsts = [];
+test('a failed activation stores nothing and reports no start', async t => {
+  const starts = [];
   const f = fixture(t, {
-    onFirstRecordingStarted: userId => firsts.push(userId),
+    onRecordingStarted: userId => starts.push(userId),
     transitionSource: async (_user, request) => request.kind === 'activate'
       ? { kind: 'conflict', current_epoch: 'other', reason: 'stale_epoch' }
       : { kind: 'applied', state: { kind: 'stopped', epoch: 'issued', policy_revision: 'p', reason: 'disabled' } },
@@ -672,7 +710,7 @@ test('a failed first activation stores nothing and greets no one', async t => {
   t.mock.method(console, 'error', () => undefined);
   await assert.rejects(f.manager.start(), /activation conflict/);
   assert.equal(f.stored(), false);
-  assert.deepEqual(firsts, []);
+  assert.deepEqual(starts, []);
 });
 
 test('disabling while permission pending stops producer without activating source', async t => {

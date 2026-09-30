@@ -2,9 +2,8 @@ import type { LocalBackendRequest } from '../localBackend/client';
 import { LocalBackendRequestError } from '../localBackend/client';
 
 /**
- * Waits between attempts. The first recording writes the preference that marks it as the
- * first one, so a welcome that never lands is never sent again; a runtime that is busy or
- * still settling right after activation gets a few chances.
+ * Waits between attempts. Recording asks once per owner in a run, so a runtime that is busy
+ * or still settling right after activation gets a few chances before the next launch.
  */
 export const WELCOME_SUGGESTION_RETRY_DELAYS_MS: readonly number[] = [2_000, 10_000, 30_000];
 

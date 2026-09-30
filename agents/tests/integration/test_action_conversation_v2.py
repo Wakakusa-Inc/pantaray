@@ -276,7 +276,7 @@ def test_a_reply_to_the_welcome_continues_it_as_an_ordinary_conversation(
     created = client.post(welcome_path, json={"answer": welcome})
     assert created.status_code == 200, created.text
     assert created.json() == {"created": True}
-    # Recording can start for the first time only once; a repeat greets no one.
+    # The welcome is data of its own, so a repeat greets no one.
     assert client.post(welcome_path, json={"answer": "again"}).json() == {
         "created": False
     }

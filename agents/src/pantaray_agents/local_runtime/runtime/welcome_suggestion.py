@@ -1,4 +1,4 @@
-"""The message that greets a user the first time recording starts.
+"""The message that greets an owner whose recording starts with no data yet.
 
 A first Suggestion needs recorded activity, so a new user would otherwise see
 nothing for the first several minutes. This message says Pantaray is learning
@@ -6,6 +6,10 @@ their work and can take a request at any time. It is stored as an ordinary
 finished `message_only` Suggestion without running the SuggestionAgent, so the
 relay shows it, History lists it, and a reply continues it like any other
 Suggestion.
+
+Whether to greet is decided here, from the owner's rows, not by the desktop
+app: settings files follow a guest into a new account while these rows do not,
+and a user who upgrades already has them.
 """
 
 from __future__ import annotations
@@ -41,23 +45,32 @@ def record_welcome_suggestion(
     answer: str,
     now: str,
 ) -> bool:
-    """Store the welcome as a finished Suggestion; False when it already exists.
+    """Store the welcome as a finished Suggestion; False when the owner has data.
 
-    Both identities derive from the user, so a repeated request never greets
-    twice. The process is written already completed at `now`: the relay
-    delivers a process that finished after its session started, and nothing
-    runs for it.
+    Any Suggestion (the welcome included), activity log or Action means the
+    owner is not new, so a repeated request never greets twice. The process is
+    written already completed at `now`: the relay delivers a process that
+    finished after its session started, and nothing runs for it.
     """
     suggestion_id = welcome_suggestion_id(user_id)
     with immediate_transaction(connection):
-        inserted = connection.execute(
+        has_data = connection.execute(
+            """
+            SELECT EXISTS (SELECT 1 FROM agent_suggestions WHERE user_id = :user_id)
+                OR EXISTS (SELECT 1 FROM activity_logs WHERE user_id = :user_id)
+                OR EXISTS (SELECT 1 FROM agent_actions WHERE user_id = :user_id)
+            """,
+            {"user_id": user_id},
+        ).fetchone()[0]
+        if has_data:
+            return False
+        connection.execute(
             """
             INSERT INTO agent_suggestions(
                 suggestion_id, user_id, status, answer, prompt_name,
                 prompt_version, has_suggestion, interaction_contract,
                 created_at, updated_at
             ) VALUES (?, ?, 'success', ?, ?, ?, 1, 'message_only', ?, ?)
-            ON CONFLICT(suggestion_id) DO NOTHING
             """,
             (
                 suggestion_id,
@@ -68,16 +81,13 @@ def record_welcome_suggestion(
                 now,
                 now,
             ),
-        ).rowcount
-        if inserted != 1:
-            return False
+        )
         connection.execute(
             """
             INSERT INTO processes(
                 process_id, user_id, kind, status, suggestion_id,
                 started_at, updated_at, completed_at, heartbeat_at, next_event_seq
             ) VALUES (?, ?, 'suggestion', 'completed', ?, ?, ?, ?, ?, 1)
-            ON CONFLICT(process_id) DO NOTHING
             """,
             (
                 _derived_id("process", user_id=user_id),
