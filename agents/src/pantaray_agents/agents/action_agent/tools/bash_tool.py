@@ -15,29 +15,12 @@ from .broker_tool_input_schema import (
     broker_tool_input_spec_from_model,
 )
 
-# The model reads tool descriptions, not per-field descriptions, so the rules for
-# asking for access beyond the workspace defaults live here.
+# When and how to ask for access beyond the workspace defaults is in the access
+# fields' descriptions, which the model reads with the schema.
 _ACCESS_REQUEST_GUIDE = (
-    "If a call important to the task fails because it cannot write outside the "
-    "workspace (for example 'Operation not permitted' or 'Read-only file system' "
-    "under the home folder), or you know it writes there (for example a CLI that "
-    "keeps its state in ~/.toolname), rerun the same call with "
-    "additional_write_folders. Do not ask the user in chat first, and do not work "
-    "around it with other tools or locations. additional_write_folders: absolute "
-    "paths, or paths starting with ~/ for the user's real home; only the folders "
-    "needed, each the most specific existing folder. Pantaray's own storage and "
-    "folders that contain it (/, the home folder, ~/Library) cannot be requested. "
-    "The call waits for the user's approval and, once approved, can write only "
-    "there besides the workspace. "
-    "Give justification whenever you set use_login_environment or "
-    "additional_write_folders, and only then. It is shown to the user, as "
-    "written, as the approval question: one short sentence in the language of "
-    "the user's request, for someone who does not read commands. With "
-    "use_login_environment, say which service's signed-in account it will use and "
-    "for what, naming only the service the command actually uses (for a Japanese "
-    "request, for example: 「GitHub にログイン済みのアカウントで、PR の状態を確認します。」). "
-    "With additional_write_folders, say what allowing the change lets you do. Do "
-    "not include command names, paths, or file names."
+    "When a call important to the task needs to write outside the workspace, "
+    "rerun the same call with additional_write_folders. Do not ask the user in "
+    "chat first, and do not work around it with other tools or locations."
 )
 
 # Shared with run_python, whose calls ask for outside write folders the same way.
@@ -46,8 +29,16 @@ WRITE_FOLDER_REQUEST_FIELD_PRESENTATION = (
         name="additional_write_folders",
         prompt_type="json",
         description=(
-            "Folders outside the workspace this call needs to write, with "
-            "justification; omit otherwise. See the tool description."
+            "Folders outside the workspace this call must write. Set it only after "
+            "a call failed because it could not write there (for example 'Operation "
+            "not permitted' or 'Read-only file system'), or when the command writes "
+            "there on every run (for example a CLI that stores its state under the "
+            "home folder, like codex exec); never just in case, and never for reads. "
+            "Absolute paths, or paths starting with ~/ for the user's real home; only "
+            "the folders needed, each the most specific existing folder. Pantaray's "
+            "own storage and folders that contain it (/, the home folder, ~/Library) "
+            "cannot be requested. The call waits for the user's approval and, once "
+            "approved, can write only there besides the workspace."
         ),
         llm_order=40,
     ),
@@ -55,9 +46,16 @@ WRITE_FOLDER_REQUEST_FIELD_PRESENTATION = (
         name="justification",
         prompt_type="string",
         description=(
-            "Required exactly when the call asks for access beyond the workspace "
-            "defaults; the approval question shown to the user. See the tool "
-            "description."
+            "Give justification whenever you set use_login_environment or "
+            "additional_write_folders, and only then. It is shown to the user, as "
+            "written, as the approval question: one short sentence in the language "
+            "of the user's request, for someone who does not read commands. With "
+            "use_login_environment, say which service's signed-in account it will "
+            "use and for what, naming only the service the command actually uses "
+            "(for a Japanese request, for example: "
+            "「GitHub にログイン済みのアカウントで、PR の状態を確認します。」). "
+            "With additional_write_folders, say what allowing the change lets you "
+            "do. Do not include command names, paths, or file names."
         ),
         llm_order=50,
     ),
@@ -101,10 +99,7 @@ BASH_TOOL_FIELD_PRESENTATION = (
             "repository, cloud CLIs), or when a normal run failed with an "
             "authentication error.\n"
             "- Writes stay limited to workspace folders and approved folders; "
-            "keep clone and output paths there. A CLI that saves its state under "
-            "the real home (for example ~/.codex) also needs that folder in "
-            "additional_write_folders.\n"
-            "- Give justification with it."
+            "keep clone and output paths there."
         ),
         llm_order=30,
     ),

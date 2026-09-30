@@ -49,7 +49,6 @@ WEB_SEARCH_TOOL = ToolDefinition.from_spec(
                         "type": "string",
                         "minLength": 1,
                         "pattern": r"\S",
-                        "description": "Focused Tavily search query to execute.",
                     },
                     required=True,
                     prompt_type="string",
@@ -61,15 +60,14 @@ WEB_SEARCH_TOOL = ToolDefinition.from_spec(
                     schema={
                         "type": "string",
                         "enum": list(WEB_SEARCH_TOPICS),
-                        "description": (
-                            "Optional Tavily search topic. Use general for broad web "
-                            "search, news for recent reporting, or finance for market "
-                            "and company information."
-                        ),
                     },
                     required=False,
                     prompt_type="string",
-                    description="Optional Tavily search topic.",
+                    description=(
+                        "Optional Tavily search topic. Use general for broad web "
+                        "search, news for recent reporting, or finance for market "
+                        "and company information."
+                    ),
                     llm_order=20,
                 ),
                 field_spec(
@@ -77,14 +75,13 @@ WEB_SEARCH_TOOL = ToolDefinition.from_spec(
                     schema={
                         "type": "string",
                         "enum": list(WEB_SEARCH_COUNTRIES),
-                        "description": (
-                            "Optional Tavily country hint. Only use this with the "
-                            "general topic when regional results matter."
-                        ),
                     },
                     required=False,
                     prompt_type="string",
-                    description="Optional Tavily country hint for general searches.",
+                    description=(
+                        "Optional Tavily country hint. Only use this with the "
+                        "general topic when regional results matter."
+                    ),
                     llm_order=30,
                 ),
             )

@@ -10,19 +10,22 @@ from pantaray_agents.agents.action_agent.tools import (
 )
 
 
-def _field_description(field_name: str) -> str:
-    for field in BASH_TOOL.prompt_contract.args:
-        if field.name == field_name:
-            return field.description
-    raise AssertionError(f"missing field: {field_name}")
-
-
 def _tool_field_description(tool_id: str, field_name: str) -> str:
-    tool = TOOL_REGISTRY[tool_id]
-    for field in tool.prompt_contract.args:
-        if field.name == field_name:
-            return field.description
-    raise AssertionError(f"missing field: {tool_id}.{field_name}")
+    properties = TOOL_REGISTRY[tool_id].build_validation_input_schema()["properties"]
+    assert isinstance(properties, dict)
+    field = properties[field_name]
+    assert isinstance(field, dict)
+    return str(field["description"])
+
+
+def _field_description(field_name: str) -> str:
+    return _tool_field_description(BASH_TOOL.tool_id, field_name)
+
+
+def _field_names(tool_id: str) -> list[str]:
+    properties = TOOL_REGISTRY[tool_id].build_validation_input_schema()["properties"]
+    assert isinstance(properties, dict)
+    return sorted(properties)
 
 
 def test_bash_tool_contract_explains_shell_scope_and_lifetime() -> None:
@@ -57,21 +60,13 @@ def test_discovery_tool_contracts_explain_read_scope_path_semantics() -> None:
     assert "local" in LIST_TOOL.prompt_contract.description
     assert "local" in GLOB_TOOL.prompt_contract.description
     assert "local" in GREP_TOOL.prompt_contract.description
-    assert [arg.name for arg in LIST_TOOL.prompt_contract.args] == [
-        "path",
-        "max_depth",
-        "limit",
-    ]
-    assert [arg.name for arg in GLOB_TOOL.prompt_contract.args] == [
+    assert _field_names("list") == ["limit", "max_depth", "path"]
+    assert _field_names("glob") == ["base_path", "limit", "pattern"]
+    assert _field_names("grep") == [
         "base_path",
-        "pattern",
-        "limit",
-    ]
-    assert [arg.name for arg in GREP_TOOL.prompt_contract.args] == [
-        "base_path",
-        "pattern",
         "include_glob",
         "max_matches",
+        "pattern",
     ]
     discovery_guides = "\n".join(
         [
@@ -115,16 +110,18 @@ def test_discovery_tools_are_local_parent_tools() -> None:
 def test_command_tools_ask_for_outside_write_folders_with_a_user_facing_reason() -> (
     None
 ):
-    # The model sees the tool description, not per-field descriptions.
     description = BASH_TOOL.prompt_contract.description
+    justification = _field_description("justification")
+    assert "rerun the same call with additional_write_folders" in description
+    assert "Do not ask the user in chat first" in description
     assert (
         "Give justification whenever you set use_login_environment or "
-        "additional_write_folders" in description
+        "additional_write_folders" in justification
     )
-    assert "Do not ask the user in chat first" in description
-    assert "language of the user's request" in description
-    assert "naming only the service the command actually uses" in description
-    assert "Do not include command names, paths, or file names" in description
+    assert "language of the user's request" in justification
+    assert "naming only the service the command actually uses" in justification
+    assert "Do not include command names, paths, or file names" in justification
+    assert _tool_field_description("run_python", "justification") == justification
     assert (
         "additional_write_folders and justification exactly as the bash tool"
         in TOOL_REGISTRY["run_python"].prompt_contract.description

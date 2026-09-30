@@ -49,11 +49,6 @@ WEB_CRAWL_TOOL = ToolDefinition.from_spec(
                         "minLength": 1,
                         "format": "uri",
                         "pattern": r"^https?://\S+$",
-                        "description": (
-                            "Starting URL for the cloud crawl wrapper. This app blocks "
-                            "obvious local/internal forms, and the cloud wrapper "
-                            "enforces the final fetch policy."
-                        ),
                     },
                     required=True,
                     prompt_type="string",
@@ -70,17 +65,13 @@ WEB_CRAWL_TOOL = ToolDefinition.from_spec(
                         "type": "string",
                         "minLength": 1,
                         "pattern": r"\S",
-                        "description": (
-                            "Optional natural-language crawl instructions. Use this "
-                            "to tell the crawler what pages or topics to prioritize "
-                            "within the site area."
-                        ),
                     },
                     required=False,
                     prompt_type="string",
                     description=(
-                        "Optional natural-language instructions that narrow what the "
-                        "crawler should look for."
+                        "Optional natural-language crawl instructions. Use this "
+                        "to tell the crawler what pages or topics to prioritize "
+                        "within the site area."
                     ),
                     llm_order=20,
                 ),

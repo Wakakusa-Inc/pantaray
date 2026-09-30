@@ -53,7 +53,6 @@ HISTORY_FETCH_TOOL = ToolDefinition.from_spec(
                     schema=history_fetch_refs_schema(),
                     required=True,
                     prompt_type="string[]",
-                    description="Displayed short step IDs to fetch, in output order.",
                     llm_order=10,
                 ),
                 field_spec(

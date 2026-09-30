@@ -282,9 +282,12 @@ BROKERED_TOOL_SCHEMA_CONTRACTS = (
 
 def test_brokered_tool_public_input_schemas_keep_current_llm_contract() -> None:
     for contract in BROKERED_TOOL_SCHEMA_CONTRACTS:
-        assert (
-            schema_to_plain_json(contract.tool.input_schema) == contract.expected_schema
-        )
+        public = schema_to_plain_json(contract.tool.input_schema)
+        assert isinstance(public, dict)
+        assert _field_descriptions(public) == {
+            field.name: field.description for field in contract.presentation
+        }
+        assert _without_field_descriptions(public) == contract.expected_schema
 
 
 def test_brokered_tool_input_schemas_are_generated_from_runtime_models() -> None:
@@ -296,7 +299,7 @@ def test_brokered_tool_input_schemas_are_generated_from_runtime_models() -> None
                 description=str(contract.expected_schema["description"]),
             )
         )
-        assert generated == contract.expected_schema
+        assert _without_field_descriptions(generated) == contract.expected_schema
         _assert_no_unresolved_pydantic_refs(generated)
 
 
@@ -310,6 +313,31 @@ def test_brokered_tool_definitions_do_not_hand_write_field_schemas() -> None:
     )
     for module in brokered_modules:
         assert "field_spec(" not in inspect.getsource(module)
+
+
+def _field_descriptions(schema: dict[str, JSONValue]) -> dict[str, JSONValue]:
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    return {
+        name: field["description"]
+        for name, field in properties.items()
+        if isinstance(field, dict)
+    }
+
+
+def _without_field_descriptions(schema: dict[str, JSONValue]) -> dict[str, JSONValue]:
+    """The data shape alone; the descriptions come from the field presentation."""
+
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    return {
+        **schema,
+        "properties": {
+            name: {key: value for key, value in field.items() if key != "description"}
+            for name, field in properties.items()
+            if isinstance(field, dict)
+        },
+    }
 
 
 def _assert_no_unresolved_pydantic_refs(value: JSONValue) -> None:
