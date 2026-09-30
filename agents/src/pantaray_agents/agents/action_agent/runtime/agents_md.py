@@ -91,10 +91,6 @@ def attach_repository_agents_md(
             key = str(path)
             if key in attached or remaining == 0:
                 continue
-            if path == touched.path:
-                # A read of the file itself already returned it.
-                attached.append(key)
-                continue
             data = _read_instruction_bytes(path, max_bytes=remaining)
             if data is None:
                 continue

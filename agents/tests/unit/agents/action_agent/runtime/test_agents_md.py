@@ -21,6 +21,9 @@ from pantaray_agents.agents.action_agent.runtime.checkpoint import (
     build_runtime_state_checkpoint,
     restore_runtime_state_checkpoint,
 )
+from pantaray_agents.agents.action_agent.runtime.handlers.nodes.act.builders import (
+    _build_tool_history_entry,
+)
 from pantaray_agents.agents.action_agent.runtime.handlers.tool_runtime.broker_tools import (
     run_broker_tool_wrapper,
 )
@@ -99,13 +102,13 @@ class _Action:
             self.state, tool_id=tool_id, args=args, read_context=self.read_context()
         )
 
-    async def read(self, path: Path | str) -> Any:
+    async def read(self, path: Path | str, **extra: JSONValue) -> Any:
         with TraceContextManager(extra={"process_id": BROKER_ACTOR_PROCESS_ID}):
             preparation = await run_broker_tool_wrapper(
                 None,
                 "step-1",
                 cast(ToolDefinition, _ReadTool()),
-                {"path": str(path)},
+                {"path": str(path), **extra},
                 self.state,
                 invocation_id=None,
                 tool_request_id=f"request-{os.urandom(4).hex()}",
@@ -199,10 +202,48 @@ def test_each_touching_tool_attaches_by_the_directory_it_works_in(
         {"changes": [{"op": "delete", "path": str(repo / "sub" / "gone.py")}]},
     )
     assert patched is not None and "SUB RULE" in patched
-    # Reading the file itself already shows it; only the deeper one is new.
-    assert action.attach("read", {"path": str(other / "AGENTS.md")}) is None
+    assert action.attach("read", {"path": str(other / "AGENTS.md")}) == _block(
+        other, "ROOT RULE\n"
+    )
     listed = action.attach("list", {"path": str(other / "sub")})
     assert listed == _block(other / "sub", "SUB RULE\n")
+
+
+@pytest.mark.asyncio
+async def test_a_partial_read_of_agents_md_still_keeps_the_whole_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    action = _Action(tmp_path, monkeypatch)
+    repo = _repository(tmp_path)
+    (repo / "AGENTS.md").write_text("FIRST LINE\nSECOND RULE\n", encoding="utf-8")
+
+    partial = await action.read(repo / "AGENTS.md", limit=1)
+
+    assert partial.status == "success"
+    assert "SECOND RULE" not in str(partial.output)
+    assert partial.agents_md == _block(repo, "FIRST LINE\nSECOND RULE\n")
+    action.state["history_by_scope"]["S"].append(
+        _build_tool_history_entry(
+            step_id="tool-1",
+            step_number=1,
+            phase="executing",
+            summary="note",
+            tool_id="read",
+            started_at="2026-10-01T00:00:00Z",
+            completed_at="2026-10-01T00:00:01Z",
+            result_line="read: ok",
+            args={"path": str(repo / "AGENTS.md"), "limit": 1},
+            output=partial.output,
+            short_step_id="S-1-TOOL",
+            agents_md=partial.agents_md,
+        )
+    )
+    action.resume()
+    rendered = ActionAgentFormatter(tool_registry={}).format_history(
+        action.state, omit_before_step_number=2
+    )
+    assert "SECOND RULE" in rendered
+    assert (await action.read(repo / "AGENTS.md")).agents_md is None
 
 
 def test_files_the_read_tool_may_not_open_are_not_attached(
