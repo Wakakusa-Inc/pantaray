@@ -81,6 +81,7 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.operation.applyPatch': 'Modify files.',
     'overlay.approvalRequired.operation.captureScreen': 'Capture the screen.',
     'overlay.approvalRequired.operation.generic': 'Run this operation.',
+    'overlay.approvalRequired.loginEnvironmentNotice': 'It uses your login information.',
     'overlay.approvalRequired.command': 'Command',
     'overlay.approvalRequired.pythonCode': 'Python code',
     'overlay.approvalRequired.pythonCodeDescription':
@@ -96,6 +97,7 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.deny': 'Deny',
     'overlay.approvalRequired.outsideWorkspace.operation':
       'Pantaray wants to change files in the “{folder}” folder. Allow it?',
+    'overlay.approvalRequired.outsideWorkspace.folders': 'Folders it will change',
     'overlay.approvalRequired.outsideWorkspace.approveOnce': 'Allow once',
     'overlay.approvalRequired.outsideWorkspace.deny': 'Don’t allow',
     'overlay.approvalRequired.outsideWorkspace.approveForConversation':
@@ -190,6 +192,7 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.operation.applyPatch': 'ファイルを変更します。',
     'overlay.approvalRequired.operation.captureScreen': '画面を撮影します。',
     'overlay.approvalRequired.operation.generic': 'この操作を実行します。',
+    'overlay.approvalRequired.loginEnvironmentNotice': 'ログイン情報を使います。',
     'overlay.approvalRequired.command': 'コマンド',
     'overlay.approvalRequired.pythonCode': 'Pythonコード',
     'overlay.approvalRequired.pythonCodeDescription':
@@ -205,6 +208,7 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.deny': '拒否',
     'overlay.approvalRequired.outsideWorkspace.operation':
       '『{folder}』フォルダのファイルを変更しようとしています。許可しますか？',
+    'overlay.approvalRequired.outsideWorkspace.folders': '変更するフォルダ',
     'overlay.approvalRequired.outsideWorkspace.approveOnce': '今回だけ許可',
     'overlay.approvalRequired.outsideWorkspace.deny': '許可しない',
     'overlay.approvalRequired.outsideWorkspace.approveForConversation': 'この会話では許可',

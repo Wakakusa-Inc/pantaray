@@ -104,6 +104,24 @@ const ApprovalCodeBlock = styled.pre`
   word-break: break-word;
 `;
 
+const ApprovalDisclosure = styled.details`
+  margin-top: 12px;
+`;
+
+const ApprovalDisclosureSummary = styled.summary`
+  font-family: var(--font-sans);
+  font-size: var(--text-ui-size-sm);
+  color: rgba(255, 255, 255, 0.66);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+
+  &:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+`;
+
 const ApprovalDetailList = styled.dl`
   display: grid;
   grid-template-columns: auto 1fr;
@@ -169,43 +187,76 @@ export function ApprovalPanel({
   t,
 }: ApprovalPanelProps) {
   const display = buildApprovalDisplay(approvalPanel, t);
+  const reason = display.outsideWorkspace?.reason ?? null;
+
+  const folderPaths =
+    display.outsideWorkspace === null ? null : display.outsideWorkspace.folders.length === 1 ? (
+      <ApprovalFolderPath>{display.outsideWorkspace.folders[0].path}</ApprovalFolderPath>
+    ) : (
+      <ApprovalFolderList>
+        {display.outsideWorkspace.folders.map((folder) => (
+          <ApprovalFolderPath as="li" key={folder.path}>
+            {folder.path}
+          </ApprovalFolderPath>
+        ))}
+      </ApprovalFolderList>
+    );
+
+  const toolDetails = (
+    <ApprovalDetailGroup>
+      {display.primaryValue ? (
+        <>
+          <ApprovalDetailLabel>{t(display.primaryLabelKey)}</ApprovalDetailLabel>
+          <ApprovalCodeBlock>{display.primaryValue}</ApprovalCodeBlock>
+        </>
+      ) : null}
+      {display.details.length > 0 ? (
+        <ApprovalDetailList>
+          {display.details.map((detail, index) => (
+            <Fragment key={`${detail.labelKey}-${index}`}>
+              <ApprovalDetailTerm>{t(detail.labelKey)}</ApprovalDetailTerm>
+              <ApprovalDetailValue>{detail.value}</ApprovalDetailValue>
+            </Fragment>
+          ))}
+        </ApprovalDetailList>
+      ) : null}
+    </ApprovalDetailGroup>
+  );
 
   return (
     <ApprovalPanelCard>
       <ApprovalPanelTitle>{t('overlay.approvalRequired.title')}</ApprovalPanelTitle>
       <ApprovalOperationText>
-        {t(display.operationKey, display.operationVars)}
+        {reason ?? t(display.operationKey, display.operationVars)}
       </ApprovalOperationText>
-      {display.outsideWorkspace && display.outsideWorkspace.folders.length === 1 ? (
-        <ApprovalFolderPath>{display.outsideWorkspace.folders[0].path}</ApprovalFolderPath>
-      ) : null}
-      {display.outsideWorkspace && display.outsideWorkspace.folders.length > 1 ? (
-        <ApprovalFolderList>
-          {display.outsideWorkspace.folders.map((folder) => (
-            <ApprovalFolderPath as="li" key={folder.path}>
-              {folder.path}
-            </ApprovalFolderPath>
-          ))}
-        </ApprovalFolderList>
-      ) : null}
-      <ApprovalDetailGroup>
-        {display.primaryValue ? (
-          <>
-            <ApprovalDetailLabel>{t(display.primaryLabelKey)}</ApprovalDetailLabel>
-            <ApprovalCodeBlock>{display.primaryValue}</ApprovalCodeBlock>
-          </>
-        ) : null}
-        {display.details.length > 0 ? (
-          <ApprovalDetailList>
-            {display.details.map((detail, index) => (
-              <Fragment key={`${detail.labelKey}-${index}`}>
-                <ApprovalDetailTerm>{t(detail.labelKey)}</ApprovalDetailTerm>
-                <ApprovalDetailValue>{detail.value}</ApprovalDetailValue>
-              </Fragment>
-            ))}
-          </ApprovalDetailList>
-        ) : null}
-      </ApprovalDetailGroup>
+      {reason ? (
+        // A reason is for readers who cannot read commands: it leads, the folders
+        // follow, and the command stays one click away.
+        <>
+          {display.usesLoginEnvironment ? (
+            <ApprovalOperationText>
+              {t('overlay.approvalRequired.loginEnvironmentNotice')}
+            </ApprovalOperationText>
+          ) : null}
+          <ApprovalDetailGroup>
+            <ApprovalDetailLabel>
+              {t('overlay.approvalRequired.outsideWorkspace.folders')}
+            </ApprovalDetailLabel>
+            {folderPaths}
+          </ApprovalDetailGroup>
+          <ApprovalDisclosure>
+            <ApprovalDisclosureSummary>
+              {t('overlay.approvalRequired.details')}
+            </ApprovalDisclosureSummary>
+            {toolDetails}
+          </ApprovalDisclosure>
+        </>
+      ) : (
+        <>
+          {folderPaths}
+          {toolDetails}
+        </>
+      )}
       {approvalErrorMessage ? <ApprovalErrorText>{approvalErrorMessage}</ApprovalErrorText> : null}
       <ApprovalActionRow>
         {onDecide
