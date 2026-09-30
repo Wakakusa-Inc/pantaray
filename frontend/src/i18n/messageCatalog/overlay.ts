@@ -76,7 +76,7 @@ export const OVERLAY_MESSAGES = defineMessages({
     'overlay.approvalRequired.title': 'Approval required',
     'overlay.approvalRequired.operation.bash': 'Run a local command.',
     'overlay.approvalRequired.operation.bashLoginEnvironment':
-      'Runs a local command with access to your login information.',
+      'Run a local command with access to your login information.',
     'overlay.approvalRequired.operation.runPython': 'Run Python code.',
     'overlay.approvalRequired.operation.applyPatch': 'Modify files.',
     'overlay.approvalRequired.operation.captureScreen': 'Capture the screen.',

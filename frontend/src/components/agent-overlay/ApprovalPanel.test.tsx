@@ -342,7 +342,7 @@ describe('ApprovalPanel', () => {
   it('says a command without a reason runs with access to login information', () => {
     for (const [language, operation] of [
       ['ja', 'ログイン情報を使える状態でローカルコマンドを実行します。'],
-      ['en', 'Runs a local command with access to your login information.'],
+      ['en', 'Run a local command with access to your login information.'],
     ] as const) {
       const { container } = renderPanel(
         language,
