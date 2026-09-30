@@ -1710,7 +1710,7 @@ def _publish_second_fact_revision(
 
 
 @pytest.mark.parametrize("has_direction", [False, True])
-def test_todo_preview_and_full_read_do_not_invent_long_term_context(
+def test_todo_file_and_full_read_do_not_invent_long_term_context(
     tmp_path: Path,
     has_direction: bool,
 ) -> None:
@@ -1733,10 +1733,8 @@ def test_todo_preview_and_full_read_do_not_invent_long_term_context(
     )
     snapshot = _snapshot(db_path=db_path, artifact_root=artifact_root)
     assert snapshot.stable_memory.has_insights is has_direction
-    preview = snapshot.stable_memory.pending_work
-    assert "a concrete pending commitment" in preview
-    assert "[truncated; continue with read]" in preview
-    assert len(preview) <= snapshot_module.PENDING_WORK_PREVIEW_MAX_CHARS
+    # The whole file reaches the agent, which renders a bounded index of it.
+    assert snapshot.stable_memory.pending_work == todo
     reader = ReadOnlyFileAccess(roots=snapshot.roots)
     full = reader.read(
         root_id="insights", path="insights/todos.md", offset=1, column=1, limit=200

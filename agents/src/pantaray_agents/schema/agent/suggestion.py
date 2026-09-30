@@ -123,6 +123,18 @@ class SuggestionExtraction(TypedDict):
     interaction_contract: SuggestionInteractionContract | None
 
 
+class SuggestionCandidate(BaseModel):
+    """判断中に検討した候補と、その扱い。診断用で利用者には見せない。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    candidate: str = Field(description="候補の短い説明")
+    decision: Literal["suggested", "skipped"] = Field(
+        description="提案したか見送ったか"
+    )
+    reason: str = Field(description="提案・見送りの短い理由")
+
+
 class SuggestionStructuredOutput(BaseModel):
     """Suggestion LLM の JSON-only 出力。"""
 
@@ -143,6 +155,10 @@ class SuggestionStructuredOutput(BaseModel):
     )
     target_context: SuggestionTargetContext | None = Field(
         description="対象 organization / project。判断できない場合は null",
+    )
+    # Stored with the raw response for diagnosing why a run stayed quiet.
+    candidates: list[SuggestionCandidate] = Field(
+        default_factory=list, description="検討した候補と扱い（診断用）"
     )
 
 
@@ -169,6 +185,10 @@ class SuggestionHistoryEntry(BaseModel):
     )
     action_result: str | None = Field(
         default=None, description="対応する Action の最後に成功したターンの最終出力"
+    )
+    action_followups: list[str] = Field(
+        default_factory=list,
+        description="Action の途中でユーザーが送った指示（古い順、最初の依頼を除く）",
     )
 
 

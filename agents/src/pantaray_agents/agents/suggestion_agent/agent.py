@@ -45,6 +45,7 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
 )
 from pantaray_agents.agents.suggestion_agent.react import run_suggestion_react
 from pantaray_agents.agents.suggestion_agent.research import SuggestionResearchTools
+from pantaray_agents.agents.suggestion_agent.todo_index import build_todo_index
 from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.repositories.runtime_ports import (
     SuggestionRepositoryPort,
@@ -309,7 +310,10 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
             "short_term_insight": context_data["short_term_insight"],
             "reconsideration_reason": context_data["reconsideration_reason"],
             "stable_memory_context": context_data["stable_memory_context"],
-            "pending_work_context": self.stable_memory.pending_work
+            "pending_work_context": build_todo_index(
+                self.stable_memory.pending_work,
+                today=self._get_reference_time().astimezone().date(),
+            )
             or "(No pending work recorded.)",
             "action_agent_capabilities": context_data["action_agent_capabilities"],
             "recent_suggestions": context_data["recent_suggestions"],

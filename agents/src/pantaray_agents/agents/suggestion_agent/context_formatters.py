@@ -19,6 +19,10 @@ RECENT_SUGGESTION_REPLY_MAX_CHARS = 2_000
 # Stored Action outputs were 947 chars or fewer in 34 of 36 runs, and the head
 # carries the conclusion; five entries then add at most 5,000 chars.
 RECENT_SUGGESTION_ACTION_RESULT_MAX_CHARS = 1_000
+# The latest instructions carry the current scope; older ones are superseded
+# or already reflected in the result.
+RECENT_SUGGESTION_FOLLOWUPS_MAX = 5
+RECENT_SUGGESTION_FOLLOWUP_MAX_CHARS = 400
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +74,18 @@ def format_recent_suggestions(rows: list[SuggestionHistoryEntry] | None) -> str:
         if row.user_reply is not None:
             reply = _bounded(row.user_reply, RECENT_SUGGESTION_REPLY_MAX_CHARS, "reply")
             lines.append(f"  User reply: {reply}")
+        followups = row.action_followups[-RECENT_SUGGESTION_FOLLOWUPS_MAX:]
+        if followups:
+            lines.append("  User instructions during the Action (oldest first):")
+            lines.extend(
+                "    - "
+                + _bounded(
+                    " ".join(text.split()),
+                    RECENT_SUGGESTION_FOLLOWUP_MAX_CHARS,
+                    "instruction",
+                )
+                for text in followups
+            )
         if row.action_status is not None:
             lines.append(f"  Action status: {row.action_status}")
         if row.action_result is not None:
@@ -104,5 +120,6 @@ def normalize_recent_suggestion_entry(
             "user_reply": row.get("user_reply"),
             "action_status": row.get("action_status"),
             "action_result": row.get("action_result"),
+            "action_followups": row.get("action_followups") or [],
         }
     )

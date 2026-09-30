@@ -712,6 +712,7 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
                     "user_reply": "The review is complete.",
                     "action_status": "success",
                     "action_result": "Review finished; no findings remain.",
+                    "action_followups": ["Only review,\n do not merge."],
                 }
             ]
         )
@@ -731,6 +732,10 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
     assert "The review is complete." in prompt
     assert "Action status: success" in prompt
     assert "Latest Action result: Review finished; no findings remain." in prompt
+    assert (
+        "  User instructions during the Action (oldest first):\n"
+        "    - Only review, do not merge.\n"
+    ) in prompt
 
 
 def test_reply_and_result_previews_are_bounded_and_missing_reaction_is_not_rejection() -> (
