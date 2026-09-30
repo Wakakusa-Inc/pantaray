@@ -21,6 +21,7 @@ from pantaray_agents.local_runtime.runtime.action_messages import (
     submit_action_message,
 )
 from pantaray_agents.local_runtime.runtime.bootstrap import is_local_runtime_enabled
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.storage.migrations import MigrationError
 from pantaray_agents.local_runtime.tooling.models import ApprovalMode
 from pantaray_agents.orchestration.ws.action_relay import (
@@ -42,7 +43,6 @@ from pantaray_agents.schema.agent.image import ImageInput
 from pantaray_agents.schema.websocket import ExecuteActionMessage
 from pantaray_agents.security.storage_paths import validate_image_storage_path
 from pantaray_agents.utils.public_error import public_ws_error
-from pantaray_agents.utils.timestamps import utc_now_iso8601_utc_z
 
 logger = logging.getLogger(__name__)
 
@@ -174,9 +174,7 @@ class ActionFlowMixin(ActionRelayMixin):
             )
             return
 
-        approved_at = (
-            _optional_text(suggestion_row.get("accepted_at")) or utc_now_iso8601_utc_z()
-        )
+        approved_at = _optional_text(suggestion_row.get("accepted_at")) or now_utc_iso()
         language = self._resolve_action_language(payload.language)
         try:
             result = submit_action_message(

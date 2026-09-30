@@ -29,7 +29,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from pantaray_agents.tasks.job_retry import (
@@ -42,6 +42,7 @@ from .route_identity import (
     effective_route_identity,
     read_route_inputs,
 )
+from .utc_timestamps import format_utc_iso, utc_now
 
 
 class LocalJobRouteIdentityChangedError(RuntimeError):
@@ -144,10 +145,9 @@ def _restart_after_the_barrier() -> str:
     the barrier still applying the new identity to have finished, and keeps a
     run that keeps losing the race from spinning.
     """
-    restart_at = datetime.now(UTC) + timedelta(
-        seconds=LOCAL_JOB_OPERATIONAL_RETRY_DELAY_SECONDS
+    return format_utc_iso(
+        utc_now() + timedelta(seconds=LOCAL_JOB_OPERATIONAL_RETRY_DELAY_SECONDS)
     )
-    return restart_at.isoformat().replace("+00:00", "Z")
 
 
 __all__ = [

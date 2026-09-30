@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import ValidationError
 
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.schema.agent.base import JSONValue
 
 from ..resources.resource_tracking import (
@@ -537,7 +537,7 @@ async def execute_broker_tool(
             request=ToolResultFinalizationRequest(
                 owner=InvocationToolResultOwner(
                     invocation_id=completion_invocation_id,
-                    completed_at=datetime.now(UTC).isoformat(),
+                    completed_at=now_utc_iso(),
                     status=("completed" if outcome.status == "success" else "failed"),
                     completion_scope="execution",
                 ),

@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Final, NamedTuple
 
 from pantaray_agents.local_runtime.runtime.bootstrap import read_local_runtime_db_config
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.storage.migrations.connection import (
     configure_connection,
 )
@@ -38,7 +39,6 @@ from pantaray_agents.orchestration.ws.suggestion_stream.types import (
 )
 from pantaray_agents.schema.agent.base import ErrorSeverity, ErrorType
 from pantaray_agents.utils.public_error import public_ws_error
-from pantaray_agents.utils.timestamps import utc_now_iso8601_utc_z
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ class SuggestionRelayMixin(
         # Session-scoped: a process delivered once is never delivered again, and
         # a new session re-discovers whatever the runtime still has in flight.
         self._relayed_suggestion_processes: set[str] = set()
-        self._relay_since = utc_now_iso8601_utc_z()
+        self._relay_since = now_utc_iso()
 
     def _register_suggestion_process(
         self,

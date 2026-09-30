@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from pathlib import Path
 
 from ..storage.migrations import MigrationError
@@ -18,6 +17,7 @@ from ..tooling.resources.resource_transition_store import (
 from .action_legacy_shared_temp_resource_authority import (
     LegacyActionSharedTempPrecleanupAuthority,
 )
+from .utc_timestamps import now_utc_iso
 
 
 def reconcile_legacy_action_shared_temp_blockers(
@@ -90,7 +90,7 @@ def _cleanup_resource(
         busy_timeout_ms=busy_timeout_ms,
         resource=resource,
         status=status,
-        timestamp=_utc_now_iso(),
+        timestamp=now_utc_iso(),
         cleanup_error=cleanup_error,
         event=ToolRuntimeResourceEventInput(
             event_type=f"legacy_action_external_resource_{status}",
@@ -116,7 +116,3 @@ def _require_exact_resource(
     )
     if current != resource:
         raise MigrationError("legacy Action external resource authority changed")
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
