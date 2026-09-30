@@ -34,6 +34,7 @@ from pantaray_agents.schema.repositories.repository import RepositoryResult
 from pantaray_agents.schema.websocket import AckEventMessage
 from pantaray_agents.schema.websocket.client_messages import ExecuteActionMessage
 from pantaray_agents.schema.websocket.server_messages import ErrorMessage
+from pantaray_agents.utils.timestamps import normalize_iso8601_utc_z_milliseconds
 
 COMMAND_ID = "11111111-1111-4111-8111-111111111111"
 APPROVED_AT = "2026-08-16T01:02:03Z"
@@ -147,7 +148,7 @@ def _configure_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: True,
     )
     monkeypatch.setattr(
-        "pantaray_agents.orchestration.ws.action.utc_now_iso8601_utc_z",
+        "pantaray_agents.orchestration.ws.action.now_utc_iso",
         lambda: APPROVED_AT,
     )
 
@@ -256,6 +257,39 @@ async def test_execute_action_adapts_suggestion_to_the_canonical_creation_comman
     assert handler.attached[0]["logical_run_id"] == "process-1"
     assert handler.errors == []
     assert handler.session_errors == []
+
+
+@pytest.mark.asyncio
+async def test_execute_action_stamps_a_pending_approval_in_canonical_milliseconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The approval time is stored with the Suggestion, so it must use the
+    # canonical storage form rather than whatever the clock formats.
+    monkeypatch.setattr(
+        "pantaray_agents.orchestration.ws.action.is_local_runtime_enabled",
+        lambda: True,
+    )
+    calls: list[SubmitActionMessageCommand] = []
+    monkeypatch.setattr(
+        "pantaray_agents.orchestration.ws.action.submit_action_message",
+        lambda command: calls.append(command) or _result(),
+    )
+
+    await _Handler().execute_action(
+        ExecuteActionMessage(
+            approval_mode="prompt_each_time",
+            images=(),
+            suggestion_id="suggestion-1",
+            command_id=COMMAND_ID,
+        )
+    )
+
+    approval = calls[0].message.suggestion_approval
+    assert approval is not None
+    assert (
+        normalize_iso8601_utc_z_milliseconds(approval.approved_at)
+        == approval.approved_at
+    )
 
 
 @pytest.mark.asyncio

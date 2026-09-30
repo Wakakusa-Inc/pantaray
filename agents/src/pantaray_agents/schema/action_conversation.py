@@ -18,7 +18,7 @@ from pydantic import (
 from pydantic_core import PydanticCustomError
 
 from pantaray_agents.schema.agent.image import ImageInput
-from pantaray_agents.utils.timestamps import normalize_iso8601_utc_z
+from pantaray_agents.utils.timestamps import normalize_iso8601_utc_z_microseconds
 
 type ActionStatus = Literal["queued", "processing", "success", "error", "canceled"]
 type RunStatus = Literal["running", "approval_pending", "success", "error", "canceled"]
@@ -89,7 +89,7 @@ type ActionConversationIdentity = Annotated[
     str, AfterValidator(_require_canonical_identity)
 ]
 type ActionConversationTimestamp = Annotated[
-    str, AfterValidator(normalize_iso8601_utc_z)
+    str, AfterValidator(normalize_iso8601_utc_z_microseconds)
 ]
 type NonBlankText = Annotated[str, AfterValidator(_require_non_blank)]
 

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from pantaray_agents.local_runtime.memory_catalog.domain_registration import (
     register_inline_domain_memory,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
     WELCOME_SUGGESTION_PROMPT_NAME,
 )
@@ -33,7 +34,7 @@ from pantaray_agents.suggestion_reactions import (
     normalize_public_suggestion_reaction_for_write,
 )
 
-from .shared import build_audit_timestamps, encode_json_column, utc_now_iso
+from .shared import build_audit_timestamps, encode_json_column
 
 MESSAGE_ONLY_INTERACTION_CONTRACT = "message_only"
 
@@ -159,7 +160,7 @@ class LocalSuggestionRepository(
                         request_images_count,
                         used_images_count,
                         suggestion.interaction_contract,
-                        utc_now_iso(),
+                        now_utc_iso(),
                         suggestion.user_id,
                         suggestion.suggestion_id,
                     ),
@@ -282,7 +283,7 @@ class LocalSuggestionRepository(
                     """,
                     (
                         encode_json_column(error_payload),
-                        utc_now_iso(),
+                        now_utc_iso(),
                         user_id,
                         suggestion_id,
                     ),
@@ -310,7 +311,7 @@ class LocalSuggestionRepository(
                         updated_at = ?
                     WHERE user_id = ? AND suggestion_id = ? AND status = 'processing'
                     """,
-                    (utc_now_iso(), user_id, suggestion_id),
+                    (now_utc_iso(), user_id, suggestion_id),
                 )
         return await self.get_suggestion(user_id=user_id, suggestion_id=suggestion_id)
 
@@ -483,13 +484,13 @@ class LocalSuggestionRepository(
         except ValueError:
             return RepositoryResult(error="user_reaction must be accepted or dismiss")
         update_columns: list[str] = ["user_reaction = ?", "updated_at = ?"]
-        params: list[object] = [stored_user_reaction, utc_now_iso()]
+        params: list[object] = [stored_user_reaction, now_utc_iso()]
         if stored_user_reaction == "accepted":
             update_columns.extend(["accepted_at = ?", "rejected_at = NULL"])
-            params.append(accepted_at or utc_now_iso())
+            params.append(accepted_at or now_utc_iso())
         elif stored_user_reaction == "rejected":
             update_columns.extend(["rejected_at = ?", "accepted_at = NULL"])
-            params.append(rejected_at or utc_now_iso())
+            params.append(rejected_at or now_utc_iso())
         if action_status is not None:
             update_columns.append("action_status = ?")
             params.append(action_status)
@@ -526,7 +527,7 @@ class LocalSuggestionRepository(
         update_action_failure_code: bool = False,
     ) -> RepositoryResult[DBRow]:
         update_columns: list[str] = ["action_status = ?", "updated_at = ?"]
-        params: list[object] = [action_status, utc_now_iso()]
+        params: list[object] = [action_status, now_utc_iso()]
         if update_action_failure_code:
             update_columns.append("action_failure_code = ?")
             params.append(action_failure_code)
