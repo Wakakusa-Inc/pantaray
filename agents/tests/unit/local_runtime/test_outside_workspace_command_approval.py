@@ -94,7 +94,6 @@ def _args(tool_id: str, cwd: Path | str) -> dict[str, JSONValue]:
 def _expected_summary(tool_id: str, folder: Path) -> dict[str, JSONValue]:
     outside_workspace: dict[str, JSONValue] = {
         "folders": [{"path": str(folder), "display_name": folder.name}],
-        "reason": None,
         "can_allow_for_conversation": True,
     }
     if tool_id == "bash":
@@ -104,6 +103,7 @@ def _expected_summary(tool_id: str, folder: Path) -> dict[str, JSONValue]:
             "cwd": str(folder),
             "timeout_ms": PROFILE_TIMEOUT_MS["workspace_process_exec"],
             "use_login_environment": False,
+            "reason": None,
             "outside_workspace": outside_workspace,
         }
     code = PYTHON_CODE.encode("utf-8")
@@ -114,6 +114,7 @@ def _expected_summary(tool_id: str, folder: Path) -> dict[str, JSONValue]:
         "code_size_bytes": len(code),
         "args_count": 0,
         "timeout_ms": PROFILE_TIMEOUT_MS["agent_generated_python"],
+        "reason": None,
         "outside_workspace": outside_workspace,
     }
 
@@ -411,6 +412,7 @@ def test_every_approved_folder_is_rechecked_before_launch(
             cwd_relative_path=str(first),
             timeout_ms=1_000,
             use_login_environment=False,
+            reason=None,
             outside_workspace_folders=(first, second),
         )
     )

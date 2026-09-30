@@ -47,6 +47,7 @@ from .tool_path_policy import (
 )
 
 EXEC_CWD_RETARGETED = "EXEC_CWD_RETARGETED"
+EXEC_WRITE_FOLDER_DENIED = "EXEC_WRITE_FOLDER_DENIED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,24 +55,82 @@ class _CommandCwd:
     path: Path
     # PATH lookups for project tools (.venv/bin, node_modules/.bin) stay under it.
     execution_root: Path
-    # Folders outside the workspace the command may write, today only an outside
-    # cwd; running with any needs the user's approval of this exact tool call.
+    # Folders outside the workspace the command may write: an outside cwd and
+    # the requested write folders. Running with any needs the user's approval of
+    # this exact tool call.
     outside_workspace_folders: tuple[Path, ...]
 
 
-def _resolve_command_cwd(*, context: BrokerContext, raw_cwd: str | None) -> _CommandCwd:
+def _resolve_command_cwd(
+    *,
+    context: BrokerContext,
+    raw_cwd: str | None,
+    additional_write_folders: list[str],
+) -> _CommandCwd:
     resolved = resolve_exec_tool_cwd(context=context, raw_cwd=raw_cwd)
+    resolved_folders = (
+        _resolve_write_folder(context=context, raw_folder=raw_folder)
+        for raw_folder in additional_write_folders
+    )
+    requested = tuple(folder for folder in resolved_folders if folder is not None)
     if isinstance(resolved, OutsideWorkspaceCwd):
         return _CommandCwd(
             path=resolved.path,
             execution_root=resolved.path,
-            outside_workspace_folders=(resolved.path,),
+            outside_workspace_folders=tuple(dict.fromkeys((resolved.path, *requested))),
         )
     return _CommandCwd(
         path=resolved.path,
         execution_root=resolved.process_scope_root,
-        outside_workspace_folders=(),
+        outside_workspace_folders=tuple(dict.fromkeys(requested)),
     )
+
+
+def _resolve_write_folder(*, context: BrokerContext, raw_folder: str) -> Path | None:
+    """Resolve one requested write folder; None when the workspace already covers it.
+
+    A command may write anywhere under the folder, so it passes the rule for an
+    outside command cwd, and is refused where that cwd would be.
+    """
+
+    stripped = raw_folder.strip()
+    # The command's HOME is temporary unless it uses the login environment, so
+    # `~` names the user's real home, as it does for use_login_environment.
+    if stripped == "~" or stripped.startswith("~/"):
+        folder = Path.home() / stripped[2:]
+    else:
+        folder = Path(stripped)
+    if not folder.is_absolute():
+        raise BrokerPolicyError(
+            f"{EXEC_WRITE_FOLDER_DENIED}: write folder must be absolute: {raw_folder}",
+            code=EXEC_WRITE_FOLDER_DENIED,
+            fix_hint="Use an absolute folder path, or one that starts with ~/.",
+        )
+    if not folder.is_dir():
+        raise BrokerPolicyError(
+            f"{EXEC_WRITE_FOLDER_DENIED}: write folder is not an existing folder: "
+            f"{raw_folder}",
+            code=EXEC_WRITE_FOLDER_DENIED,
+            fix_hint=(
+                "Request the nearest existing parent folder, or the folder that "
+                "contains the file to write."
+            ),
+        )
+    try:
+        resolved = resolve_exec_tool_cwd(context=context, raw_cwd=str(folder))
+    except BrokerPolicyError as exc:
+        raise BrokerPolicyError(
+            f"{EXEC_WRITE_FOLDER_DENIED}: this folder cannot be opened for writing: "
+            f"{raw_folder}",
+            code=EXEC_WRITE_FOLDER_DENIED,
+            fix_hint=(
+                "Pantaray's own storage, folders that contain it (/, the home "
+                "folder, ~/Library), and links out of a workspace folder are never "
+                "writable, so files directly in the home folder cannot be written. "
+                "Request a more specific folder, or tell the user it cannot be done."
+            ),
+        ) from exc
+    return resolved.path if isinstance(resolved, OutsideWorkspaceCwd) else None
 
 
 def _command_network_policy(context: BrokerContext) -> BrokerNetworkPolicy:
@@ -171,7 +230,11 @@ def build_validated_command_request(
         )
     resolved_action_temp_dir = Path(action_temp_dir).resolve()
     resolved_app_runtime_python = Path(app_runtime_python).resolve()
-    resolved_cwd = _resolve_command_cwd(context=context, raw_cwd=raw_cwd)
+    resolved_cwd = _resolve_command_cwd(
+        context=context,
+        raw_cwd=raw_cwd,
+        additional_write_folders=args.additional_write_folders,
+    )
     command_cwd = resolved_cwd.path
     resolved_executable = Path("/bin/bash")
     execution_kind: BrokerExecutionKind = "workspace_command"
@@ -201,6 +264,7 @@ def build_validated_command_request(
         cwd_relative_path=str(command_cwd),
         timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
         use_login_environment=use_login_environment,
+        reason=args.justification,
         outside_workspace_folders=resolved_cwd.outside_workspace_folders,
     )
     approval_session_id, approval_source = ensure_tool_authorization(
@@ -279,7 +343,11 @@ def build_validated_python_request(
         )
     resolved_action_temp_dir = Path(action_temp_dir).resolve()
     resolved_app_runtime_python = Path(app_runtime_python).resolve()
-    resolved_cwd = _resolve_command_cwd(context=context, raw_cwd=args.cwd)
+    resolved_cwd = _resolve_command_cwd(
+        context=context,
+        raw_cwd=args.cwd,
+        additional_write_folders=args.additional_write_folders,
+    )
     command_cwd = resolved_cwd.path
     runtime_budget = resolve_runtime_budget(
         sandbox_profile="agent_generated_python", db_path=context.db_path
@@ -295,6 +363,7 @@ def build_validated_python_request(
         code=args.code,
         args_count=len(args.args),
         timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
+        reason=args.justification,
         outside_workspace_folders=resolved_cwd.outside_workspace_folders,
     )
     approval_session_id, approval_source = ensure_tool_authorization(
@@ -358,6 +427,7 @@ def build_validated_python_request(
 
 __all__ = [
     "EXEC_CWD_RETARGETED",
+    "EXEC_WRITE_FOLDER_DENIED",
     "build_validated_command_request",
     "build_validated_python_request",
     "verify_outside_workspace_folders_unchanged",

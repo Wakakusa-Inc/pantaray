@@ -64,6 +64,14 @@ class BrokeredToolSchemaContract:
     expected_schema: dict[str, JSONValue]
 
 
+WRITE_FOLDER_REQUEST_SCHEMA: dict[str, JSONValue] = {
+    "additional_write_folders": {
+        "type": "array",
+        "items": {"type": "string", "minLength": 1, "pattern": r"\S"},
+    },
+    "justification": {"type": "string", "minLength": 1, "pattern": r"\S"},
+}
+
 BROKERED_TOOL_SCHEMA_CONTRACTS = (
     BrokeredToolSchemaContract(
         tool=READ_TOOL,
@@ -142,6 +150,7 @@ BROKERED_TOOL_SCHEMA_CONTRACTS = (
                 "command": {"type": "string", "minLength": 1, "pattern": r"\S"},
                 "cwd": {"type": "string", "minLength": 1, "pattern": r"\S"},
                 "use_login_environment": {"type": "boolean"},
+                **WRITE_FOLDER_REQUEST_SCHEMA,
             },
             "required": ["command"],
             "additionalProperties": False,
@@ -158,6 +167,7 @@ BROKERED_TOOL_SCHEMA_CONTRACTS = (
                 "code": {"type": "string", "minLength": 1, "pattern": r"\S"},
                 "args": {"type": "array", "items": {"type": "string"}},
                 "cwd": {"type": "string", "minLength": 1, "pattern": r"\S"},
+                **WRITE_FOLDER_REQUEST_SCHEMA,
             },
             "required": ["code"],
             "additionalProperties": False,

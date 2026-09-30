@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import Annotated, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    field_validator,
+    model_validator,
+)
 
 from pantaray_agents.local_runtime.tooling.documents.page_render import (
     MAX_RENDERED_PAGES,
@@ -146,15 +153,44 @@ class ApplyPatchToolArgs(BaseModel):
     changes: list[ApplyPatchChange] = Field(min_length=1, max_length=1)
 
 
-class BashToolArgs(BaseModel):
+WriteFolder = Annotated[str, Field(min_length=1, pattern=r"\S")]
+
+
+class _JustifiedCommandArgs(BaseModel):
+    """Command access beyond the workspace defaults, and the reason for it.
+
+    The justification is shown to the user as the approval question, so it is
+    required exactly when the call asks for such access.
+    """
+
+    additional_write_folders: list[WriteFolder] = Field(default_factory=list)
+    justification: str | None = Field(default=None, min_length=1, pattern=r"\S")
+
+    def _asks_for_access(self) -> bool:
+        return bool(self.additional_write_folders)
+
+    @model_validator(mode="after")
+    def _justified_exactly_when_asking(self) -> _JustifiedCommandArgs:
+        if self._asks_for_access() != (self.justification is not None):
+            raise ValueError(
+                "justification is required with additional_write_folders "
+                "or use_login_environment, and only then"
+            )
+        return self
+
+
+class BashToolArgs(_JustifiedCommandArgs):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     command: str = Field(min_length=1, pattern=r"\S")
     cwd: str | None = Field(default=None, min_length=1, pattern=r"\S")
     use_login_environment: bool = False
 
+    def _asks_for_access(self) -> bool:
+        return self.use_login_environment or super()._asks_for_access()
 
-class RunPythonToolArgs(BaseModel):
+
+class RunPythonToolArgs(_JustifiedCommandArgs):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     code: str = Field(min_length=1, pattern=r"\S")

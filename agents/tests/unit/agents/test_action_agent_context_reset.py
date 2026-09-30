@@ -353,7 +353,7 @@ async def test_reaching_85_percent_rebuilds_at_the_next_think_boundary(
     # fit the 50% target, so the body leaves room for the tool list to grow.
     for entry in state["history_by_scope"]["S"]:
         if entry["step_type"] == StepType.TOOL_EXECUTION:
-            entry["output"] = f"body {entry['step_number']} " + "x" * 14_000
+            entry["output"] = f"body {entry['step_number']} " + "x" * 13_000
     _install_think(agent, prompt_tokens=25_800)
 
     state = await execution_think_step(

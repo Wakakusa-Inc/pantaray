@@ -283,6 +283,10 @@ def _render_workspace_path_contract(
         "to approve that one call; use one only when the user asked for that location."
     )
     lines.append(
+        "A `bash` or `run_python` call that must write a folder outside Workspace Roots names it in "
+        "`additional_write_folders` with a `justification`, and waits for the user to approve that one call."
+    )
+    lines.append(
         "All relative paths use the same session cwd; bash.cwd/run_python.cwd override it for that call only. "
         "Absolute paths and '..' are valid when the resolved target has the required capability. "
         "Use apply_patch applied_paths to locate saved files; a relative path in scratch does not publish into a repository."

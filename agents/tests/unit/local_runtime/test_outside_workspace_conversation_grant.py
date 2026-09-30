@@ -347,6 +347,7 @@ async def test_conversation_grant_opens_every_folder_of_the_approval(
         cwd_relative_path=str(outside),
         timeout_ms=1_000,
         use_login_environment=False,
+        reason=None,
         outside_workspace_folders=(outside, second),
     )
     with sqlite3.connect(db_path) as connection, connection:
@@ -465,7 +466,6 @@ def test_registered_folder_root_still_covers_an_approved_outside_call(
         "target_paths": [str(folder / "q3.md")],
         "outside_workspace": {
             "folders": [{"path": str(folder), "display_name": "Reports"}],
-            "reason": None,
             "can_allow_for_conversation": True,
         },
     }
@@ -497,6 +497,7 @@ def test_an_approval_of_several_folders_covers_a_call_only_once_each_is_open(
             cwd_relative_path=str(first),
             timeout_ms=1_000,
             use_login_environment=False,
+            reason=None,
             outside_workspace_folders=folders,
         )
 
