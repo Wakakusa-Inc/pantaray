@@ -46,8 +46,8 @@ def render_seatbelt_profile(
             if path != "/"
         ),
         "{{SYSTEM_RUNTIME_READ_ROOTS}}": _render_system_runtime_read_roots(),
-        "{{RUNTIME_READ_ROOT_CLAUSES}}": (
-            _render_runtime_read_root_clauses(request.runtime_read_roots)
+        "{{RUNTIME_READ_ROOT_CLAUSES}}": _render_subpath_block(
+            request.runtime_read_roots
         ),
         "{{FILE_READ_ROOT_CLAUSES}}": _render_file_read_root_clauses(request),
         "{{FILE_WRITE_ROOT_CLAUSES}}": _render_file_write_root_clauses(request),
@@ -70,22 +70,16 @@ def _render_system_runtime_read_roots() -> str:
     )
 
 
-def _render_runtime_read_root_clauses(paths: list[str]) -> str:
+def _render_subpath_block(paths: Iterable[str]) -> str:
     return _render_clause_block(_render_subpath_clause(path) for path in paths)
 
 
 def _render_file_read_root_clauses(request: BrokerToSandboxCommandRequest) -> str:
-    roots = (
-        *request.real_read_roots,
-        request.app_runtime_root,
-    )
-    return _render_clause_block(_render_subpath_clause(path) for path in roots)
+    return _render_subpath_block((*request.real_read_roots, request.app_runtime_root))
 
 
 def _render_file_write_root_clauses(request: BrokerToSandboxCommandRequest) -> str:
-    return _render_clause_block(
-        _render_subpath_clause(path) for path in request.real_write_roots
-    )
+    return _render_subpath_block(request.real_write_roots)
 
 
 def _render_action_plan_deny(
@@ -103,23 +97,20 @@ def _render_action_plan_deny(
 
 
 def _render_private_storage_deny_rules(request: BrokerToSandboxCommandRequest) -> str:
-    private_roots = _render_clause_block(
-        _render_subpath_clause(path) for path in request.private_storage_roots
-    )
+    private_roots = _render_subpath_block(request.private_storage_roots)
+    # The command's own temp dir lives in private storage too.
+    readable = [request.temp_dir]
+    writable = [request.temp_dir]
     storage = request.action_storage
-    if storage is None:
-        return (
-            f"(deny file-read* (require-any\n{private_roots}\n))\n"
-            f"(deny file-write* (require-any\n{private_roots}\n))"
-        )
-    workspace = _render_subpath_clause(storage.workspace_root)
-    results = _render_subpath_clause(storage.published_results_root)
+    if storage is not None:
+        readable += [storage.workspace_root, storage.published_results_root]
+        writable.append(storage.workspace_root)
     # Exceptions remove this deny only; the ordinary read/write roots still apply.
     return (
         f"(deny file-read* (require-all (require-any\n{private_roots}\n) "
-        f"(require-not (require-any\n{workspace}\n{results}\n))))\n"
+        f"(require-not (require-any\n{_render_subpath_block(readable)}\n))))\n"
         f"(deny file-write* (require-all (require-any\n{private_roots}\n) "
-        f"(require-not\n{workspace}\n)))"
+        f"(require-not (require-any\n{_render_subpath_block(writable)}\n))))"
     )
 
 

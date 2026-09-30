@@ -27,12 +27,11 @@ LAUNCHD_PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 @pytest.mark.parametrize("read_access_scope", ["workspace", "full_access"])
 async def test_commands_find_tools_from_the_login_shell_path(
     tmp_path: Path,
-    tmp_path_factory: pytest.TempPathFactory,
+    outside_temp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     read_access_scope: ReadAccessScope,
 ) -> None:
-    # Outside the testbed's directory, which holds the app's private storage.
-    tools = tmp_path_factory.mktemp("user-tools")
+    tools = outside_temp_path
     probe = tools / "pantaray-probe"
     probe.write_text("#!/bin/sh\necho probe ok\n", encoding="utf-8")
     probe.chmod(0o755)

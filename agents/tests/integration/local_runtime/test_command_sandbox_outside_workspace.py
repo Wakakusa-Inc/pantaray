@@ -45,14 +45,14 @@ async def _bash(
 
 @pytest.mark.asyncio
 async def test_approved_outside_cwd_is_writable_only_inside_that_folder(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, outside_temp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app_data = tmp_path / "app-data"
     app_data.mkdir()
     testbed = bootstrap_runtime_testbed(tmp_path=app_data, monkeypatch=monkeypatch)
-    outside = (tmp_path / "outside").resolve()
+    outside = outside_temp_path / "outside"
     outside.mkdir()
-    sibling = tmp_path / "sibling.txt"
+    sibling = outside_temp_path / "sibling.txt"
     command = f"echo made > made.txt; echo leak > {sibling} || echo denied"
 
     session = load_execution_session(

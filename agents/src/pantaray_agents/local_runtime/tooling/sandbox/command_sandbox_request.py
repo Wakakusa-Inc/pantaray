@@ -17,7 +17,11 @@ from .command_sandbox_protocol import (
     ActionSandboxStorage,
     BrokerToSandboxCommandRequest,
 )
-from .macos_runtime import app_python_runtime_root, toolchain_read_roots
+from .macos_runtime import (
+    app_python_runtime_root,
+    toolchain_read_roots,
+    user_temp_dir,
+)
 
 GENERATED_PYTHON_SCRIPT_NAME = "generated_main.py"
 
@@ -27,10 +31,14 @@ def build_sandbox_request(
     request: ValidatedCommandRequest,
     temp_dir: Path,
 ) -> BrokerToSandboxCommandRequest:
+    # Tools keep scratch files here whatever TMPDIR says (xcrun's cache,
+    # `mktemp /tmp/...`) and read them back. The private-storage and plan denies
+    # still win beneath these roots.
+    system_temp_roots = [user_temp_dir(), "/tmp"]
     return compose_sandbox_request(
         temp_dir=temp_dir,
-        real_read_roots=request.real_read_roots,
-        real_write_roots=[*request.real_write_roots, str(temp_dir)],
+        real_read_roots=[*request.real_read_roots, *system_temp_roots],
+        real_write_roots=[*request.real_write_roots, str(temp_dir), *system_temp_roots],
         private_storage_roots=request.private_storage_roots,
         action_storage=ActionSandboxStorage(
             plan_path=request.action_plan_path,

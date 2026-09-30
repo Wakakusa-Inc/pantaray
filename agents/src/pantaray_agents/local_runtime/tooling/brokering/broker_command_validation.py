@@ -188,7 +188,7 @@ def build_validated_command_request(
         full_disk_read=full_disk_read,
     )
     runtime_budget = resolve_runtime_budget(
-        sandbox_profile="workspace_process_exec",
+        sandbox_profile="workspace_process_exec", db_path=context.db_path
     )
     sandbox_roots = _resolve_command_sandbox_roots(
         context=context,
@@ -281,7 +281,7 @@ def build_validated_python_request(
     resolved_cwd = _resolve_command_cwd(context=context, raw_cwd=args.cwd)
     command_cwd = resolved_cwd.path
     runtime_budget = resolve_runtime_budget(
-        sandbox_profile="agent_generated_python",
+        sandbox_profile="agent_generated_python", db_path=context.db_path
     )
     full_disk_read = context.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
     sandbox_roots = _resolve_command_sandbox_roots(

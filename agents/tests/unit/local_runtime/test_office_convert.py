@@ -20,6 +20,9 @@ from pathlib import Path
 
 import pytest
 
+from pantaray_agents.local_runtime.tooling.action_session_temp_paths import (
+    PRIVATE_TEMP_DIRNAME,
+)
 from pantaray_agents.local_runtime.tooling.documents import office_convert
 from pantaray_agents.local_runtime.tooling.documents.office_convert import (
     OfficeConversionTimeoutError,
@@ -83,6 +86,8 @@ async def convert(
     timeout_seconds: float = office_convert.MAX_OFFICE_CONVERT_SECONDS,
 ) -> None:
     await convert_office_to_pdf(
+        # Every test keeps its source in tmp_path, so the work dir lands there too.
+        db_path=source.parent / "runtime.db",
         libreoffice_app=app,
         source=source,
         document_format=document_format,
@@ -154,6 +159,8 @@ async def test_libreoffice_sees_only_the_allowlisted_environment(
     assert "PATH='/usr/bin:/bin'" in report or 'PATH="/usr/bin:/bin"' in report
     work_dir = report.split("cwd=")[1].strip()
     assert f"TMPDIR='{work_dir}/tmp'" in report or f'TMPDIR="{work_dir}/tmp"' in report
+    # Sandboxed commands may write the OS temp dirs, never private storage.
+    assert Path(work_dir).parent == tmp_path.resolve() / PRIVATE_TEMP_DIRNAME
 
 
 @pytest.mark.parametrize("exit_status", [0, 1])

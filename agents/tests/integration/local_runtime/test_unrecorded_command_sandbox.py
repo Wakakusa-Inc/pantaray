@@ -61,7 +61,9 @@ async def test_cancelling_an_unrecorded_command_kills_it_and_removes_its_temp_di
         )
 
     task = asyncio.create_task(
-        run_unrecorded_sandbox_command(build_request=build_request)
+        run_unrecorded_sandbox_command(
+            db_path=tmp_path / "runtime.db", build_request=build_request
+        )
     )
     async with asyncio.timeout(10):
         while not _running(marker):

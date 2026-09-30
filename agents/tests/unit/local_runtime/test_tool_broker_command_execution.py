@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import sqlite3
 import sys
-import tempfile
 from pathlib import Path
 from typing import cast
 
@@ -13,6 +12,9 @@ from pantaray_agents.local_runtime.storage.migrations import (
     load_default_migrations,
 )
 from pantaray_agents.local_runtime.tooling import bootstrap_local_tooling_catalog
+from pantaray_agents.local_runtime.tooling.action_session_temp_paths import (
+    PRIVATE_TEMP_DIRNAME,
+)
 from pantaray_agents.local_runtime.tooling.brokering.broker import (
     execute_broker_tool,
 )
@@ -238,7 +240,7 @@ async def test_bash_sandbox_request_uses_manifest_roots_without_workspace_id(
     invocation_temp_roots = [
         root
         for root in real_write_roots
-        if root.parent == Path(tempfile.gettempdir()).resolve()
+        if root.parent == db_path.resolve().parent / PRIVATE_TEMP_DIRNAME
     ]
     assert len(invocation_temp_roots) == 1
     assert str(repo_root.resolve()) in captured_payload["real_read_roots"]

@@ -112,6 +112,7 @@ async def test_each_format_converts_to_the_pages_its_units_address(
     destination = tmp_path / "sample.pdf"
 
     await convert_office_to_pdf(
+        db_path=tmp_path / "runtime.db",
         libreoffice_app=_LIBREOFFICE_APP,
         source=source,
         document_format=document_format,

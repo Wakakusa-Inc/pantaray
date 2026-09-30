@@ -21,6 +21,7 @@ from pantaray_agents.local_runtime.tooling.sandbox.command_sandbox_protocol impo
 from pantaray_agents.local_runtime.tooling.sandbox.command_sandbox_request import (
     build_sandbox_request,
 )
+from pantaray_agents.local_runtime.tooling.sandbox.macos_runtime import user_temp_dir
 from pantaray_agents.local_runtime.tooling.sandbox.seatbelt_profiles import (
     MACOS_SYSTEM_RUNTIME_READ_ROOTS,
     render_seatbelt_profile,
@@ -235,14 +236,48 @@ def test_private_storage_deny_overrides_broad_read_and_write_grants() -> None:
     assert (
         "(deny file-read* (require-all (require-any\n"
         '    (subpath "/app-data")\n    (subpath "/artifacts")\n) '
-        '(require-not (require-any\n    (subpath "/workspace")\n'
-        '    (subpath "/published-results")\n))))'
+        '(require-not (require-any\n    (subpath "/system-temp/worker-temp")\n'
+        '    (subpath "/workspace")\n    (subpath "/published-results")\n))))'
     ) in profile
     assert (
         "(deny file-write* (require-all (require-any\n"
         '    (subpath "/app-data")\n    (subpath "/artifacts")\n) '
-        '(require-not\n    (subpath "/workspace")\n)))'
+        '(require-not (require-any\n    (subpath "/system-temp/worker-temp")\n'
+        '    (subpath "/workspace")\n))))'
     ) in profile
+
+
+def test_system_temp_roots_open_to_commands_beneath_private_storage_deny() -> None:
+    temp_root = user_temp_dir()
+    tmp_root = str(Path("/tmp").resolve())
+    private_root = f"{temp_root}/app-data"
+    validated = _validated_command_request(network_policy="deny").model_copy(
+        update={"private_storage_roots": [private_root]}
+    )
+    profile = render_seatbelt_profile(
+        build_sandbox_request(
+            request=validated, temp_dir=Path("/system-temp/worker-temp")
+        )
+    )
+
+    write_allow = profile[profile.index("(allow file-write*") :]
+    write_allow = write_allow[: write_allow.index("\n)\n")]
+    read_allow = profile[profile.index("(allow file-read*\n") :]
+    read_allow = read_allow[: read_allow.index("\n)\n")]
+    for root in (temp_root, tmp_root):
+        assert f'(subpath "{root}")' in write_allow
+        assert f'(subpath "{root}")' in read_allow
+    # Seatbelt applies the last matching rule, so the denies must follow the allows.
+    private_deny = f'(require-any\n    (subpath "{private_root}")\n)'
+    assert profile.index(f"(deny file-write* (require-all {private_deny}") > (
+        profile.index(write_allow)
+    )
+    assert profile.index(f"(deny file-read* (require-all {private_deny}") > (
+        profile.index(read_allow)
+    )
+    assert profile.index('(deny file-write*\n    (literal "/workspace/plan.md")') > (
+        profile.index(write_allow)
+    )
 
 
 def test_login_environment_profile_adds_keychain_and_agent() -> None:

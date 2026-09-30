@@ -175,7 +175,7 @@ def _capture_request(
 ) -> list[BrokerToSandboxCommandRequest]:
     requests: list[BrokerToSandboxCommandRequest] = []
 
-    async def fake_run(*, build_request):  # type: ignore[no-untyped-def]
+    async def fake_run(*, db_path, build_request):  # type: ignore[no-untyped-def]
         requests.append(build_request(temp_dir))
         return ("exited", output)
 
@@ -218,11 +218,13 @@ async def test_a_command_gets_no_writable_folder_and_the_network_setting(
         assert len(re.findall(rf"\(deny file-{operation}\*\s*\)", profile)) == 1
     write_allow = profile.split("(allow file-write*", 1)[1].split(")\n", 1)[0]
     assert write_allow.strip() == '(literal "/dev/null"'
-    # The database's folder stays unreadable even though "/" is not requested.
+    # The database's folder stays unreadable even though "/" is not requested;
+    # only the command's own temp dir inside it is excepted.
     assert (
-        f'(deny file-read* (require-any\n    (subpath "{allowed_db.parent.resolve()}")'
-        in profile
-    )
+        "(deny file-read* (require-all (require-any\n"
+        f'    (subpath "{allowed_db.parent.resolve()}")'
+    ) in profile
+    assert f'(require-not (require-any\n    (subpath "{temp_dir}")\n))))' in profile
 
 
 @pytest.mark.parametrize(
@@ -298,7 +300,7 @@ async def test_long_output_is_cut_to_what_an_action_keeps_inline(
 async def test_a_command_that_did_not_finish_is_a_bounded_error(
     allowed_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    async def timed_out(*, build_request):  # type: ignore[no-untyped-def]
+    async def timed_out(*, db_path, build_request):  # type: ignore[no-untyped-def]
         return (
             "timed_out",
             BashToolOutput(

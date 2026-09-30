@@ -301,6 +301,7 @@ async def _office_pdf(
         with os.fdopen(handle, "wb") as copy:
             copy.write(payload)
         await convert_office_to_pdf(
+            db_path=context.db_path,
             libreoffice_app=libreoffice_app,
             source=Path(source),
             document_format=office_format,

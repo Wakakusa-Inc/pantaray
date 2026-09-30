@@ -29,6 +29,7 @@ pytestmark = pytest.mark.skipif(not seatbelt_available(), reason=SEATBELT_SKIP_R
 )
 async def test_command_reads_follow_setting_and_keep_boundaries(
     tmp_path: Path,
+    outside_temp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     read_access_scope: ReadAccessScope,
     use_login_environment: bool,
@@ -44,7 +45,7 @@ async def test_command_reads_follow_setting_and_keep_boundaries(
         monkeypatch=monkeypatch,
         read_access_scope=read_access_scope,
     )
-    home = tmp_path / "home"
+    home = outside_temp_path / "home"
     (home / ".config").mkdir(parents=True)
     (home / ".config" / "cli-token").write_text("signed-in", encoding="utf-8")
     (home / ".gitconfig").write_text("[user]\n\tname = Login User\n", encoding="utf-8")

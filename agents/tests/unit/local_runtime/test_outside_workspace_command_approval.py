@@ -49,7 +49,7 @@ from pantaray_agents.local_runtime.tooling.brokering.tool_path_policy import (
 )
 from pantaray_agents.local_runtime.tooling.models import ActionExecutionContext
 from pantaray_agents.local_runtime.tooling.sandbox.runtime_policy import (
-    resolve_runtime_budget,
+    PROFILE_TIMEOUT_MS,
 )
 from pantaray_agents.schema.agent.base import JSONValue
 
@@ -96,9 +96,7 @@ def _expected_summary(tool_id: str, folder: Path) -> dict[str, JSONValue]:
             "summary_kind": "bash",
             "command": "touch made.txt",
             "cwd": str(folder),
-            "timeout_ms": resolve_runtime_budget(
-                sandbox_profile="workspace_process_exec"
-            ).sandbox_launch.timeout_ms,
+            "timeout_ms": PROFILE_TIMEOUT_MS["workspace_process_exec"],
             "use_login_environment": False,
             "outside_workspace": outside_workspace,
         }
@@ -109,9 +107,7 @@ def _expected_summary(tool_id: str, folder: Path) -> dict[str, JSONValue]:
         "code_sha256": sha256(code).hexdigest(),
         "code_size_bytes": len(code),
         "args_count": 0,
-        "timeout_ms": resolve_runtime_budget(
-            sandbox_profile="agent_generated_python"
-        ).sandbox_launch.timeout_ms,
+        "timeout_ms": PROFILE_TIMEOUT_MS["agent_generated_python"],
         "outside_workspace": outside_workspace,
     }
 
