@@ -286,6 +286,7 @@ def build_validated_python_request(
     runtime_budget = resolve_runtime_budget(
         sandbox_profile="agent_generated_python",
     )
+    full_disk_read = context.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
     sandbox_roots = _resolve_command_sandbox_roots(
         context=context,
         action_temp_dir=resolved_action_temp_dir,
@@ -338,7 +339,7 @@ def build_validated_python_request(
             workspace_root=resolved_cwd.execution_root,
             resolved_executable=resolved_app_runtime_python,
             use_login_environment=False,
-            full_disk_read=False,
+            full_disk_read=full_disk_read,
         ),
         timeout_ms=runtime_budget.sandbox_launch.timeout_ms,
         stdout_max_bytes=runtime_budget.sandbox_launch.stdout_max_bytes,
@@ -349,7 +350,10 @@ def build_validated_python_request(
         network_policy=_command_network_policy(context),
         use_login_environment=False,
         generated_python_code=args.code,
-        real_read_roots=[str(path) for path in sandbox_roots.read_roots],
+        real_read_roots=[
+            *(["/"] if full_disk_read else []),
+            *(str(path) for path in sandbox_roots.read_roots),
+        ],
         real_write_roots=[str(path) for path in sandbox_roots.write_roots],
         tool_request_id=tool_request_id,
         requested_at=requested_at,
