@@ -5,7 +5,8 @@ nothing for the first several minutes. This message says Pantaray is learning
 their work and can take a request at any time. It is stored as an ordinary
 finished `message_only` Suggestion without running the SuggestionAgent, so the
 relay shows it, History lists it, and a reply continues it like any other
-Suggestion.
+Suggestion. Like any Suggestion it is only stored while a session can show it;
+the route refuses it otherwise, and the desktop app asks again.
 
 Whether to greet is decided here, from the owner's rows, not by the desktop
 app: settings files follow a guest into a new account while these rows do not,

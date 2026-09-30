@@ -3,7 +3,9 @@ import { LocalBackendRequestError } from '../localBackend/client';
 
 /**
  * Waits between attempts. Recording asks once per owner in a run, so a runtime that is busy
- * or still settling right after activation gets a few chances before the next launch.
+ * or still settling right after activation gets a few chances before the next launch. That
+ * includes the 503 the runtime answers while this app's WebSocket session is not open yet:
+ * it stores no greeting that nothing could show.
  */
 export const WELCOME_SUGGESTION_RETRY_DELAYS_MS: readonly number[] = [2_000, 10_000, 30_000];
 

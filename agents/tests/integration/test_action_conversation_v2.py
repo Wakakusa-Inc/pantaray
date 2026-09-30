@@ -269,10 +269,20 @@ def test_assistant_message_is_public_history_before_the_first_user(
 
 def test_a_reply_to_the_welcome_continues_it_as_an_ordinary_conversation(
     runtime_client: tuple[TestClient, Path],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from pantaray_agents.routers import suggestion as suggestion_router
+
     client, db_path = runtime_client
     welcome_path = f"/v1/agents/users/{USER_ID}/suggestions/welcome"
     welcome = "まずはあなたの仕事を理解するところから始めます。"
+    # Until the desktop app's session is open, nothing could show the welcome.
+    refused = client.post(welcome_path, json={"answer": welcome})
+    assert refused.status_code == 503, refused.text
+    assert client.get("/api/agent/history", params={"limit": 25}).json()["items"] == []
+    monkeypatch.setattr(
+        suggestion_router, "owner_has_deliverable_session", lambda _: True
+    )
     created = client.post(welcome_path, json={"answer": welcome})
     assert created.status_code == 200, created.text
     assert created.json() == {"created": True}

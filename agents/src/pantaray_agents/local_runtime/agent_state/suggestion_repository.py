@@ -19,9 +19,6 @@ from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
 from pantaray_agents.local_runtime.storage.transactions import (
     immediate_transaction,
 )
-from pantaray_agents.local_runtime.suggestion_state.repository import (
-    LocalSuggestionStateRepository,
-)
 from pantaray_agents.repositories.runtime_ports import (
     ActivityRepositoryPort,
     PatchRunStepKind,
@@ -39,6 +36,7 @@ from pantaray_agents.suggestion_reactions import (
 )
 
 from .shared import build_audit_timestamps, encode_json_column
+from .suggestion_termination import LocalSuggestionTerminationMixin
 
 MESSAGE_ONLY_INTERACTION_CONTRACT = "message_only"
 
@@ -49,7 +47,7 @@ def _normalize_interaction_contract(value: object) -> str | None:
 
 
 class LocalSuggestionRepository(
-    LocalSuggestionStateRepository,
+    LocalSuggestionTerminationMixin,
     SuggestionRepositoryPort,
 ):
     def __init__(
@@ -254,70 +252,6 @@ class LocalSuggestionRepository(
         if row is None:
             return RepositoryResult(error="suggestion run step not found")
         return RepositoryResult(data=dict(row))
-
-    async def finalize_suggestion_start_error_if_processing(
-        self,
-        *,
-        user_id: str,
-        suggestion_id: str,
-        error_code: str,
-        error_message: str,
-        error_details: dict[str, object] | None = None,
-        metadata: dict[str, object] | None = None,
-    ) -> RepositoryResult[DBRow]:
-        error_payload: dict[str, object] = {
-            "error_code": error_code,
-            "error_message": error_message,
-            "error_type": "runtime_error",
-            "severity": "error",
-        }
-        if error_details:
-            error_payload["error_details"] = error_details
-        if metadata:
-            error_payload["metadata"] = metadata
-        with self._connect() as connection:
-            with connection:
-                connection.execute(
-                    """
-                    UPDATE agent_suggestions
-                    SET status = 'error',
-                        error = ?,
-                        updated_at = ?
-                    WHERE user_id = ? AND suggestion_id = ? AND status = 'processing'
-                    """,
-                    (
-                        encode_json_column(error_payload),
-                        now_utc_iso(),
-                        user_id,
-                        suggestion_id,
-                    ),
-                )
-        return await self.get_suggestion(user_id=user_id, suggestion_id=suggestion_id)
-
-    async def cancel_suggestion_if_processing(
-        self,
-        *,
-        user_id: str,
-        suggestion_id: str,
-    ) -> RepositoryResult[DBRow]:
-        """End a Suggestion that will never run, without reporting a failure.
-
-        The enqueueing transaction creates the row as `processing`, so a worker
-        that produces nothing has to terminate it: `processing` is what the
-        suggestion route reports as a stream still in progress.
-        """
-        with self._connect() as connection:
-            with connection:
-                connection.execute(
-                    """
-                    UPDATE agent_suggestions
-                    SET status = 'canceled',
-                        updated_at = ?
-                    WHERE user_id = ? AND suggestion_id = ? AND status = 'processing'
-                    """,
-                    (now_utc_iso(), user_id, suggestion_id),
-                )
-        return await self.get_suggestion(user_id=user_id, suggestion_id=suggestion_id)
 
     async def get_recent_suggestions(
         self,
