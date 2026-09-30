@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from ..sandbox.macos_runtime import toolchain_read_roots
+from ..sandbox.seatbelt_profiles import MACOS_SYSTEM_RUNTIME_READ_ROOTS
 from .broker_protocol import BrokerExecutionKind
+from .login_shell_path import login_shell_path
 
 PATH_ENV_ALLOWLIST = ("LANG", "LC_ALL")
 LOGIN_ENV_ALLOWLIST = ("USER", "LOGNAME", "SSH_AUTH_SOCK")
@@ -47,8 +50,26 @@ def build_command_env(
                 candidate = (current / relative).resolve()
                 if candidate.is_dir() and candidate.is_relative_to(workspace_root):
                     path_entries.append(str(candidate))
-    env["PATH"] = os.pathsep.join(dict.fromkeys([*path_entries, os.environ["PATH"]]))
+    login_entries = login_shell_path().split(os.pathsep)
+    if not full_disk_read:
+        # A directory the sandbox cannot read would still shadow a working
+        # binary later in PATH, so only readable directories stay.
+        read_roots = (
+            *MACOS_SYSTEM_RUNTIME_READ_ROOTS,
+            *toolchain_read_roots(),
+            str(workspace_root),
+        )
+        login_entries = [
+            entry
+            for entry in login_entries
+            if _is_under_read_root(os.path.realpath(entry), read_roots)
+        ]
+    env["PATH"] = os.pathsep.join(dict.fromkeys([*path_entries, *login_entries]))
     return env
+
+
+def _is_under_read_root(path: str, read_roots: tuple[str, ...]) -> bool:
+    return any(Path(path).is_relative_to(root) for root in read_roots)
 
 
 __all__ = [
