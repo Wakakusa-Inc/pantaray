@@ -8,8 +8,6 @@ from pantaray_agents.utils.timestamps import (
     parse_iso8601_utc,
 )
 
-UTC_ISO_SECONDS_TIMESPEC = "seconds"
-
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
@@ -17,14 +15,6 @@ def utc_now() -> datetime:
 
 def format_utc_iso(value: datetime) -> str:
     return format_iso8601_utc_z_milliseconds(value)
-
-
-def format_utc_seconds_iso(value: datetime) -> str:
-    return (
-        value.astimezone(UTC)
-        .isoformat(timespec=UTC_ISO_SECONDS_TIMESPEC)
-        .replace("+00:00", "Z")
-    )
 
 
 def now_utc_iso() -> str:
@@ -40,7 +30,6 @@ def parse_utc_iso(value: str) -> datetime:
 
 __all__ = [
     "format_utc_iso",
-    "format_utc_seconds_iso",
     "now_utc_iso",
     "parse_utc_iso",
     "utc_now",
