@@ -21,6 +21,7 @@ from pantaray_agents.local_runtime.runtime.suggestion_from_insight import (
     read_reconsidered_insight,
     reserve_suggestion_start,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import format_utc_iso
 from pantaray_agents.local_runtime.tooling.repository.workspace_context import (
     build_workspace_context_prompt,
 )
@@ -302,7 +303,7 @@ async def _run_suggestion_job(payload: SuggestionJobRuntimePayload) -> None:
                 process_pending_status="enqueued",
                 db_path=db_path,
                 busy_timeout_ms=timeout_ms,
-                scheduled_at=decision.isoformat().replace("+00:00", "Z"),
+                scheduled_at=format_utc_iso(decision),
             )
         response = await _process_while_readable(
             agent=agent, request=request, activity_start=activity_start

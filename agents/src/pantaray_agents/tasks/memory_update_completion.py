@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import sqlite3
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
 
 from pantaray_agents.local_runtime.context import store
 from pantaray_agents.local_runtime.memory_catalog.agent_experience import (
@@ -57,6 +56,7 @@ from pantaray_agents.local_runtime.runtime.memory_update_progress import (
 from pantaray_agents.local_runtime.runtime.suggestion_from_insight import (
     enqueue_suggestion_for_insight,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.local_runtime.storage.transactions import immediate_transaction
 from pantaray_agents.local_runtime.tooling.memory_file_editor import (
     LocalMemoryFileEditorRuntime,
@@ -239,7 +239,7 @@ def complete_memory_update_run(
                 connection=connection, process_id=payload["process_id"]
             ):
                 return
-            completed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+            completed_at = now_utc_iso()
             append_memory_update_completed_in_connection(
                 connection=connection,
                 process_id=payload["process_id"],

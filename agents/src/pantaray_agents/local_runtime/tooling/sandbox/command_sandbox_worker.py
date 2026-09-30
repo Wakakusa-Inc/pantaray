@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from pantaray_agents.utils.timestamps import format_iso8601_utc_z_milliseconds
+
 from .command_sandbox_protocol import (
     BrokerToSandboxCommandRequest,
     SandboxCommandCompletion,
@@ -32,7 +34,8 @@ class StreamCapture:
 
 
 def _utc_now() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    # The sandbox worker stays off the runtime package; the event time is unread.
+    return format_iso8601_utc_z_milliseconds(datetime.now(UTC))
 
 
 def _emit_message(message: object) -> None:

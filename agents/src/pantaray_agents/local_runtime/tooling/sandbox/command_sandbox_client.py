@@ -9,9 +9,10 @@ import sys
 import tempfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
+
+from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 
 from ...storage.migrations import MigrationError
 from ..brokering.broker_common import (
@@ -90,10 +91,6 @@ def canceled_command_output(error: BaseException) -> CanceledCommandOutput | Non
     return value if isinstance(value, CanceledCommandOutput) else None
 
 
-def _now_utc() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
-
-
 def _cleanup_temp_dir(temp_dir: Path) -> str | None:
     try:
         shutil.rmtree(temp_dir)
@@ -114,7 +111,7 @@ def _finalize_temp_dir_resource(
             db_path=context.db_path,
             busy_timeout_ms=context.busy_timeout_ms,
             resource_id=temp_resource_id,
-            failed_at=_now_utc(),
+            failed_at=now_utc_iso(),
             cleanup_error=temp_cleanup_error,
         )
         return
@@ -122,7 +119,7 @@ def _finalize_temp_dir_resource(
         db_path=context.db_path,
         busy_timeout_ms=context.busy_timeout_ms,
         resource_id=temp_resource_id,
-        cleaned_at=_now_utc(),
+        cleaned_at=now_utc_iso(),
     )
 
 
@@ -386,7 +383,7 @@ async def run_command_via_sandbox(
             budget_exceeded_kind=None,
             sandbox_violation_kind=None,
             sandbox_violation_summary=str(exc),
-            updated_at=_now_utc(),
+            updated_at=now_utc_iso(),
         )
         _finalize_temp_dir_resource(
             context=context,
@@ -425,7 +422,7 @@ async def run_command_via_sandbox(
             budget_exceeded_kind=None,
             sandbox_violation_kind=None,
             sandbox_violation_summary="failed to register command sandbox cleanup resource",
-            updated_at=_now_utc(),
+            updated_at=now_utc_iso(),
         )
         _finalize_temp_dir_resource(
             context=context,
@@ -459,7 +456,7 @@ async def run_command_via_sandbox(
                     db_path=context.db_path,
                     busy_timeout_ms=context.busy_timeout_ms,
                     resource_id=process_resource_id,
-                    failed_at=_now_utc(),
+                    failed_at=now_utc_iso(),
                     cleanup_error=str(exc),
                 )
         terminating_signal = (
@@ -481,7 +478,7 @@ async def run_command_via_sandbox(
                 budget_exceeded_kind=None,
                 sandbox_violation_kind=None,
                 sandbox_violation_summary=None,
-                updated_at=_now_utc(),
+                updated_at=now_utc_iso(),
             )
         except Exception:
             # The kill already happened; a lost audit row must not replace the
@@ -529,7 +526,7 @@ async def run_command_via_sandbox(
         else None,
         sandbox_violation_kind=None,
         sandbox_violation_summary=None,
-        updated_at=_now_utc(),
+        updated_at=now_utc_iso(),
     )
     return UnprojectedBrokerToolOutcome(
         status="success" if output.error is None else "error",

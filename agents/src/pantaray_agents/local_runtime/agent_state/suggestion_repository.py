@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from pydantic import ValidationError
 
 from pantaray_agents.local_runtime.memory_catalog.domain_registration import (
     register_inline_domain_memory,
 )
-from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
+from pantaray_agents.local_runtime.runtime.utc_timestamps import (
+    format_utc_iso,
+    now_utc_iso,
+    utc_now,
+)
 from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
     WELCOME_SUGGESTION_PROMPT_NAME,
 )
@@ -321,11 +325,7 @@ class LocalSuggestionRepository(
         days: int = 7,
         limit: int = 20,
     ) -> RepositoryResult[list[DBRow]]:
-        cutoff_iso = (
-            (datetime.now(UTC) - timedelta(days=days))
-            .isoformat()
-            .replace("+00:00", "Z")
-        )
+        cutoff_iso = format_utc_iso(utc_now() - timedelta(days=days))
         with self._connect() as connection:
             rows = connection.execute(
                 """

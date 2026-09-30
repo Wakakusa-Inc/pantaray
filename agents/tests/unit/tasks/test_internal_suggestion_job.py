@@ -51,6 +51,7 @@ from pantaray_agents.local_runtime.runtime.suggestion_from_insight import (
 from pantaray_agents.local_runtime.runtime.suggestion_queue import (
     build_local_suggestion_enqueue_request,
 )
+from pantaray_agents.local_runtime.runtime.utc_timestamps import format_utc_iso
 from pantaray_agents.local_runtime.storage.migrations import (
     apply_migrations,
     load_default_migrations,
@@ -954,7 +955,7 @@ async def test_waiting_or_superseded_review_does_not_call_the_agent(
                 "SELECT status,scheduled_at FROM jobs WHERE job_id='job-1'"
             ).fetchone() == (
                 "queued",
-                due.isoformat().replace("+00:00", "Z"),
+                format_utc_iso(due),
             )
     agent.process.assert_not_awaited()
     saved = await repository.get_suggestion(
