@@ -100,11 +100,11 @@ def attach_repository_agents_md(
             )
         except (BrokerPolicyError, OSError):
             continue
-        for scope, project_root, relative in _instruction_files(read_context, touched):
-            key = str(project_root / relative)
+        for scope, root, relative in _instruction_files(read_context, touched):
+            key = str(root / relative)
             if key in attached or remaining == 0:
                 continue
-            data = _read_repository_file(project_root, relative, max_bytes=remaining)
+            data = _read_repository_file(root, relative, max_bytes=remaining)
             if data is None:
                 continue
             attached.append(key)
@@ -140,9 +140,11 @@ def _instruction_files(
 ) -> Iterator[tuple[Path, Path, Path]]:
     """Readable AGENTS.md files from the project root down to the touched dir.
 
-    Each is ``(directory it governs, project root, real path below the root)``;
-    the real path, not the link, is what gets opened, so an in-repository
-    ``AGENTS.md -> CLAUDE.md`` still works.
+    Each is ``(directory it governs, validated root, real path below it)``. The
+    root is the one ``read`` validated against (the registered folder), not the
+    project root, so no directory between them is trusted when opening. The real
+    path, not the link, is opened, so an in-repository ``AGENTS.md -> CLAUDE.md``
+    still works.
     """
 
     directory = touched.path if touched.path.is_dir() else touched.path.parent
@@ -175,7 +177,11 @@ def _instruction_files(
         except (BrokerPolicyError, OSError):
             continue
         if readable.path.is_relative_to(project_root):
-            yield ancestor, project_root, readable.path.relative_to(project_root)
+            yield (
+                ancestor,
+                readable.root.canonical_real_path,
+                Path(readable.root_relative_path),
+            )
 
 
 def _lineage(directory: Path, boundary: Path | None) -> list[Path]:
@@ -188,7 +194,7 @@ def _lineage(directory: Path, boundary: Path | None) -> list[Path]:
 
 
 def _read_repository_file(
-    project_root: Path, relative: Path, *, max_bytes: int
+    root: Path, relative: Path, *, max_bytes: int
 ) -> bytes | None:
     """Open the validated real path without following any symlink below the root.
 
@@ -196,10 +202,10 @@ def _read_repository_file(
     is skipped, so the swap cannot redirect the read outside what was checked.
     """
 
-    path = project_root / relative
+    path = root / relative
     try:
         descriptor = open_regular_file_descriptor(
-            root_path=project_root, relative_path=str(relative)
+            root_path=root, relative_path=str(relative)
         )
     except DescriptorPathMissingError:
         return None

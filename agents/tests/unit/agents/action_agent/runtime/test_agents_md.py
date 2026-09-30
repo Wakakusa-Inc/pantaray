@@ -308,6 +308,35 @@ def test_a_symlink_swapped_in_after_validation_reads_nothing_outside(
     assert attached == _block(repo, "ROOT RULE\n")
 
 
+def test_a_parent_swapped_for_a_symlink_after_validation_reads_nothing_outside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    action = _Action(
+        tmp_path, monkeypatch, read_access_scope=READ_ACCESS_SCOPE_WORKSPACE
+    )
+    packages = action.workspace / "packages"
+    repo = _repository(packages)
+    outside = tmp_path / "outside"
+    (outside / "repo" / "sub").mkdir(parents=True)
+    (outside / "repo" / "sub" / "AGENTS.md").write_text(
+        "OUTSIDE SECRET\n", encoding="utf-8"
+    )
+    validate = agents_md.resolve_read_tool_path
+
+    def validate_then_swap_parent(**kwargs: Any) -> Any:
+        resolved = validate(**kwargs)
+        if kwargs.get("must_be_file") and resolved.path == repo / "sub" / "AGENTS.md":
+            packages.rename(action.workspace / "packages-moved")
+            packages.symlink_to(outside, target_is_directory=True)
+        return resolved
+
+    monkeypatch.setattr(agents_md, "resolve_read_tool_path", validate_then_swap_parent)
+
+    attached = action.attach("list", {"path": str(repo / "sub")})
+
+    assert attached == _block(repo, "ROOT RULE\n")
+
+
 def test_workspace_scope_never_looks_above_the_registered_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
