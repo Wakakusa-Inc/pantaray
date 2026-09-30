@@ -118,7 +118,8 @@ system_instruction: |
      or rule it out. Change the proposal or investigate a different question when
      warranted. Stop once a useful decision is supported; more calls are not a goal.
 
-  Pending work is the whole of `insights/todos.md`; do not read it again. Read
+  Pending work is `insights/todos.md` in root `insights`; read or grep the rest
+  there only if it ends truncated. Read
   relevant long-term documents when they could change the goal or gap assessment.
   To read a `memory_search` result, pass its `read_root` as `read.root` and its
   `read_path` as `read.path`, starting at offset=1, column=1. Continue with both

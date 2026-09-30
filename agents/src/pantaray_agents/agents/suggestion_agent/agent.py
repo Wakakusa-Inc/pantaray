@@ -78,12 +78,12 @@ logger = logging.getLogger(__name__)
 type SuggestionAgentConfig = dict[str, JSONValue]
 type SuggestionLlmPayload = dict[str, JSONValue]
 
-# Design limit: the prompt carries insights/todos.md whole. Memory keeps it to the
-# user's own open work with short items, but files written before that rule reached
-# 40k characters (the rest of the prompt is about 35k), hence the cap. If production
+# Design limit: the earlier 64k budget for the rest of the prompt plus insights/todos.md
+# up to the snapshot's 60k-character bound. Memory keeps that file to the user's own
+# open work, but files written before that rule reached 40k characters. If production
 # todos.md exceeds about 20 KB after Memory has run on it, revisit the Memory rules
-# rather than raising this cap.
-SUGGESTION_INITIAL_PROMPT_MAX_CHARS = 160_000
+# rather than raising these limits.
+SUGGESTION_INITIAL_PROMPT_MAX_CHARS = 124_000
 
 
 def _normalize_target_context(
