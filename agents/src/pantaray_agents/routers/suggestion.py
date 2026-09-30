@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
+from pantaray_agents.agents.core import PublicAgentHTTPError
 from pantaray_agents.agents.suggestion_agent import SuggestionAgent
 from pantaray_agents.auth_http import get_current_user_id_from_token
 from pantaray_agents.dependencies import (
@@ -24,6 +25,10 @@ from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
     WELCOME_SUGGESTION_MAX_CHARS,
     record_welcome_suggestion,
 )
+from pantaray_agents.orchestration.ws.deliverable_sessions import (
+    owner_has_deliverable_session,
+)
+from pantaray_agents.schema.agent.base import ErrorType
 from pantaray_agents.schema.agent.suggestion import (
     SuggestionFinalState,
     SuggestionPendingChunk,
@@ -218,7 +223,11 @@ async def create_welcome_suggestion(
     body: WelcomeSuggestionRequest,
     resolved_user_id: str = Depends(get_current_user_id_from_token),
 ) -> WelcomeSuggestionResponse:
-    """Greet an owner who has no data yet; for anyone else this is a no-op."""
+    """Greet an owner who has no data yet; for anyone else this is a no-op.
+
+    A greeting no session can show would be dropped like any Suggestion, so it
+    is not stored and the caller is told to try again (503).
+    """
 
     if not resolved_user_id or user_id != resolved_user_id:
         raise HTTPException(
@@ -236,6 +245,14 @@ async def create_welcome_suggestion(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="owner mismatch"
         ) from exc
+    if not owner_has_deliverable_session(user_id):
+        raise PublicAgentHTTPError(
+            "No session can show the welcome",
+            error_code="WELCOME_NO_SESSION",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            error_type=ErrorType.DEPENDENCY_ERROR,
+            public_message="The desktop app is not connected yet. Try again.",
+        )
     db_path, busy_timeout_ms = read_local_runtime_db_config()
     with open_memory_catalog_connection(
         db_path=db_path, busy_timeout_ms=busy_timeout_ms

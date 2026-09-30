@@ -31,9 +31,10 @@ test('the welcome reaches the runtime with its text', async t => {
   ]);
 });
 
-test('a runtime that is busy right after the start gets another chance', async t => {
+test('a welcome refused until the session is open gets another chance', async t => {
   const waits = [];
-  const f = withFetch(t, n => (n < 3 ? json(503, { detail: 'busy' }) : json(200, { created: true })));
+  const noSession = { detail: { error_code: 'WELCOME_NO_SESSION' } };
+  const f = withFetch(t, n => (n < 3 ? json(503, noSession) : json(200, { created: true })));
   await postWelcomeSuggestion({
     requestJson: f.requestJson, userId: 'user-1', answer: 'Hello',
     retryDelaysMs: [1, 2, 3], sleep: async ms => { waits.push(ms); },

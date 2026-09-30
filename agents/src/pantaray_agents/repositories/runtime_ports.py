@@ -260,7 +260,7 @@ class SuggestionRepositoryPort(Protocol):
         metadata: dict[str, object] | None = None,
     ) -> RepositoryResult[DBRow]: ...
 
-    async def cancel_suggestion_if_processing(
+    async def discard_suggestion_if_processing(
         self,
         *,
         user_id: str,

@@ -364,10 +364,13 @@ async def test_suggestion_state_does_not_use_foreign_session(monkeypatch):
     assert exc.value.status_code == 404
 
 
-def _welcome_client(monkeypatch, *, resolved_user_id: str = "user-1"):
+def _welcome_client(
+    monkeypatch, *, resolved_user_id: str = "user-1", live_session: bool = True
+):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
+    from pantaray_agents.app.shared import install_common_exception_handlers
     from pantaray_agents.auth_http import get_current_user_id_from_token
     from pantaray_agents.routers import suggestion as suggestion_router
 
@@ -384,7 +387,11 @@ def _welcome_client(monkeypatch, *, resolved_user_id: str = "user-1"):
     )
     monkeypatch.setattr(suggestion_router, "verify_current_owner", lambda _user: None)
     monkeypatch.setattr(suggestion_router, "record_welcome_suggestion", _record)
+    monkeypatch.setattr(
+        suggestion_router, "owner_has_deliverable_session", lambda _user: live_session
+    )
     app = FastAPI()
+    install_common_exception_handlers(app)
     app.include_router(suggestion_router.router)
     app.dependency_overrides[get_current_user_id_from_token] = lambda: resolved_user_id
     return TestClient(app), recorded
@@ -402,6 +409,20 @@ def test_welcome_is_recorded_with_the_trimmed_answer(monkeypatch) -> None:
     assert [(call["user_id"], call["answer"]) for call in recorded] == [
         ("user-1", "Hello")
     ]
+
+
+def test_a_welcome_no_session_can_show_is_not_stored_and_can_be_retried(
+    monkeypatch,
+) -> None:
+    client, recorded = _welcome_client(monkeypatch, live_session=False)
+
+    response = client.post(
+        "/v1/agents/users/user-1/suggestions/welcome", json={"answer": "Hello"}
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["error_code"] == "WELCOME_NO_SESSION"
+    assert recorded == []
 
 
 @pytest.mark.parametrize(

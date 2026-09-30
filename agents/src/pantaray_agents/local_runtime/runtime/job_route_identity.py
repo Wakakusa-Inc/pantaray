@@ -138,6 +138,21 @@ async def require_current_route_identity() -> None:
     )
 
 
+def job_owner_changed() -> bool:
+    """Whether the local data now belongs to someone other than this run's owner.
+
+    A requeued job is claimed only for its own owner, so a background job whose
+    owner is gone never runs again; its caller has to end what it started
+    instead of relying on the requeue. Outside a claimed job this is False.
+    """
+    route = _RUNNING_JOB_ROUTE.get()
+    if route is None:
+        return False
+    return effective_route_identity(read_route_inputs()).owner_id != (
+        route.identity.owner_id
+    )
+
+
 def _restart_after_the_barrier() -> str:
     """When a requeued job may be claimed again.
 
@@ -153,5 +168,6 @@ def _restart_after_the_barrier() -> str:
 __all__ = [
     "LocalJobRouteIdentityChangedError",
     "bind_job_route_identity",
+    "job_owner_changed",
     "require_current_route_identity",
 ]
