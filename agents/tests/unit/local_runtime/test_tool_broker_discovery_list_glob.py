@@ -78,7 +78,8 @@ async def test_list_and_glob_hide_only_the_action_plan(
     list_limit = sum(
         child.name not in private_names for child in context.workspace_path.iterdir()
     )
-    parent = context.workspace_path.parent
+    # Searched from above app storage, only the Action's own workspace shows.
+    parent = db_path.parent.resolve().parent
     case_alias = parent.with_name(parent.name.swapcase())
     glob_base = case_alias if case_alias.exists() else parent
 
@@ -102,7 +103,9 @@ async def test_list_and_glob_hide_only_the_action_plan(
         execution_session_id=context.execution_session_id,
         args={
             "base_path": str(glob_base),
-            "pattern": f"{context.workspace_path.name}/**/*.md",
+            "pattern": (
+                f"{context.workspace_path.relative_to(parent).as_posix()}/**/*.md"
+            ),
             "limit": 2,
         },
     )

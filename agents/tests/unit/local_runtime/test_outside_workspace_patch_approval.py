@@ -308,7 +308,7 @@ async def test_protected_paths_stay_hard_denied(tmp_path: Path, outside: Path) -
         "symlink escape from the workspace": "escape/notes.txt",
         "tool results through an outside link": str(outside / "results-link/x.txt"),
         "memory storage": str(memory_users / "notes.txt"),
-        "app database folder": str(tmp_path / "notes.txt"),
+        "app database folder": str(db_path.parent / "notes.txt"),
         "missing parent folder": str(outside / "missing/notes.txt"),
     }
     for index, (label, path) in enumerate(denied_paths.items()):

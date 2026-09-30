@@ -86,7 +86,8 @@ async def test_bash_sandbox_request_uses_manifest_roots_without_workspace_id(
     read_blocked_root = tmp_path / "read-blocked"
     repo_root.mkdir()
     read_blocked_root.mkdir()
-    db_path = tmp_path / "runtime.db"
+    db_path = tmp_path / "app-data" / "runtime.db"
+    db_path.parent.mkdir()
     prepare_test_database(
         db_path=db_path,
         busy_timeout_ms=1_000,

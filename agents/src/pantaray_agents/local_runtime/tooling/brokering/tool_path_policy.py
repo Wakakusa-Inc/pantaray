@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from difflib import get_close_matches
 from itertools import islice
@@ -34,6 +35,7 @@ from .outside_workspace import (
     resolve_outside_workspace_cwd,
     resolve_outside_workspace_patch_target,
 )
+from .private_app_storage import private_app_storage_error, private_app_storage_filter
 
 READ_PATH_NOT_FOUND = "READ_PATH_NOT_FOUND"
 READ_PATH_DENIED = "READ_PATH_DENIED"
@@ -92,7 +94,17 @@ def resolve_read_tool_path(
             full_access=context.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS,
         ) from exc
     reject_private_action_plan_path(context=context, path=resolved.path)
+    if private_app_storage_filter(context)(resolved.path):
+        raise private_app_storage_error(code=READ_PATH_DENIED)
     return resolved
+
+
+def hidden_read_path_filter(context: BrokerContext) -> Callable[[Path], bool]:
+    is_private_storage = private_app_storage_filter(context)
+    return lambda path: (
+        is_private_storage(path)
+        or is_private_action_plan_path(context=context, path=path)
+    )
 
 
 def resolve_write_tool_path(
@@ -199,8 +211,9 @@ def resolve_exec_tool_cwd(
             f"tool {context.tool_definition.tool_id} is not a workspace exec tool",
             code=EXEC_CWD_DENIED,
         )
+    is_private_storage = private_app_storage_filter(context)
     try:
-        return resolve_process_cwd(
+        resolved = resolve_process_cwd(
             roots=context.manifest_roots,
             raw_cwd=raw_cwd,
             default_cwd=Path(context.execution_session.cwd_path),
@@ -219,16 +232,21 @@ def resolve_exec_tool_cwd(
         ) from exc
     except BrokerPolicyError as exc:
         if exc.code == WORKSPACE_PATH_OUTSIDE_ROOTS:
+            candidate = _candidate_path(
+                raw_path=raw_cwd or ".",
+                cwd_path=Path(context.execution_session.cwd_path),
+            )
             outside = resolve_outside_workspace_cwd(
-                context=context,
-                candidate=_candidate_path(
-                    raw_path=raw_cwd or ".",
-                    cwd_path=Path(context.execution_session.cwd_path),
-                ),
+                context=context, candidate=candidate
             )
             if outside is not None:
                 return outside
+            if is_private_storage(candidate.resolve(strict=False)):
+                raise private_app_storage_error(code=EXEC_CWD_DENIED) from exc
         raise _exec_cwd_denied_error() from exc
+    if is_private_storage(resolved.path):
+        raise private_app_storage_error(code=EXEC_CWD_DENIED)
+    return resolved
 
 
 def resolve_exec_sandbox_roots(
@@ -378,16 +396,16 @@ def _resolve_missing_path_suggestions(
     _ensure_missing_path_is_in_read_scope(
         context=context, raw_path=str(resolved_parent)
     )
+    if private_app_storage_filter(context)(resolved_parent):
+        raise private_app_storage_error(code=READ_PATH_DENIED)
+    is_hidden = hidden_read_path_filter(context)
     visible_suggestions: list[str] = []
     for suggestion in _suggest_local_paths(parent=resolved_parent, raw_path=raw_path):
         try:
             resolved_suggestion = Path(suggestion).resolve(strict=False)
         except RuntimeError:
             continue
-        if not is_private_action_plan_path(
-            context=context,
-            path=resolved_suggestion,
-        ):
+        if not is_hidden(resolved_suggestion):
             visible_suggestions.append(suggestion)
     return tuple(visible_suggestions)
 
@@ -570,6 +588,7 @@ __all__ = [
     "SUGGESTION_SCAN_LIMIT",
     "WRITE_PATH_DENIED",
     "WRITE_PATH_NOT_FOUND",
+    "hidden_read_path_filter",
     "resolve_exec_sandbox_roots",
     "resolve_exec_tool_cwd",
     "resolve_read_tool_path",

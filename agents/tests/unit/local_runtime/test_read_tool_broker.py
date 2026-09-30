@@ -112,11 +112,13 @@ async def test_read_keeps_action_plan_private_but_allows_ordinary_plans(
         context=context,
         args={"path": "."},
     )
-    action_root_directory = await execute_read_tool(
-        db_path=db_path,
-        context=context,
-        args={"path": str(context.workspace_path.parent)},
-    )
+    # The Action root around the workspace is private app storage.
+    with pytest.raises(BrokerPolicyError) as action_root:
+        await execute_read_tool(
+            db_path=db_path,
+            context=context,
+            args={"path": str(context.workspace_path.parent)},
+        )
     neighbor_read = await execute_read_tool(
         db_path=db_path,
         context=context,
@@ -132,9 +134,7 @@ async def test_read_keeps_action_plan_private_but_allows_ordinary_plans(
     assert {"plan.md", "plan-alias.md", "plan-hardlink.md"}.isdisjoint(
         entry["name"] for entry in directory.output["entries"]
     )
-    assert abandoned_write.name not in {
-        entry["name"] for entry in action_root_directory.output["entries"]
-    }
+    assert action_root.value.code == "READ_PATH_DENIED"
     assert neighbor_read.output["content"] == "neighbor\n"
     assert other_read.output["content"] == "ordinary plan\n"
 
@@ -322,7 +322,8 @@ async def test_read_registered_folder_local_path(
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     (repo_root / "notes.txt").write_text("alpha\nbeta\n", encoding="utf-8")
-    db_path = tmp_path / "runtime.db"
+    db_path = tmp_path / "app-data" / "runtime.db"
+    db_path.parent.mkdir()
     prepare_test_database(
         db_path=db_path,
         busy_timeout_ms=1_000,

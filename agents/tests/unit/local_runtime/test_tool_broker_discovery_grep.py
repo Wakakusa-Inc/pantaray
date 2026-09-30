@@ -81,7 +81,8 @@ async def test_grep_does_not_expose_action_plan_matches(
     nested_plan = context.workspace_path / "nested" / "plan.md"
     nested_plan.parent.mkdir()
     nested_plan.write_text("needle ordinary nested plan\n", encoding="utf-8")
-    parent = context.workspace_path.parent
+    # Searched from above app storage, only the Action's own workspace shows.
+    parent = db_path.parent.resolve().parent
     case_alias = parent.with_name(parent.name.swapcase())
     grep_base = case_alias if case_alias.exists() else parent
 
@@ -96,7 +97,9 @@ async def test_grep_does_not_expose_action_plan_matches(
         args={
             "base_path": str(grep_base),
             "pattern": "needle",
-            "include_glob": f"{context.workspace_path.name}/**/*.md",
+            "include_glob": (
+                f"{context.workspace_path.relative_to(parent).as_posix()}/**/*.md"
+            ),
             "max_matches": 2,
         },
     )

@@ -26,8 +26,6 @@ from pantaray_agents.schema.read_access import (
 )
 
 from ...app_runtime_verification import load_and_verify_app_runtime_python_from_env
-from ...runtime.runtime_env import read_local_runtime_artifact_root
-from ..action_session_temp_paths import resolve_local_runtime_storage_base
 from ..brokering.broker_common import (
     APPROVAL_MODE_ALWAYS_ALLOW,
     APPROVAL_SCOPE_WORKSPACE_EDIT_AND_COMMAND,
@@ -35,6 +33,7 @@ from ..brokering.broker_common import (
 from ..brokering.broker_protocol import BashToolOutput
 from ..brokering.broker_registry import BROKER_TOOL_REGISTRY
 from ..brokering.command_runtime import build_command_env
+from ..outside_workspace_grant import app_owned_roots
 from ..repository import (
     load_active_capability_grants,
     load_effective_approval_preference,
@@ -232,10 +231,7 @@ class SuggestionCommandSession:
             sandbox_profile="workspace_process_exec"
         ).sandbox_launch
         app_runtime_python = load_and_verify_app_runtime_python_from_env()
-        private_storage_roots = [
-            str(resolve_local_runtime_storage_base(db_path=self.db_path)),
-            str(read_local_runtime_artifact_root().resolve()),
-        ]
+        private_storage_roots = [str(root) for root in app_owned_roots(self.db_path)]
 
         def build_request(temp_dir: Path) -> BrokerToSandboxCommandRequest:
             cwd, execution_root = resolved_cwd or (temp_dir, temp_dir)
