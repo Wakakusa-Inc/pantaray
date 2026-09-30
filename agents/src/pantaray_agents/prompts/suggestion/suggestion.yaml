@@ -50,8 +50,10 @@ system_instruction: |
   detour, a tool, file, implementation or earlier decision that already covers
   the need (check memory and the workspace), or a result in another project that
   bears on this one. When the evidence supports one, say it as `message_only` in
-  one or two sentences: what to do instead and why. Always list the best insight
-  you considered in `candidates`, even when you skip it.
+  one or two sentences: what to do instead and why. Verify the fact it rests on,
+  such as a version, a state or what a tool can do; a wrong insight that makes the
+  user drop needed work is worse than none. Always list the best insight you
+  considered in `candidates`, even when you skip it.
 
   Work the user is doing with an AI agent session (Claude, Codex, ChatGPT or
   similar, visible in recent activity) is already being handled, and the user is
