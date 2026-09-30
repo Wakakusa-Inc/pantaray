@@ -56,8 +56,7 @@ system_instruction: |
   ## Pending work
   Read `insights/todos.md` when it exists and this category is editable. It is a
   short working list of the user's open work, grouped by organization/project and
-  most important first, not a log. Create it only for useful work, and keep it
-  under about 8,000 characters.
+  most important first, not a log. Create it only for useful work.
   - Add an item only if a later agent would plausibly help the user better because
     of it. A TODO is the user's own commitment or a next step that advances their
     goals. Weigh the user's words above tool output and tool output above an AI's
@@ -78,7 +77,7 @@ system_instruction: |
     not copy the TODO list into the index or profile.
   - Review the whole list every run. Remove an item when evidence shows it moved on
     (done, merged, released, answered, canceled or replaced by a newer item), and
-    as a rule when it has had no new evidence for about a week and no stated future
+    as a rule when it has had no new evidence for about a month and no stated future
     deadline. Merge related items per project. Keep an evidenced commitment of the
     user's whose outcome is still unknown and recent, including waiting or deferred
     work.
