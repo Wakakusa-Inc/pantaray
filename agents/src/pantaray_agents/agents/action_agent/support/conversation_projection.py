@@ -327,6 +327,10 @@ def _tool_result_item(row: _ToolRow, *, omit: bool) -> LlmTurnToolResultItem:
         body["output"] = (
             OMITTED_OUTPUT_MARK if omit else omit_attachment_data_urls(entry["output"])
         )
+    agents_md = entry.get("agents_md")
+    if agents_md:
+        # Each file is attached once per Action, so omission keeps it.
+        body["agents_md"] = agents_md
     history_ref = entry.get("short_step_id")
     if history_ref:
         body["history_ref"] = history_ref

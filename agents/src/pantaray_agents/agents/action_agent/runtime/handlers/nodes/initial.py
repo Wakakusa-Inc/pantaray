@@ -6,6 +6,9 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from pantaray_agents.agents.action_agent.runtime.agents_md import (
+    load_pantaray_agents_md,
+)
 from pantaray_agents.agents.action_agent.runtime.config import (
     require_positive_state_config_int,
 )
@@ -209,6 +212,7 @@ async def initialize_context(
     context["workspace_context_prompt"] = render_workspace_context_prompt(
         workspace_manifest_catalog.workspace_context
     )
+    context["agents_md_instructions"] = load_pantaray_agents_md()
 
     # 親ランタイムは単一 ReAct のみ。mandatory planning phase を経由せず executing に
     # 直行する。

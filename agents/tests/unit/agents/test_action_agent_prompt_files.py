@@ -204,6 +204,7 @@ _PREFIX_PROMPT_FIELDS = frozenset(
         "workspace_path_contract",
         "workspace_context_rules",
         "workspace_context_prompt",
+        "agents_md_instructions",
         "user_request",
         "request_summary",
         "target_context",

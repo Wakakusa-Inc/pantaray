@@ -151,6 +151,9 @@ class HistoryEntry(TypedDict):
     # byte for byte. Absent on a THINK recorded before the field existed and on
     # every turn sent as one string.
     turn_context: NotRequired[str]
+    # AGENTS.md blocks first reached by this tool call. Kept when the output is
+    # omitted, since each file is attached only once per Action.
+    agents_md: NotRequired[str]
 
 
 class TargetContextState(TypedDict):
@@ -181,6 +184,10 @@ class ActionAgentContext(TypedDict, total=False):
     workspace_root_catalog: str
     read_access_scope: ReadAccessScope
     workspace_context_prompt: str
+    # ~/.pantaray/AGENTS.md as rendered in the prompt head ("" when absent).
+    agents_md_instructions: str
+    # Real paths of the repository AGENTS.md files already attached to a result.
+    agents_md_attached_paths: list[str]
     additional_notes: list[str]
     # --- Supervisor self-repair bookkeeping ---
     # jsonschema（ToolValidationError）により tool 実行が拒否された回数（連続回数）。
