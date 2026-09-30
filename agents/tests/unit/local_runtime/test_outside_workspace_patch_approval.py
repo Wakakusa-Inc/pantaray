@@ -151,8 +151,8 @@ async def test_outside_workspace_patch_asks_in_every_approval_mode(
                 "summary_kind": "apply_patch",
                 "target_paths": [str(target)],
                 "outside_workspace": {
-                    "folder_path": str(outside),
-                    "folder_display_name": outside.name,
+                    "folders": [{"path": str(outside), "display_name": outside.name}],
+                    "reason": None,
                     "can_allow_for_conversation": True,
                 },
             },
