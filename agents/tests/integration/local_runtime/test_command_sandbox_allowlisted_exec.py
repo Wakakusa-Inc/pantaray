@@ -12,6 +12,7 @@ import pytest
 from tests.unit.local_runtime.broker_test_support import BROKER_ACTOR_PROCESS_ID
 
 from pantaray_agents.local_runtime.tooling.brokering.broker import execute_broker_tool
+from pantaray_agents.schema.read_access import ReadAccessScope
 
 from .support import (
     INTEGRATION_APPROVAL_TIMESTAMP,
@@ -147,11 +148,19 @@ async def test_workspace_executable_runs_via_helper(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("read_access_scope", ["workspace", "full_access"])
 async def test_action_plan_remains_private_inside_broad_workspace_sandbox(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    read_access_scope: ReadAccessScope,
 ) -> None:
-    testbed = bootstrap_runtime_testbed(tmp_path=tmp_path, monkeypatch=monkeypatch)
+    # Under full access the profile also allows reading "/"; the plan deny must
+    # still win.
+    testbed = bootstrap_runtime_testbed(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        read_access_scope=read_access_scope,
+    )
     plan_path = testbed.context.workspace_path / "plan.md"
     symlink_path = testbed.context.workspace_path / "plan-alias.md"
     hardlink_path = testbed.context.workspace_path / "plan-hardlink.md"
