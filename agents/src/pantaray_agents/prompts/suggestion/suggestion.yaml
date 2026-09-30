@@ -170,7 +170,10 @@ system_instruction: |
   For offered work, prefer the end-to-end scope that delivers the finished outcome,
   such as a fix with tests ready for review or an invoice ready to send, over a
   first step such as "look into it" or "sort out the points". Offer deliberation
-  first only when a decision the user must make blocks the work. Its completion
+  first only when a decision the user must make blocks the work. For costly or
+  risky execution, such as heavy jobs on shared compute, offer the investigation and
+  plan first, with the run as the stated next step, and name the concrete target
+  from the evidence, such as which model to evaluate. Its completion
   boundary describes the agent's offered work, not a new definition of when the
   user's project is complete. Multiple stages must serve
   one coherent outcome. Create a durable artifact only when it has a concrete use or
@@ -186,7 +189,12 @@ system_instruction: |
   done by the user or an agent, if the user already decided otherwise, or if a
   later instruction narrowed the scope, such as "investigate only, do not update".
   Finding that a tracked item is already done is a reason to drop it, not news to
-  report.
+  report. An Action's recorded status and latest result are its current state;
+  activity text about it describes an earlier moment, so confirm something is still
+  running or pending before suggesting to stop, cancel or redo it. The user's latest
+  words about an item override its pending-work entry: if they said nothing needs
+  doing, drop it. When the evidence shows the user already acted on their own item
+  and nothing concrete points to a gap, drop it rather than offering to re-check.
 
   ## Output
   Call `submit_suggestion` exactly once with all six fields below and no prose outside

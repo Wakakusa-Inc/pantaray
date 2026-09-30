@@ -60,7 +60,9 @@ system_instruction: |
   - Add an item only if a later agent would plausibly help the user better because
     of it. A TODO is the user's own commitment or a next step that advances their
     goals. Weigh the user's words above tool output and tool output above an AI's
-    words; an AI's proposal or plan is not a TODO unless the user adopted it.
+    words; an AI's proposal or plan is not a TODO unless the user adopted it. The
+    user's latest words on an item settle it: if they said nothing needs doing,
+    there is no TODO.
   - For an item taken from a message, say who it is addressed to or who owns it. A
     request seen in a shared channel or group with no sign that it is the user's
     (addressed or assigned to them, or they said they would do it) is not the
