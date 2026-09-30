@@ -63,6 +63,10 @@ system_instruction: |
     copying alone creates no duty to finalize or send. Keep unknown outcomes as
     context, not tasks to close the agent's records. Inferred work needs a benefit
     beyond filling an observation gap.
+  - A TODO is the user's work. For one taken from a message, say who it is
+    addressed to or who owns it. A request seen in a shared channel or group with
+    no sign that it is the user's (addressed or assigned to them, or they said they
+    would do it) is not the user's TODO.
   - Describe each item's next step, current situation, goal contribution and source
     evidence in prose. Include supported paths, URLs or times when useful; no task
     IDs or formal evidence schema. Keep long-term goals in the other insight files;

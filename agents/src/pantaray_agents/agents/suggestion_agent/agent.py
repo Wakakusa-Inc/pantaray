@@ -65,6 +65,7 @@ from pantaray_agents.schema.agent.suggestion import (
     SuggestionTargetContext,
 )
 from pantaray_agents.schema.repository_errors import repository_data_or_raise
+from pantaray_agents.utils.local_time import describe_local_time, local_zone_name
 from pantaray_agents.utils.prompt_loader import PromptConfig
 from pantaray_llm.contracts.tool_use import (
     LlmToolContinuation,
@@ -306,13 +307,15 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
 
     def _build_prompt(self, context_data: SuggestionFetchedContext) -> str:
         """プロンプトを構築する"""
+        reference_time = self._get_reference_time()
         values: dict[str, str] = {
+            "current_time": describe_local_time(reference_time, local_zone_name()),
             "short_term_insight": context_data["short_term_insight"],
             "reconsideration_reason": context_data["reconsideration_reason"],
             "stable_memory_context": context_data["stable_memory_context"],
             "pending_work_context": build_todo_index(
                 self.stable_memory.pending_work,
-                today=self._get_reference_time().astimezone().date(),
+                today=reference_time.astimezone().date(),
             )
             or "(No pending work recorded.)",
             "action_agent_capabilities": context_data["action_agent_capabilities"],

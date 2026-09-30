@@ -700,7 +700,10 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
         prompt="Long-term direction: grow sustainably.",
         has_facts=False,
         has_insights=True,
-        pending_work="Observed: prepare the estimate for the other project.",
+        pending_work=(
+            "Observed: prepare the estimate for the other project.\n"
+            "- **Contract**: return it by 9/12.\n"
+        ),
     )
     suggestion_agent.repository.get_recent_suggestions = AsyncMock(
         return_value=RepositoryResult(
@@ -725,7 +728,15 @@ async def test_prompt_receives_pending_work_direction_and_user_feedback(
             reconsideration_reason="Periodic review.",
         )
     )
-    prompt = suggestion_agent._build_prompt(context)
+    with patch.object(
+        suggestion_agent,
+        "_get_reference_time",
+        return_value=datetime(2026, 9, 10, tzinfo=UTC),
+    ):
+        prompt = suggestion_agent._build_prompt(context)
+    # The run's date and the deadlines counted from it come from one clock.
+    assert "## Now\n2026-09-10T09:00+09:00 (Asia/Tokyo)." in prompt
+    assert "due 9/12 (Sat), in 2 days: **Contract**" in prompt
     assert "prepare the estimate for the other project" in prompt
     assert "grow sustainably" in prompt
     assert "User reaction: rejected" in prompt
