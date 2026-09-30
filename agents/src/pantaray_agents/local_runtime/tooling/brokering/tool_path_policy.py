@@ -6,16 +6,12 @@ from difflib import get_close_matches
 from itertools import islice
 from pathlib import Path
 
-from pantaray_agents.local_runtime.runtime.runtime_env import (
-    read_local_runtime_artifact_root,
-)
 from pantaray_agents.schema.read_access import (
     READ_ACCESS_SCOPE_FULL_ACCESS,
     READ_ACCESS_SCOPE_WORKSPACE,
 )
 
 from ..action_plan_document import is_action_plan_artifact_path
-from ..outside_workspace_grant import path_is_within
 from ..workspace_manifest_roots import path_belongs_to_manifest_root
 from .broker_common import BrokerContext, BrokerPolicyError
 from .manifest_paths import (
@@ -120,6 +116,7 @@ def resolve_write_tool_path(
             f"tool {context.tool_definition.tool_id} is not a workspace write tool",
             code=WRITE_PATH_DENIED,
         )
+    is_private_storage = private_app_storage_filter(context)
     try:
         resolved = resolve_local_path(
             roots=context.manifest_roots,
@@ -143,38 +140,24 @@ def resolve_write_tool_path(
         ) from exc
     except BrokerPolicyError as exc:
         if exc.code == WORKSPACE_PATH_OUTSIDE_ROOTS:
+            candidate = _candidate_path(
+                raw_path=raw_path,
+                cwd_path=Path(context.execution_session.cwd_path),
+            )
             outside = resolve_outside_workspace_patch_target(
-                context=context,
-                candidate=_candidate_path(
-                    raw_path=raw_path,
-                    cwd_path=Path(context.execution_session.cwd_path),
-                ),
+                context=context, candidate=candidate
             )
             if outside is not None:
                 return outside
+            if is_private_storage(candidate.resolve(strict=False)):
+                raise private_app_storage_error(code=WRITE_PATH_DENIED) from exc
         raise _write_path_denied_error() from exc
     reject_private_action_plan_path(context=context, path=resolved.path)
-    _reject_unmanaged_memory_write(context=context, resolved=resolved)
+    # Manifest roots match the most specific root first, so a path in the
+    # Action's own storage roots resolves to them and gets their permissions.
+    if is_private_storage(resolved.path):
+        raise private_app_storage_error(code=WRITE_PATH_DENIED)
     return resolved
-
-
-def _reject_unmanaged_memory_write(
-    *,
-    context: BrokerContext,
-    resolved: ResolvedManifestPath,
-) -> None:
-    if not any(
-        root.source_type == "agent_experience" and root.can_apply_patch
-        for root in context.manifest_roots
-    ):
-        return
-    if resolved.root.source_type == "agent_experience":
-        return  # The dedicated writer verifies the configured tenant root.
-    private_users = (
-        read_local_runtime_artifact_root().resolve() / "memory_catalog/users"
-    )
-    if path_is_within(path=resolved.path, root=private_users):
-        raise _write_path_denied_error()
 
 
 def is_private_action_plan_path(

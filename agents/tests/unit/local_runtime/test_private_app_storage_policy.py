@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
@@ -22,20 +23,24 @@ from pantaray_agents.local_runtime.tooling.brokering.manifest_paths import (
 from pantaray_agents.local_runtime.tooling.brokering.tool_path_policy import (
     EXEC_CWD_DENIED,
     READ_PATH_DENIED,
+    WRITE_PATH_DENIED,
 )
 from pantaray_agents.local_runtime.tooling.repository.workspace_settings import (
     READ_ACCESS_SCOPE_FULL_ACCESS,
 )
 from pantaray_agents.schema.agent.base import JSONValue
 
-from .broker_test_support import BROKER_ACTOR_PROCESS_ID
+from .broker_test_support import (
+    BROKER_ACTOR_PROCESS_ID,
+    _grant_workspace_full_access,
+)
 from .path_access_policy_support import (
     ACTION_ID,
     USER_ID,
     bootstrap_path_policy_runtime_db,
 )
 
-_TOOL_IDS = ("read", "list", "glob", "grep", "bash")
+_TOOL_IDS = ("read", "list", "glob", "grep", "bash", "apply_patch")
 
 
 async def _run(
@@ -207,3 +212,101 @@ async def test_command_cwd_in_app_storage_points_to_memory_sql(
     assert caught.value.code == EXEC_CWD_DENIED
     assert "private app storage" in str(caught.value)
     assert "memory_sql" in str(caught.value.fix_hint)
+
+
+def _add_folder_root(*, db_path: Path, manifest_id: str, folder: Path) -> None:
+    # A registered folder that contains app storage, like the home folder.
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """INSERT INTO workspace_manifest_roots(
+                root_id,manifest_id,source_type,source_id,display_name,
+                canonical_real_path,real_path,can_read,can_apply_patch,
+                can_process_read,can_process_write,created_at
+            ) VALUES ('home-root',?,'folder','home','Home',?,?,1,1,1,1,
+                      '2026-03-23T00:00:00Z')""",
+            (manifest_id, str(folder.resolve()), str(folder.resolve())),
+        )
+
+
+def _patch_args(op: str, path: str) -> dict[str, JSONValue]:
+    if op == "add":
+        return {
+            "changes": [
+                {
+                    "op": "add",
+                    "path": path,
+                    "new_lines": ["x"],
+                    "trailing_newline": True,
+                }
+            ]
+        }
+    if op == "update":
+        return {
+            "changes": [
+                {
+                    "op": "update",
+                    "path": path,
+                    "edits": [{"old_lines": ["kept"], "new_lines": ["changed"]}],
+                }
+            ]
+        }
+    return {"changes": [{"op": "delete", "path": path}]}
+
+
+@pytest.mark.asyncio
+async def test_apply_patch_refuses_private_app_storage(tmp_path: Path) -> None:
+    db_path, context = bootstrap_path_policy_runtime_db(
+        tmp_path, allowed_tool_ids=_TOOL_IDS
+    )
+    _grant_workspace_full_access(db_path=db_path, capability="scoped_write")
+    storage = db_path.parent
+    notes = storage / "notes.txt"
+    notes.write_text("kept\n", encoding="utf-8")
+    workspace = context.workspace_path
+    (workspace / "storage-link").symlink_to(storage)
+
+    async def refused(op: str, path: str) -> None:
+        with pytest.raises(BrokerPolicyError) as caught:
+            await _run(
+                db_path=db_path,
+                context=context,
+                tool_id="apply_patch",
+                args=_patch_args(op, path),
+            )
+        assert caught.value.code == WRITE_PATH_DENIED, (op, path)
+        assert "private app storage" in str(caught.value), (op, path)
+        assert "memory_sql" in str(caught.value.fix_hint), (op, path)
+
+    # No root holds app storage: the path stays outside every approvable folder.
+    await refused("add", str(storage / "new.txt"))
+
+    # A registered folder that contains app storage does not open it either.
+    _add_folder_root(db_path=db_path, manifest_id=context.manifest_id, folder=tmp_path)
+    for op, path in (
+        ("add", str(storage / "new.txt")),
+        ("add", str(_case_alias(storage.resolve()) / "new.txt")),
+        ("add", "storage-link/new.txt"),
+        ("add", str(workspace.parent / "new.txt")),
+        ("update", str(notes)),
+        ("update", "storage-link/notes.txt"),
+        ("update", str(db_path)),
+        ("delete", str(notes)),
+        ("delete", str(db_path)),
+    ):
+        await refused(op, path)
+
+    assert not (storage / "new.txt").exists()
+    assert not (workspace.parent / "new.txt").exists()
+    assert notes.read_text(encoding="utf-8") == "kept\n"
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+
+    # The Action's own workspace inside app storage stays writable.
+    written = await _run(
+        db_path=db_path,
+        context=context,
+        tool_id="apply_patch",
+        args=_patch_args("add", str(workspace / "own.txt")),
+    )
+    assert written.status == "success"
+    assert (workspace / "own.txt").read_text(encoding="utf-8") == "x\n"

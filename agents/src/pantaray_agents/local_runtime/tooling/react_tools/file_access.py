@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from pantaray_agents.local_runtime.tooling.brokering.broker_common import (
     BrokerPolicyError,
@@ -13,6 +13,10 @@ from pantaray_agents.local_runtime.tooling.brokering.broker_common import (
 from pantaray_agents.local_runtime.tooling.brokering.broker_direct_read_text import (
     read_text_descriptor_lines,
     read_text_value_lines,
+)
+from pantaray_agents.local_runtime.tooling.brokering.private_app_storage import (
+    PRIVATE_APP_STORAGE_MESSAGE,
+    is_within_any,
 )
 from pantaray_agents.local_runtime.tooling.brokering.workspace_descriptor_access import (
     bound_grep_line,
@@ -29,6 +33,11 @@ from .roots import MemoryReadRoot, ReadOnlyRoot, WorkspaceReadRoot
 READ_MAX_BYTES = 4_000
 RESULT_CONTENT_MAX_CHARS = 4_800
 DISCOVERY_SCAN_LIMIT = 20_000
+# Suggestions have memory_search, not the Action's memory_sql.
+_PRIVATE_APP_STORAGE_ERROR = (
+    f"{PRIVATE_APP_STORAGE_MESSAGE} Search Pantaray's own records with "
+    "memory_search instead of opening its files."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +77,7 @@ class ReadOnlyFileAccess:
                 max_bytes=READ_MAX_BYTES,
             )
         else:
+            _reject_private_app_storage(root, relative_path)
             descriptor = open_workspace_file_descriptor(
                 root_path=root.canonical_path,
                 relative_path=relative_path,
@@ -277,18 +287,29 @@ def _memory_list_entries(
     return entries
 
 
+def _reject_private_app_storage(root: WorkspaceReadRoot, relative_path: str) -> None:
+    if is_within_any(root.canonical_path / relative_path, root.private_app_storage):
+        raise BrokerPolicyError(_PRIVATE_APP_STORAGE_ERROR)
+
+
+def _in_private_app_storage(root: WorkspaceReadRoot) -> Callable[[Path], bool]:
+    return lambda path: is_within_any(path, root.private_app_storage)
+
+
 def _workspace_list_entries(
     *,
     root: WorkspaceReadRoot,
     base_path: str,
     max_depth: int,
 ) -> tuple[list[JSONValue], str | None]:
+    _reject_private_app_storage(root, base_path)
     result = scan_workspace_entries(
         root_path=root.canonical_path,
         base_path=base_path,
         max_depth=max_depth,
         limit=DISCOVERY_SCAN_LIMIT,
         scan_limit=DISCOVERY_SCAN_LIMIT,
+        exclude_subtree=_in_private_app_storage(root),
     )
     entries: list[JSONValue] = [
         {
@@ -317,12 +338,14 @@ def _memory_glob_matches(
 def _workspace_glob_matches(
     *, root: WorkspaceReadRoot, base_path: str, pattern: str
 ) -> tuple[list[str], str | None]:
+    _reject_private_app_storage(root, base_path)
     result = glob_workspace_files(
         root_path=root.canonical_path,
         base_path=base_path,
         pattern=pattern,
         limit=DISCOVERY_SCAN_LIMIT,
         scan_limit=DISCOVERY_SCAN_LIMIT,
+        exclude_subtree=_in_private_app_storage(root),
     )
     return [
         entry.root_relative_path for entry in result.entries
@@ -372,6 +395,7 @@ def _workspace_grep_matches(
     include_glob: str | None,
     requested_count: int,
 ) -> tuple[list[JSONValue], str | None, int]:
+    _reject_private_app_storage(root, base_path)
     result = grep_workspace_files(
         root_path=root.canonical_path,
         base_path=base_path,
@@ -379,6 +403,7 @@ def _workspace_grep_matches(
         include_glob=include_glob,
         max_matches=min(requested_count, DISCOVERY_SCAN_LIMIT),
         scan_limit=DISCOVERY_SCAN_LIMIT,
+        exclude_subtree=_in_private_app_storage(root),
     )
     matches: list[JSONValue] = [
         {

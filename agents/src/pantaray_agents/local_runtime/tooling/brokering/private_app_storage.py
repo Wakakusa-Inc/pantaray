@@ -1,9 +1,10 @@
-"""Pantaray's private app storage, which Action tools must not read.
+"""Pantaray's private app storage, which agent tools must not read or change.
 
-The command sandbox denies these roots to processes; read/search paths and
-command cwds are refused here with the same exceptions. The roots the app itself
-places in storage for this Action (its workspace, published tool results, and
-agent experience) stay readable.
+The command sandbox denies these roots to processes; Action read/search/write
+paths and command cwds are refused here with the same exceptions. The roots the
+app itself places in storage for this Action (its workspace, published tool
+results, and agent experience) stay usable with the access their manifest root
+grants. Suggestion file tools have no such roots and see none of the storage.
 """
 
 from __future__ import annotations
@@ -16,10 +17,13 @@ from ..outside_workspace_grant import app_owned_roots
 from .broker_common import BrokerContext, BrokerPolicyError
 
 _APP_MANAGED_ROOT_SOURCE_TYPES = frozenset({"scratch", "agent_experience"})
+PRIVATE_APP_STORAGE_MESSAGE = (
+    "This path is in Pantaray's private app storage, which tools cannot read or change."
+)
 
 
 def private_app_storage_filter(context: BrokerContext) -> Callable[[Path], bool]:
-    """Return whether a resolved path lies in storage this Action may not read.
+    """Return whether a resolved path lies in storage this Action may not use.
 
     Built once per tool call so a directory scan does not re-resolve the roots.
     """
@@ -30,18 +34,14 @@ def private_app_storage_filter(context: BrokerContext) -> Callable[[Path], bool]
         for root in context.manifest_roots
         if root.can_read and root.source_type in _APP_MANAGED_ROOT_SOURCE_TYPES
     )
-
-    def is_private(path: Path) -> bool:
-        return any(_is_within(path, root) for root in storage_roots) and not any(
-            _is_within(path, root) for root in readable_roots
-        )
-
-    return is_private
+    return lambda path: (
+        is_within_any(path, storage_roots) and not is_within_any(path, readable_roots)
+    )
 
 
 def private_app_storage_error(*, code: str) -> BrokerPolicyError:
     return BrokerPolicyError(
-        "This path is in Pantaray's private app storage, which tools cannot read.",
+        PRIVATE_APP_STORAGE_MESSAGE,
         code=code,
         fix_hint=(
             "Read Pantaray's own records (suggestions, actions, insights, "
@@ -50,8 +50,17 @@ def private_app_storage_error(*, code: str) -> BrokerPolicyError:
     )
 
 
-def _is_within(path: Path, root: Path) -> bool:
-    return relative_to_directory_identity(path=path, directory=root) is not None
+def is_within_any(path: Path, roots: tuple[Path, ...]) -> bool:
+    # Directory identity, so a case alias on APFS cannot step around a root.
+    return any(
+        relative_to_directory_identity(path=path, directory=root) is not None
+        for root in roots
+    )
 
 
-__all__ = ["private_app_storage_error", "private_app_storage_filter"]
+__all__ = [
+    "PRIVATE_APP_STORAGE_MESSAGE",
+    "is_within_any",
+    "private_app_storage_error",
+    "private_app_storage_filter",
+]
