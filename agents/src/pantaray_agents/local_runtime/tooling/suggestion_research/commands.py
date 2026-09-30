@@ -228,7 +228,7 @@ class SuggestionCommandSession:
         )
         full_disk_read = self.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
         budget = resolve_runtime_budget(
-            sandbox_profile="workspace_process_exec"
+            sandbox_profile="workspace_process_exec", db_path=self.db_path
         ).sandbox_launch
         app_runtime_python = load_and_verify_app_runtime_python_from_env()
         private_storage_roots = [str(root) for root in app_owned_roots(self.db_path)]
@@ -264,7 +264,7 @@ class SuggestionCommandSession:
             )
 
         terminal_outcome, output = await run_unrecorded_sandbox_command(
-            build_request=build_request
+            db_path=self.db_path, build_request=build_request
         )
         return _react_result(
             tool_name=call.tool_name, terminal_outcome=terminal_outcome, output=output

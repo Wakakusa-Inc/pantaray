@@ -323,7 +323,10 @@ class OfficeRuntime:
             )
 
     def _copy_app_from_dmg(self, dmg_path: Path, bundle: Path) -> None:
-        mount_parent = Path(tempfile.mkdtemp(prefix="pantaray-office-mount-"))
+        # Beside the DMG in private app storage: commands may write the OS temp dirs.
+        mount_parent = Path(
+            tempfile.mkdtemp(prefix="pantaray-office-mount-", dir=dmg_path.parent)
+        )
         try:
             attach_output = self._run_install_step(
                 [

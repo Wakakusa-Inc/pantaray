@@ -6,7 +6,6 @@ import os
 import shutil
 import signal
 import sys
-import tempfile
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +14,7 @@ from typing import cast
 from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 
 from ...storage.migrations import MigrationError
+from ..action_session_temp_paths import create_private_temp_dir
 from ..brokering.broker_common import (
     BROKER_TOOL_TIMEOUT_ERROR_TYPE,
     BrokerContext,
@@ -339,11 +339,9 @@ async def run_command_via_sandbox(
     tool_invocation_id = request.tool_invocation_id
     if tool_invocation_id is None:
         raise BrokerExecutionError("command execution requires an invocation id")
-    temp_dir = Path(
-        tempfile.mkdtemp(
-            prefix=SANDBOX_TEMP_DIR_PREFIX,
-        )
-    ).resolve()
+    temp_dir = create_private_temp_dir(
+        db_path=context.db_path, prefix=SANDBOX_TEMP_DIR_PREFIX
+    )
     try:
         temp_resource_id = register_path_resource_fn(
             db_path=context.db_path,

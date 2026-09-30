@@ -16,13 +16,13 @@ import os
 import shutil
 import signal
 import stat
-import sys
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final, Literal
 
+from ..action_session_temp_paths import create_private_temp_dir
 from .document_model import DocumentExtractionError
 from .office_convert_sandbox import sandboxed_argv
 
@@ -50,8 +50,6 @@ _EXPORT_FILTERS: Final[Mapping[OfficeFormat, str]] = MappingProxyType(
 )
 # The parent's variables LibreOffice may use; everything else stays behind.
 _INHERITED_ENVIRONMENT: Final = ("HOME", "LANG")
-# _CS_DARWIN_USER_TEMP_DIR in <unistd.h>; os.confstr_names does not list it.
-_CS_DARWIN_USER_TEMP_DIR: Final = 65537
 # LibreOffice's stderr, as relayed by a process that was holding an untrusted
 # file when it wrote it. Read as bytes first so a long stderr is never loaded.
 _MAX_REASON_CHARS: Final = 200
@@ -71,6 +69,7 @@ class OfficeConversionTimeoutError(DocumentExtractionError):
 
 async def convert_office_to_pdf(
     *,
+    db_path: Path,
     libreoffice_app: Path,
     source: Path,
     document_format: OfficeFormat,
@@ -90,7 +89,7 @@ async def convert_office_to_pdf(
             process group was killed.
     """
 
-    work_dir = Path(tempfile.mkdtemp(prefix="pantaray-office-", dir=_user_temp_dir()))
+    work_dir = create_private_temp_dir(db_path=db_path, prefix="pantaray-office-")
     try:
         for name in ("in", "out", "tmp"):
             (work_dir / name).mkdir()
@@ -235,25 +234,6 @@ def _environment(work_dir: Path) -> dict[str, str]:
         name: os.environ[name] for name in _INHERITED_ENVIRONMENT if name in os.environ
     }
     return {**inherited, "PATH": "/usr/bin:/bin", "TMPDIR": str(work_dir / "tmp")}
-
-
-def _user_temp_dir() -> str:
-    """The per-user temporary directory, by the name seatbelt will match.
-
-    macOS gives each user a private (0700) temporary directory; it is asked for
-    directly rather than read from TMPDIR, which the helper's launcher may have
-    pointed anywhere. Resolved because ``/var`` is a link to ``/private/var``.
-    """
-
-    # Keep both paths type-checked on Linux CI; mypy folds a direct sys.platform guard.
-    on_macos = sys.platform == "darwin"
-    if on_macos:
-        user_temp_dir = os.confstr(_CS_DARWIN_USER_TEMP_DIR)
-        if user_temp_dir is None:
-            raise OSError("macOS reported no per-user temporary directory")
-        return os.path.realpath(user_temp_dir)
-    # Only the Linux unit tests come here; the app ships on macOS alone.
-    return os.path.realpath(tempfile.gettempdir())
 
 
 __all__ = [

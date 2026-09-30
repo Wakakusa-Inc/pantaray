@@ -93,6 +93,7 @@ def stub_converter(
 
     async def fake_convert_office_to_pdf(
         *,
+        db_path: Path,
         libreoffice_app: Path,
         source: Path,
         document_format: OfficeFormat,
