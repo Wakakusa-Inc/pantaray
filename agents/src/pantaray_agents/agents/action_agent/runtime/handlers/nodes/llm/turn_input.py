@@ -181,6 +181,7 @@ def build_executing_turn(
         "workspace_path_contract": rendering.render_workspace_path_contract(state),
         "workspace_context_rules": rendering.render_workspace_context_rules(),
         "workspace_context_prompt": rendering.render_workspace_context_prompt(state),
+        "agents_md_instructions": _agents_md_section(state),
     }
     tail = tail_template.format(**fields)
     return ExecutingTurn(
@@ -195,6 +196,12 @@ def build_executing_turn(
         # a template with nothing after its history is sent as one string.
         sends_conversation=bool(tail),
     )
+
+
+def _agents_md_section(state: ActionAgentState) -> str:
+    # Its own paragraph after Workspace Context, and nothing at all when absent.
+    instructions = state["context"].get("agents_md_instructions", "")
+    return f"\n\n{instructions}" if instructions else ""
 
 
 def supervisor_prompt_scope_handles(state: ActionAgentState) -> tuple[str, ...]:

@@ -860,3 +860,68 @@ async def test_assistant_utterance_precedes_reply_and_survives_checkpoint(
     assert len(continued["history_by_scope"]["S"]) == 4
     assert continued["context"]["local_step_counters"]["S"] == 4
     assert history.count("- Assistant Message (phase: commentary):") == 1
+
+
+@pytest.mark.asyncio
+async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import yaml
+
+    from pantaray_agents.agents.action_agent.runtime.checkpoint import (
+        build_runtime_state_checkpoint,
+        restore_runtime_state_checkpoint,
+    )
+    from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm.turn_input import (
+        build_executing_turn,
+    )
+
+    home = tmp_path / "home"
+    (home / ".pantaray").mkdir(parents=True)
+    (home / ".pantaray" / "AGENTS.md").write_text("Be brief.\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    repo = MockActionAgentRepository()
+    agent = _build_agent(repo)
+    await _save_suggestion(repo)
+    state = _state_with_execution_context(
+        _bootstrap_execution_context(tmp_path=tmp_path, monkeypatch=monkeypatch)
+    )
+    runtime = _runtime(agent)
+    updated = await initialize_context(agent, state, runtime)  # type: ignore[arg-type]
+    config = yaml.safe_load(
+        (
+            Path(__file__).parents[3]
+            / "src/pantaray_agents/prompts/action/executing.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    executing = SimpleNamespace(
+        executing_prompt=config["prompt"],
+        executing_system_instruction="SYS",
+        DEFAULT_SYSTEM_INSTRUCTION="SYS",
+        executing_tool_use_rule=lambda key: "",
+    )
+
+    def head(of: ActionAgentState) -> bytes:
+        turn = build_executing_turn(executing, of, runtime, tools=())  # type: ignore[arg-type]
+        return turn.head.encode("utf-8")
+
+    first = head(updated).decode("utf-8")
+    block = (
+        "# AGENTS.md instructions for ~/.pantaray\n\n"
+        "<INSTRUCTIONS>\nBe brief.\n\n</INSTRUCTIONS>"
+    )
+    assert (
+        first.index("### Workspace Context Rules")
+        < first.index(block)
+        < first.index("## Suggestion Content")
+    )
+    # Editing the file mid-run must not reach the cached head; resume restores it.
+    (home / ".pantaray" / "AGENTS.md").write_text("Changed.\n", encoding="utf-8")
+    restored = restore_runtime_state_checkpoint(
+        build_runtime_state_checkpoint(updated),
+        expected_action_id="action-1",
+        expected_suggestion_id="sug-1",
+        expected_user_id="user-1",
+    )
+    assert head(updated) == head(restored) == first.encode("utf-8")

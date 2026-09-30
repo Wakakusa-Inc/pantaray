@@ -143,6 +143,8 @@ class UnprojectedToolExecutionResult:
     tool_request_id: str | None = None
     tool_invocation_id: str | None = None
     subagent_collection_receipt: ActionSubagentCollectionReceipt | None = None
+    # AGENTS.md blocks this call is the first to reach; rendered with its result.
+    agents_md: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +178,7 @@ class ToolExecutionResult:
     tool_request_id: str | None = None
     tool_invocation_id: str | None = None
     subagent_collection_receipt: ActionSubagentCollectionReceipt | None = None
+    agents_md: str | None = None
 
     def __post_init__(self) -> None:
         _validate_tool_execution_control(status=self.status, control=self.control)
@@ -224,6 +227,7 @@ def build_tool_execution_result(
         tool_request_id=result.tool_request_id,
         tool_invocation_id=result.tool_invocation_id,
         subagent_collection_receipt=result.subagent_collection_receipt,
+        agents_md=result.agents_md,
     )
 
 

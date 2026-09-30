@@ -364,6 +364,7 @@ async def execute_tool_call(
         attachments=exec_result.attachments,
         short_step_id=slot.short_step_id,
         origin=slot.origin,
+        agents_md=exec_result.agents_md,
     )
     common.append_history_entry(
         state,
