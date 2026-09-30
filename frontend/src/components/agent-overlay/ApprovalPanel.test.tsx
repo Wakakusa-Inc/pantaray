@@ -55,22 +55,33 @@ const TWO_FOLDER_COMMAND_SUMMARY = {
   },
 };
 
+const COMMAND_REASON = 'レポートの下書きを書き出すために、次のフォルダにファイルを作ります。';
+
+function withReason(reason: string) {
+  return {
+    ...TWO_FOLDER_COMMAND_SUMMARY,
+    outside_workspace: { ...TWO_FOLDER_COMMAND_SUMMARY.outside_workspace, reason },
+  };
+}
+
 function renderPanel(language: UiLanguage, blocker: ActionApprovalBlocker) {
   const handlers = {
     onDecide: vi.fn(),
     onOpenWorkspaceSettings: vi.fn(),
   };
-  render(
-    <ApprovalPanel
-      approvalPanel={blocker}
-      isSubmittingApproval={false}
-      {...handlers}
-      t={(key: MessageKey, vars?: Record<string, string | number>) =>
-        translate(language, key, vars)
-      }
-    />
-  );
-  return handlers;
+  return {
+    ...handlers,
+    ...render(
+      <ApprovalPanel
+        approvalPanel={blocker}
+        isSubmittingApproval={false}
+        {...handlers}
+        t={(key: MessageKey, vars?: Record<string, string | number>) =>
+          translate(language, key, vars)
+        }
+      />
+    ),
+  };
 }
 
 describe('ApprovalPanel', () => {
@@ -169,7 +180,7 @@ describe('ApprovalPanel', () => {
   });
 
   it('lists every folder of an approval that opens several', () => {
-    renderPanel('ja', bashBlocker(TWO_FOLDER_COMMAND_SUMMARY));
+    const { container } = renderPanel('ja', bashBlocker(TWO_FOLDER_COMMAND_SUMMARY));
 
     expect(screen.getByText('ローカルコマンドを実行します。')).toBeTruthy();
     expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
@@ -188,6 +199,70 @@ describe('ApprovalPanel', () => {
       'この会話では許可',
       '作業フォルダの設定を開く',
     ]);
+    // Without a reason the command stays in view, as before.
+    expect(screen.getByText('touch made.txt').closest('details')).toBeNull();
+    expect(container.querySelector('details')).toBeNull();
+    expect(screen.queryByText('変更するフォルダ')).toBeNull();
+  });
+
+  it('leads with the reason and keeps the command behind a closed disclosure', () => {
+    const handlers = renderPanel('ja', bashBlocker(withReason(COMMAND_REASON)));
+
+    const headline = screen.getByText(COMMAND_REASON);
+    expect(headline.previousElementSibling?.textContent).toBe('承認が必要です');
+    expect(screen.queryByText('ローカルコマンドを実行します。')).toBeNull();
+    expect(screen.getByText('変更するフォルダ')).toBeTruthy();
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '/Users/me/Documents/Reports',
+      '/Users/me/.cache/tool',
+    ]);
+
+    const disclosure = screen.getByText('touch made.txt').closest('details');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure?.open).toBe(false);
+    expect(
+      screen.getByText('/Users/me/Documents/Reports', { selector: 'dd' }).closest('details')
+    ).toBe(disclosure);
+    const summary = screen.getByText('詳細');
+    expect(summary.tagName).toBe('SUMMARY');
+    fireEvent.click(summary);
+    expect(disclosure?.open).toBe(true);
+
+    expect(
+      screen.getByText(
+        'これらのフォルダを作業フォルダに登録すると、次からはこの確認は出なくなります。',
+        { exact: false }
+      )
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '許可しない' }));
+    fireEvent.click(screen.getByRole('button', { name: '今回だけ許可' }));
+    fireEvent.click(screen.getByRole('button', { name: 'この会話では許可' }));
+    expect(handlers.onDecide.mock.calls).toEqual([
+      ['denied'],
+      ['approved_once'],
+      ['approved_for_conversation'],
+    ]);
+  });
+
+  it('leads with the reason in English too', () => {
+    const reason = 'To save the report draft, it will create files in these folders.';
+    renderPanel('en', bashBlocker(withReason(reason)));
+
+    expect(screen.getByText(reason)).toBeTruthy();
+    expect(screen.queryByText('Run a local command.')).toBeNull();
+    expect(screen.getByText('Folders it will change')).toBeTruthy();
+    expect(screen.getByText('Details').tagName).toBe('SUMMARY');
+    expect(screen.getByText('touch made.txt').closest('details')?.open).toBe(false);
+    expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy();
+  });
+
+  it('shows an HTML-looking reason as text', () => {
+    const reason = '<img src="x" onerror="alert(1)"><b>bold</b>';
+    const { container } = renderPanel('ja', bashBlocker(withReason(reason)));
+
+    expect(screen.getByText(reason)).toBeTruthy();
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('b')).toBeNull();
   });
 
   it('names several folders in English too', () => {
