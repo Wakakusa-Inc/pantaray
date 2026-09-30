@@ -686,6 +686,7 @@ async def test_suggestion_agent_builds_recent_activity_summaries_24h_1w_1m_conte
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("tokyo_local_zone")
 async def test_prompt_receives_pending_work_direction_and_user_feedback(
     suggestion_agent,
 ) -> None:
