@@ -63,7 +63,9 @@ def test_ripgrep_files_uses_fixed_argv(
         "--glob",
         "src/*.py",
         "--glob",
-        r"!/src/action\[1\]/[pP][lL][aA][nN].[mM][dD]",
+        r"!/[sS][rR][cC]/[aA][cC][tT][iI][oO][nN]\[1\]/[pP][lL][aA][nN].[mM][dD]",
+        "--",
+        ".",
     )
     assert result.relative_paths == ("src/app.py",)
     assert result.truncated is True
@@ -146,7 +148,7 @@ def test_ripgrep_grep_uses_fixed_argv(
         "--glob",
         "**/*.py",
         "--glob",
-        r"!/src/action\[1\]/[pP][lL][aA][nN].[mM][dD]",
+        r"!/[sS][rR][cC]/[aA][cC][tT][iI][oO][nN]\[1\]/[pP][lL][aA][nN].[mM][dD]",
         "--",
         "needle",
         ".",

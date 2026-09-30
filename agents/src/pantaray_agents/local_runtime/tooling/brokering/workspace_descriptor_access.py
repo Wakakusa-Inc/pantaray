@@ -90,7 +90,7 @@ def scan_workspace_entries(
 
     include_path filters entries after they are opened and still walks into a
     directory it drops. exclude_subtree drops an entry before it is opened, and
-    nothing under it is walked or charged to the scan budget.
+    neither it nor anything under it is walked or charged to the scan budget.
     """
 
     selected: list[WorkspaceDescriptorEntry] = []
@@ -273,12 +273,12 @@ def _walk(
         for item in iterator:
             if deadline is not None and time.monotonic() >= deadline:
                 raise TimeoutError
-            scanned[0] += 1
-            if scanned[0] > scan_limit:
-                raise _ScanLimitReached
             child_relative = item.name if relative == "." else f"{relative}/{item.name}"
             if excluded is not None and excluded(child_relative):
                 continue
+            scanned[0] += 1
+            if scanned[0] > scan_limit:
+                raise _ScanLimitReached
             try:
                 if item.is_symlink():
                     continue
