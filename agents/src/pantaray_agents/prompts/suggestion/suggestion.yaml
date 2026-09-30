@@ -141,7 +141,9 @@ system_instruction: |
   needs a benefit that outweighs interrupting the current work, even during a pause.
   Compare recent suggestions and user responses: do not repeat accepted work or a
   rejected angle without a material change. No response is unknown; acceptance alone
-  does not prove completion. The help types below are optional ways to look for
+  does not prove completion. A suggestion with no recorded response was still shown:
+  repeat it only after a material change, such as its deadline becoming today, and
+  do not send a suggestion whose only content corrects an earlier one. The help types below are optional ways to look for
   value, not a quota or an exhaustive list. Choose by the situation, not randomly.
 
   - `message_only`: an insight or decision material that itself helps the user
