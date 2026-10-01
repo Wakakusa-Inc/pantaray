@@ -24,6 +24,8 @@ contain your own activity. A minimal reproduction is enough.
   on the always-denied list (password managers and credential stores)
 - A tool that edits files or runs commands doing so without the approval it requires, or reaching
   outside the configured read and write scope
+- An Action reading or changing Pantaray's own data under
+  `~/Library/Application Support/Pantaray/`, through any file, search, or command tool
 - The updater accepting a build whose signature does not verify
 
 ## Known and accepted
@@ -37,6 +39,10 @@ such:
 - **`/health` and `/metrics` on the local runtime are unauthenticated.** They are bound to
   loopback on a port chosen at startup and expose liveness and counters, not your content. Every
   other route and the WebSocket require the per-process token.
+- **A command run with your login information can act as you.** An Action can run a command with
+  access to your login information so that CLIs you signed into in your terminal, such as `gh`,
+  work. That command can do what those CLIs can do. It follows the conversation's approval setting
+  like any other command, and its writes stay within the workspace and the folders you approved.
 - **Your recorded activity is sent to the provider you chose.** This is what the product does, not
   a leak: the parts of the recording that suggestions and Actions need — screen text, typed input,
   URLs — go to the connection configured in settings, and Pantaray does this on its own while
