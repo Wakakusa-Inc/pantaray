@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from pantaray_agents.agents.action_agent.runtime.handlers.nodes.common import (
@@ -59,12 +59,8 @@ class PromptRenderingService:
     def __init__(self, deps: PromptRenderingDeps) -> None:
         self._deps = deps
 
-    def build_insight_text(
-        self,
-        long_term: Mapping[str, JSONValue] | None,
-        short_term_rows: Sequence[Mapping[str, JSONValue]],
-    ) -> str:
-        return self._deps.formatter.build_insight_text(long_term, short_term_rows)
+    def build_insight_text(self, profile_brief: str | None) -> str:
+        return self._deps.formatter.build_insight_text(profile_brief)
 
     def render_workspace_context_prompt(
         self,
@@ -105,24 +101,6 @@ class PromptRenderingService:
 
     def render_workspace_context_rules(self) -> str:
         return WORKSPACE_CONTEXT_RULES_TEXT
-
-    def render_supervisor_pending_final_answer(
-        self,
-        state: ActionAgentState,
-    ) -> str:
-        draft = state.get("supervisor_pending_final_answer")
-        if not isinstance(draft, str) or not draft.strip():
-            return "No pending final-answer draft."
-        fence = _markdown_fence_for(draft)
-        return "\n".join(
-            (
-                "A pending final-answer draft exists:",
-                "",
-                f"{fence}markdown",
-                draft.strip(),
-                fence,
-            )
-        )
 
     def format_memory_source_coverage(self, state: ActionAgentState) -> str:
         return self._deps.formatter.format_memory_source_coverage(state)
@@ -212,18 +190,6 @@ class PromptRenderingService:
 def _string_context_value(context: Mapping[str, JSONValue], key: str) -> str:
     value = context.get(key)
     return value.strip() if isinstance(value, str) and value.strip() else ""
-
-
-def _markdown_fence_for(text: str) -> str:
-    longest = 0
-    current = 0
-    for char in text:
-        if char == "`":
-            current += 1
-            longest = max(longest, current)
-        else:
-            current = 0
-    return "`" * max(3, longest + 1)
 
 
 def _format_target_context(raw_target_context: Mapping[str, object]) -> str:

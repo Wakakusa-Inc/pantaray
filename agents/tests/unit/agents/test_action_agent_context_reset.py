@@ -640,7 +640,6 @@ def test_complete_input_is_counted_and_protected_parts_can_exceed_target(
     )
     prepared = turn_input.ExecutingTurn(
         head=memory,
-        tail="",
         system_instruction=system,
         tool_bytes=sum(len(tool.model_dump_json().encode("utf-8")) for tool in tools),
         scope_handles=("S",),

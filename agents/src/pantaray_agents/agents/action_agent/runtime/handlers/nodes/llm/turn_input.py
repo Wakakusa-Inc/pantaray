@@ -1,16 +1,13 @@
 """Assemble what one Executing THINK sends to the provider.
 
-The prompt template marks its own seam: everything before ``{action_history}``
-describes the Action, and everything after it is rebuilt every turn. Rendering
-the two halves separately is what lets the history travel as conversation items
--- the fixed half becomes the request's own user message, the items follow it,
-and the rebuilt half becomes the last of them -- while a template with nothing
-after its history, which leaves the items no user item to end on, still gets the
-two halves concatenated around the rendered history.
+The prompt template ends at its ``{action_history}`` seam, and everything before
+it is the head: the request's own user message, with the history's items after
+it. A template without the seam is sent as one string with the history last.
 
-The fixed half is rendered once, from the values the Action's first turn saw, and
-kept in the run state; what a later run reads differently reaches the model as
-an update in its turn context (``support/world_state.py``).
+The head is rendered once, from the values the Action's first turn saw, and kept
+in the run state; what a later turn reads differently reaches the model as an
+update in its turn context (``support/world_state.py``), and a turn that reads
+nothing new sends no turn context at all.
 """
 
 from __future__ import annotations
@@ -64,7 +61,6 @@ class ExecutingTurn:
     """
 
     head: str
-    tail: str
     system_instruction: str
     tool_bytes: int
     scope_handles: tuple[str, ...]
@@ -111,17 +107,15 @@ class ExecutingTurn:
             self.head
             + history
             + ("" if since_head is None else f"\n\n{since_head.text}")
-            + self.tail
             + repair_notice
-        )
-        turn_context = (
-            TURN_CONTEXT_HEADING + ("" if update is None else update.text) + self.tail
         )
         projection = (
             project_action_conversation(
                 entries,
                 omit_before_step_number=boundary,
-                turn_context=turn_context,
+                turn_context=(
+                    None if update is None else TURN_CONTEXT_HEADING + update.text
+                ),
                 repair_notice=repair_notice,
                 provider_turns=provider_turns,
             )
@@ -155,7 +149,7 @@ class ExecutingTurn:
             prompt=self.head,
             recorded_prompt=recorded,
             conversation=projection.conversation,
-            turn_context=turn_context,
+            turn_context=projection.turn_context,
             world_state=None if update is None else update.values,
             file_inputs=projection.file_inputs,
             history_bytes=history_bytes,
@@ -188,7 +182,7 @@ def build_executing_turn(
     *,
     tools: tuple[LlmToolDefinition, ...],
 ) -> ExecutingTurn:
-    """Render the two halves of this turn and decide how to send them.
+    """Render this turn's head and decide how to send it.
 
     The first turn sent as a conversation records the head's field values in
     the run state, so every later turn of the Action sends the same head.
@@ -198,9 +192,13 @@ def build_executing_turn(
     # Splitting on the placeholder rather than substituting into it is what
     # gives the history a place of its own. A template that omits the
     # placeholder puts the history last, which is where it already grows.
-    head_template, _, tail_template = agent.executing_prompt.partition(
+    head_template, seam, tail_template = agent.executing_prompt.partition(
         HISTORY_PLACEHOLDER
     )
+    if tail_template.strip():
+        # Whatever follows the history is sent on every turn whether or not it
+        # changed; it belongs in the head or in a world-state section instead.
+        raise ValueError("The executing prompt must end with {action_history}.")
     fields = {
         "request_summary": rendering.render_request_summary(state),
         "target_context": rendering.render_target_context(state),
@@ -212,30 +210,27 @@ def build_executing_turn(
             state
         ),
         "linkable_persisted_memory": rendering.render_linkable_memory_context(state),
-        "supervisor_pending_final_answer": (
-            rendering.render_supervisor_pending_final_answer(state)
-        ),
         "current_time": local_now_for_model(),
         "workspace_path_contract": rendering.render_workspace_path_contract(state),
         "workspace_context_rules": rendering.render_workspace_context_rules(),
         "workspace_context_prompt": rendering.render_workspace_context_prompt(state),
         "agents_md_instructions": _agents_md_section(state),
     }
-    tail = tail_template.format(**fields)
-    # A conversation has to end on a user item, and the tail is that item, so
-    # a template with nothing after its history is sent as one string.
-    sends_conversation = bool(tail)
+    sends_conversation = bool(seam)
     head_fields = fields
     world_state = None
     if sends_conversation:
         context = state["context"]
-        recorded = context.get("executing_head_fields")
-        if recorded is None:
-            recorded = {
-                name: fields[name]
-                for _, name, _, _ in Formatter().parse(head_template)
-                if name is not None
-            }
+        recorded = context.get("executing_head_fields", {})
+        # Recorded on the Action's first turn. A field the head gained since
+        # (an Action that outlived a template change) is frozen once, now.
+        unrecorded = {
+            name: fields[name]
+            for _, name, _, _ in Formatter().parse(head_template)
+            if name is not None and name not in recorded
+        }
+        if unrecorded:
+            recorded = {**recorded, **unrecorded}
             context["executing_head_fields"] = recorded
         head_fields = {**fields, **recorded}
         shown = world_state_fields(recorded)
@@ -246,7 +241,6 @@ def build_executing_turn(
         )
     return ExecutingTurn(
         head=head_template.format(**head_fields),
-        tail=tail,
         system_instruction=_system_instruction(
             agent, language=runtime.request.language
         ),
