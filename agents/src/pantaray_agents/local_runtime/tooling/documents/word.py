@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from typing import BinaryIO, Final
 
 from docx import Document
 from docx.document import Document as DocxDocument
 from docx.oxml.ns import qn
+from docx.oxml.table import CT_Tc
 from docx.oxml.xmlchemy import BaseOxmlElement
-from docx.table import Table
+from docx.table import Table, _Cell
 from docx.text.paragraph import Paragraph
 
 from .document_model import (
+    MAX_TABLE_COLUMNS,
+    DocumentExtractionError,
     DocumentImage,
     DocumentTextBudget,
     ExtractedDocument,
@@ -71,9 +75,7 @@ def extract_docx(source: BinaryIO, start_unit: int | None) -> ExtractedDocument:
             lines = [line]
         else:
             location = f"table {tables}"
-            lines, cut = pipe_table(
-                [cell.text for cell in row.cells] for row in Table(block, document).rows
-            )
+            lines, cut = pipe_table(_table_rows(Table(block, document)))
             table_cut = table_cut or cut
         images.extend(_block_images(block, document, location))
         if not budget.add_unit(number, *lines):
@@ -104,6 +106,45 @@ def _paragraph_line(paragraph: Paragraph) -> str:
     if _LIST_STYLE.search(style):
         return f"- {text}"
     return text
+
+
+def _table_rows(table: Table) -> Iterator[list[str]]:
+    """Each row's cell text, a cell repeated per grid column it spans, as ``row.cells``.
+
+    ``row.cells`` cannot be handed an untrusted table. It repeats a cell once
+    for every grid column the cell declares it spans, so one ``gridSpan`` of
+    2**31 - 1 builds a tuple of that length; and it finds the cell a vertical
+    merge continues by walking back up the table a row at a time, re-scanning
+    each row, which measured 31 s for a 200-row, 10-column merge. The same
+    layout is built here in one pass: each row remembers the merge root that
+    starts at each grid offset, so the row below finds it directly, and a row
+    stops repeating text one column past what a table keeps.
+    """
+
+    roots_above: dict[int, CT_Tc] = {}
+    for tr in table._tbl.tr_lst:
+        roots: dict[int, CT_Tc] = {}
+        texts: list[str] = []
+        offset = tr.grid_before
+        for tc in tr.tc_lst:
+            root = tc
+            if tc.vMerge == "continue":
+                above = roots_above.get(offset)
+                if above is None:
+                    raise DocumentExtractionError(
+                        f"a vertically merged table cell at grid column {offset} "
+                        "has no cell above it to continue"
+                    )
+                root = above
+            roots[offset] = root
+            # The root's span, not this cell's: a continuing cell repeats the
+            # cell it continues, as python-docx lays it out.
+            room = MAX_TABLE_COLUMNS + 1 - len(texts)
+            if room > 0:
+                texts.extend([_Cell(root, table).text] * min(root.grid_span, room))
+            offset += tc.grid_span
+        roots_above = roots
+        yield texts
 
 
 def _block_images(
