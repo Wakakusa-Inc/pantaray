@@ -5,25 +5,29 @@ cells instead of building an object for every cell the file declares. Loading
 it whole would let a few bytes of XML expand without bound: a merged range or a
 hyperlink is bound to every cell its reference covers, so one ``A1:XFD1048576``
 asks for seventeen billion cell objects. Read-only mode leaves out the drawing
-parts, so those are read separately with the function openpyxl itself loads
-them with. Every sheet is read under both a row/column cap and the shared text
-budget.
+parts, so where pictures and charts sit is read from the drawing XML directly.
+Every sheet is read under both a row/column cap and the shared text budget.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 from typing import BinaryIO, Final
+from zipfile import ZipFile
 
 from openpyxl import load_workbook
-from openpyxl.chart._chart import ChartBase
-from openpyxl.drawing.image import Image
+from openpyxl.chart.chartspace import ChartSpace
 from openpyxl.drawing.spreadsheet_drawing import SpreadsheetDrawing
-from openpyxl.packaging.relationship import get_dependents, get_rels_path
-from openpyxl.reader.drawings import find_images
+from openpyxl.packaging.relationship import (
+    Relationship,
+    get_dependents,
+    get_rels_path,
+)
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet._read_only import ReadOnlyWorksheet
+from openpyxl.xml.constants import IMAGE_NS
+from openpyxl.xml.functions import fromstring
 
 from .document_model import (
     MAX_DOCUMENT_TEXT_CHARS,
@@ -77,9 +81,9 @@ def _extract_workbook(workbook: Workbook, start_unit: int | None) -> ExtractedDo
     for number, sheet in enumerate(sheets[start - 1 :], start=start):
         name = _sheet_name(sheet)
         outline.append(name)
-        sheet_charts, sheet_images = _sheet_drawings(workbook, sheet)
-        images.extend(_image_entries(sheet_images, name))
-        charts.extend(_chart_entries(sheet_charts, name))
+        sheet_images, sheet_charts = _sheet_drawings(workbook, sheet, name)
+        images.extend(sheet_images)
+        charts.extend(sheet_charts)
         lines, cut = pipe_table(
             _sheet_rows(sheet),
             max_rows=MAX_SHEET_ROWS,
@@ -145,47 +149,77 @@ def _sheet_rows(sheet: ReadOnlyWorksheet) -> Iterator[list[str]]:
 
 
 def _sheet_drawings(
-    workbook: Workbook, sheet: ReadOnlyWorksheet
-) -> tuple[list[ChartBase], list[Image]]:
-    """The charts and pictures on one sheet, as openpyxl loads a whole workbook.
+    workbook: Workbook, sheet: ReadOnlyWorksheet, name: str
+) -> tuple[list[DocumentImage], list[DocumentChart]]:
+    """Where the pictures and charts on one sheet are anchored.
 
-    This is the drawing step of openpyxl's own worksheet reader, which read-only
-    mode skips. openpyxl keeps no public accessor for the package or for the
-    part a read-only sheet streams from.
+    Read-only mode skips the drawing step of openpyxl's worksheet reader, and
+    that step is not reused either: it reads a picture's whole image part into
+    a buffer of its own for every anchor that shows it, so one large image
+    drawn a thousand times holds that many copies. Only the drawing XML and its
+    relationships are read here, which name the anchor cell of each picture
+    without opening it, and a chart part is parsed once however many anchors
+    show it. openpyxl keeps no public accessor for the package or for the part
+    a read-only sheet streams from.
     """
 
     archive = workbook._archive
+    parts = set(archive.namelist())
     relationships_path = get_rels_path(sheet._worksheet_path)
-    if relationships_path not in archive.namelist():
+    if relationships_path not in parts:
         return [], []
-    charts: list[ChartBase] = []
-    images: list[Image] = []
+    image_counts: dict[str, int] = {}
+    charts: list[DocumentChart] = []
+    chart_titles: dict[str, str] = {}
     relationships = get_dependents(archive, relationships_path)
-    for drawing in relationships.find(SpreadsheetDrawing._rel_type):
-        drawing_charts, drawing_images = find_images(archive, drawing.target)
-        charts.extend(drawing_charts)
-        images.extend(drawing_images)
-    return charts, images
+    for drawing_part in relationships.find(SpreadsheetDrawing._rel_type):
+        try:
+            drawing = SpreadsheetDrawing.from_tree(
+                fromstring(archive.read(drawing_part.target))
+            )
+        except TypeError:
+            # openpyxl's reader passes over a drawing it cannot model the same
+            # way, keeping the rest of the sheet.
+            continue
+        targets = _relationship_targets(archive, parts, drawing_part.target)
+        for chart in drawing._chart_rels:
+            target = targets[chart.id]
+            if target.target not in chart_titles:
+                chart_titles[target.target] = _chart_title(
+                    ChartSpace.from_tree(
+                        fromstring(archive.read(target.target))
+                    ).chart.title
+                )
+            cell = _anchor_cell(chart.anchor)
+            charts.append(
+                DocumentChart(
+                    location=f"{name}!{cell}" if cell else name,
+                    title=chart_titles[target.target],
+                )
+            )
+        for picture in drawing._blip_rels:
+            if targets[picture.embed].Type == IMAGE_NS:
+                cell = _anchor_cell(picture.anchor)
+                image_counts[cell] = image_counts.get(cell, 0) + 1
+    images = [
+        DocumentImage(location=name, ref=cell, count=count)
+        for cell, count in image_counts.items()
+    ]
+    return images, charts
 
 
-def _image_entries(images: list[Image], name: str) -> Iterator[DocumentImage]:
-    """Pictures on this sheet, counted per anchor cell."""
+def _relationship_targets(
+    archive: ZipFile, parts: set[str], part: str
+) -> dict[str, Relationship]:
+    """A part's relationships by id, so each anchor finds its target directly."""
 
-    counts: dict[str, int] = {}
-    for image in images:
-        cell = _anchor_cell(image.anchor)
-        counts[cell] = counts.get(cell, 0) + 1
-    for cell, count in counts.items():
-        yield DocumentImage(location=name, ref=cell, count=count)
-
-
-def _chart_entries(charts: list[ChartBase], name: str) -> Iterator[DocumentChart]:
-    for chart in charts:
-        cell = _anchor_cell(chart.anchor)
-        yield DocumentChart(
-            location=f"{name}!{cell}" if cell else name,
-            title=_chart_title(chart.title),
-        )
+    relationships_path = get_rels_path(part)
+    if relationships_path not in parts:
+        return {}
+    return {
+        relationship.Id: relationship
+        for relationship in get_dependents(archive, relationships_path)
+    }
 
 
 def _anchor_cell(anchor: object) -> str:

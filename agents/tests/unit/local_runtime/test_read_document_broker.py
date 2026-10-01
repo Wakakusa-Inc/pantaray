@@ -4,7 +4,10 @@ import base64
 import datetime
 import json
 import re
+import struct
+import tracemalloc
 import zipfile
+import zlib
 from io import BytesIO
 from pathlib import Path
 from typing import cast
@@ -46,10 +49,12 @@ from pantaray_agents.local_runtime.tooling.documents import (
     MAX_DOCUMENT_TEXT_CHARS,
     MAX_NOTEBOOK_OUTPUT_CHARS,
     MAX_SHEET_ROWS,
+    extract_document,
 )
 from pantaray_agents.local_runtime.tooling.documents.document_model import (
     MAX_TABLE_COLUMNS,
     MAX_TABLE_ROWS,
+    DocumentImage,
 )
 from pantaray_agents.local_runtime.tooling.tool_result_storage import (
     ACTION_TOOL_RESULT_INLINE_CHARACTER_LIMIT,
@@ -557,6 +562,61 @@ async def test_xlsx_ranges_covering_the_whole_sheet_are_not_expanded(
 
     assert outcome.output["content"] == "## Sheet: Sheet\n| kept |\n| --- |\n"
     assert outcome.output["truncated"] is False
+
+
+def test_xlsx_picture_drawn_many_times_is_not_read_once_per_anchor(
+    tmp_path: Path,
+) -> None:
+    """Anchors are counted from the drawing; the image part is never copied per anchor."""
+
+    # 1,000 x 1,000 pixels stored uncompressed: a 3 MB part that the package
+    # deflates to a few kilobytes and counts once against the expansion cap.
+    rows = b"".join(b"\x00" + b"\x00" * 3_000 for _ in range(1_000))
+    header = struct.pack(">IIBBBBB", 1_000, 1_000, 8, 2, 0, 0, 0)
+    picture = (
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", header)
+        + png_chunk(b"IDAT", zlib.compress(rows, 0))
+        + png_chunk(b"IEND", b"")
+    )
+    source_path = tmp_path / "pictures.xlsx"
+    workbook = Workbook()
+    workbook.active["A1"] = "kept"
+    workbook.active.add_image(SheetImage(BytesIO(picture)), "C3")
+    workbook.save(source_path)
+    with zipfile.ZipFile(source_path) as archive:
+        drawing_xml = archive.read("xl/drawings/drawing1.xml")
+    anchor = re.search(rb"<oneCellAnchor>.*</oneCellAnchor>", drawing_xml, re.S)
+    assert anchor is not None
+    anchors = 200
+    replace_package_part(
+        source_path,
+        "xl/drawings/drawing1.xml",
+        drawing_xml.replace(anchor.group(0), anchor.group(0) * anchors),
+    )
+
+    tracemalloc.start()
+    try:
+        with source_path.open("rb") as source:
+            document = extract_document(source=source, document_format="xlsx")
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert document.images == (
+        DocumentImage(location="Sheet", ref="C3", count=anchors),
+    )
+    # One copy of the part per anchor would be 600 MB.
+    assert peak < 32 * 1024 * 1024
+
+
+def png_chunk(kind: bytes, data: bytes) -> bytes:
+    return (
+        struct.pack(">I", len(data))
+        + kind
+        + data
+        + struct.pack(">I", zlib.crc32(kind + data))
+    )
 
 
 @pytest.mark.asyncio
