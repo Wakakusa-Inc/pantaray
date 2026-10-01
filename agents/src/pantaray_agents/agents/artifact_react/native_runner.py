@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from pantaray_agents.agents.core.mixins.llm_tool_use_mixin import LlmToolCallTurn
 from pantaray_agents.agents.core.tool_call_repair import (
@@ -45,6 +45,12 @@ type NativeReactToolResultProjector = Callable[
 ]
 
 LLM_PROXY_ERROR_MESSAGE = "LLM provider request failed."
+OMITTED_TOOL_OUTPUT: JSONValue = {
+    "omitted": (
+        "Output omitted to keep the request within the model's input limit; "
+        "call the tool again if you still need it."
+    )
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +125,57 @@ def _response_text(turn: LlmToolCallTurn) -> str:
     )
 
 
+def _utf8_size(value: str) -> int:
+    return len(value.encode())
+
+
+def _exceeds_input_limit(
+    policy: ReactLoopPolicy,
+    continuation: LlmToolContinuation | None,
+    pending_result: LlmToolResult | None,
+) -> bool:
+    if policy.max_input_bytes is None or continuation is None:
+        return False
+    size = _utf8_size(continuation.model_dump_json())
+    if pending_result is not None:
+        size += _utf8_size(pending_result.model_dump_json())
+    return size > policy.max_input_bytes
+
+
+def _build_bounded_prompt[T](
+    run_input: NativeReactRunInput[T],
+    tool_results: list[ReactToolResult],
+    last_error: str | None,
+    *,
+    compact: bool,
+) -> str:
+    """Omit the oldest tool outputs until the prompt fits the input limit.
+
+    A reset past the limit compacts to half of it, so the continuation can grow
+    for many turns before the next reset instead of resetting on every turn.
+    """
+    prompt = run_input.build_prompt(tuple(tool_results), last_error)
+    limit = run_input.policy.max_input_bytes
+    if limit is None:
+        return prompt
+    size = _utf8_size(prompt)
+    if not compact and size <= limit:
+        return prompt
+    excess = size - limit // 2
+    if excess <= 0:
+        return prompt
+    omitted_size = _utf8_size(json.dumps(OMITTED_TOOL_OUTPUT, ensure_ascii=False))
+    kept = list(tool_results)
+    for index, result in enumerate(kept):
+        if excess <= 0:
+            break
+        saved = _utf8_size(json.dumps(result.output, ensure_ascii=False)) - omitted_size
+        if saved > 0:
+            kept[index] = replace(result, output=OMITTED_TOOL_OUTPUT)
+            excess -= saved
+    return run_input.build_prompt(tuple(kept), last_error)
+
+
 def _must_force_terminal[T](
     *,
     turn_index: int,
@@ -156,23 +213,28 @@ async def run_native_react[T](
         )
         native_tools = terminal_tools if force_terminal else all_native_tools
         llm_step_number = len(steps) + 1
-        prompt = run_input.build_prompt(tuple(tool_results), last_error)
-        if force_terminal and run_input.final_turn_prompt:
-            prompt = f"{prompt}\n\n{run_input.final_turn_prompt}"
         call_continuation = continuation
         # A caller on continuation_mode="disabled" gets no continuation back, and
         # the shared contract rejects a tool_result without one.
         call_pending_result = pending_result if continuation is not None else None
-        if (
+        over_input_limit = _exceeds_input_limit(
+            run_input.policy, call_continuation, call_pending_result
+        )
+        if over_input_limit or (
             force_terminal
             and pending_result is not None
             and pending_result.name != run_input.terminal_tool.name
         ):
-            # A continuation request must redeclare the prior tool. Starting a fresh
-            # final turn keeps the prior result in the prompt transcript without
-            # exposing that research tool again.
+            # A continuation request must redeclare the prior tool, and one past
+            # the input limit would be rejected. A fresh turn keeps the results in
+            # the prompt transcript instead.
             call_continuation = None
             call_pending_result = None
+        prompt = _build_bounded_prompt(
+            run_input, tool_results, last_error, compact=over_input_limit
+        )
+        if force_terminal and run_input.final_turn_prompt:
+            prompt = f"{prompt}\n\n{run_input.final_turn_prompt}"
         try:
             turn = await run_input.call_llm(
                 prompt,
