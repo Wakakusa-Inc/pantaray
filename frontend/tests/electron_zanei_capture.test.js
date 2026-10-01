@@ -519,6 +519,26 @@ test('policy conversion renders each filter mode and leaves body scopes at their
   assert.equal(paths.service, `service.${suffix}`);
 });
 
+test('an empty "only these apps" list records no app, unlike an empty exclusion list', t => {
+  const f = fixture(t);
+  const base = f.privacy.getCaptureSettings();
+  // The recorder reads an empty include_only_apps as no restriction; only an explicit
+  // empty allowed_apps denies every app.
+  const recordsNothing = zaneiConfig({ ...base, apps: { mode: 'include_only', entries: [] } });
+  assert.match(recordsNothing, /\[filter\.capture_policy\]\nallowed_apps = \[\]\n\[filter\.capture_policy\.browser\]\n/);
+  const recordsEverything = zaneiConfig({ ...base, apps: { mode: 'exclude', entries: [] } });
+  assert.ok(!recordsEverything.includes('allowed_apps'));
+
+  // Settings that cannot be read fall back to recording nothing through the same path.
+  const settingsPath = resolveScopedSettingsPath({
+    userDataDir: f.dir, userId: 'bob', fileName: 'capture-privacy-settings.json' });
+  fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+  fs.writeFileSync(settingsPath, '{ this is not json');
+  const unreadable = createCapturePrivacyManager({
+    userDataDir: f.dir, initialUserId: 'bob', resolveAppBundleId: () => null });
+  assert.match(zaneiConfig(unreadable.getCaptureSettings()), /\nallowed_apps = \[\]\n/);
+});
+
 /**
  * The recorder's own built-in exclusions cover 1Password and Keychain Access only, so
  * every other password manager stays out of the store solely because the configuration
