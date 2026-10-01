@@ -198,7 +198,6 @@ async def test_execution_think_renders_parent_tool_use_rules() -> None:
     )
     state = project_request_user_step(state, request)
     state["phase"] = "executing"
-    state["context"]["user_request"] = "dummy"
     state["context"]["use_goal_workers"] = False
 
     await execution_think_step(
@@ -279,7 +278,6 @@ async def test_execution_think_accounts_repair_usage_and_stops_at_budget(
     )
     state = project_request_user_step(state, request)
     state["phase"] = "executing"
-    state["context"]["user_request"] = "dummy"
     state["context"]["use_goal_workers"] = False
 
     sink = create_state_token_sink(state)
@@ -363,7 +361,6 @@ async def test_execution_think_rejects_initialize_plan() -> None:
     )
     state = project_request_user_step(state, request)
     state["phase"] = "executing"
-    state["context"]["user_request"] = "dummy"
     state["context"]["use_goal_workers"] = False
 
     updated = await execution_think_step(
@@ -508,7 +505,6 @@ async def test_execution_think_stops_with_error_after_five_invalid_outputs() -> 
     )
     state = project_request_user_step(state, request)
     state["phase"] = "executing"
-    state["context"]["user_request"] = "dummy"
     state["context"]["use_goal_workers"] = False
 
     updated = await execution_think_step(

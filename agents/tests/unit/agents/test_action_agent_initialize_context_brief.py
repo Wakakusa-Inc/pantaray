@@ -11,6 +11,9 @@ from tests.unit.agents.action_agent.fixtures import build_action_request
 from tests.unit.local_runtime.action_seed import insert_agent_action
 
 from pantaray_agents.agents.action_agent import ActionAgent
+from pantaray_agents.agents.action_agent.runtime.agents_md import (
+    load_pantaray_agents_md,
+)
 from pantaray_agents.agents.action_agent.runtime.handlers.nodes.initial import (
     initialize_context,
 )
@@ -253,7 +256,6 @@ async def test_initialize_context_projects_followup_to_restored_history_once(
     assert history[-1]["short_step_id"] == "S-2-USER"
     assert history[-1]["user_request_text"] == "Follow up"
     assert updated["step"] == 3
-    assert updated["context"]["user_request"] == "Follow up"
     assert updated["context"]["request_summary"] == "Prior summary"
     assert updated["context"]["target_context"] == {
         "organization_name": "Prior org",
@@ -900,6 +902,7 @@ async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
         executing_system_instruction="SYS",
         DEFAULT_SYSTEM_INSTRUCTION="SYS",
         executing_tool_use_rule=lambda key: "",
+        executing_world_state_update=lambda key: config["world_state_updates"][key],
     )
 
     def head(of: ActionAgentState) -> bytes:
@@ -914,7 +917,7 @@ async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
     assert (
         first.index("### Workspace Context Rules")
         < first.index(block)
-        < first.index("## Suggestion Content")
+        < first.index("## Suggestion Summary")
     )
     # Editing the file mid-run must not reach the cached head; resume restores it.
     (home / ".pantaray" / "AGENTS.md").write_text("Changed.\n", encoding="utf-8")
@@ -925,3 +928,16 @@ async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
         expected_user_id="user-1",
     )
     assert head(updated) == head(restored) == first.encode("utf-8")
+    # A later run reads the edited file: the head stays, the turn appends it.
+    restored["context"]["agents_md_instructions"] = load_pantaray_agents_md()
+    turn = build_executing_turn(executing, restored, runtime, tools=())  # type: ignore[arg-type]
+    assert turn.head == first
+    prepared = turn.prepare(
+        restored,
+        rendering=runtime.services.rendering,
+        repair_notice="",
+        provider_turns={},
+    )
+    assert prepared.turn_context is not None
+    assert "## AGENTS.md Update" in prepared.turn_context
+    assert "Changed." in prepared.turn_context

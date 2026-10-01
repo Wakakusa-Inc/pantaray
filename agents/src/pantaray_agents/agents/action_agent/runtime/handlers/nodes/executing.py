@@ -533,6 +533,7 @@ async def execution_think_step(  # noqa: C901
             # attempt that was rejected, and a later turn replaying it would
             # break the append-only input the prompt cache reads.
             turn_context=prepared.turn_context,
+            world_state=prepared.world_state,
             # Held for the rest of this run as it is written, so the next turn
             # hands back the same bytes whether it reads them from here or,
             # after a restart, from the row this writes.

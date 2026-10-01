@@ -1,19 +1,23 @@
 """Assemble what one Executing THINK sends to the provider.
 
 The prompt template marks its own seam: everything before ``{action_history}``
-describes the run and does not change while it lasts, and everything after it is
-rebuilt every turn. Rendering the two halves separately is what lets the history
-travel as conversation items -- the fixed half becomes the request's own user
-message, the items follow it, and the rebuilt half becomes the last of them --
-while a template with nothing after its history, which leaves the items no user
-item to end on, still gets the two halves concatenated around the rendered
-history, byte for byte as before.
+describes the Action, and everything after it is rebuilt every turn. Rendering
+the two halves separately is what lets the history travel as conversation items
+-- the fixed half becomes the request's own user message, the items follow it,
+and the rebuilt half becomes the last of them -- while a template with nothing
+after its history, which leaves the items no user item to end on, still gets the
+two halves concatenated around the rendered history.
+
+The fixed half is rendered once, from the values the Action's first turn saw, and
+kept in the run state; what a later run reads differently reaches the model as
+an update in its turn context (``support/world_state.py``).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from string import Formatter
 from typing import TYPE_CHECKING
 
 from pantaray_agents.agents.action_agent.runtime.tool_attachments import (
@@ -22,6 +26,10 @@ from pantaray_agents.agents.action_agent.runtime.tool_attachments import (
 from pantaray_agents.agents.action_agent.support.conversation_projection import (
     TURN_CONTEXT_HEADING,
     project_action_conversation,
+)
+from pantaray_agents.agents.action_agent.support.world_state import (
+    WorldState,
+    world_state_fields,
 )
 from pantaray_agents.schema.agent.action_history import SUPERVISOR_SCOPE_HANDLE
 from pantaray_agents.utils.local_time import local_now_for_model
@@ -59,6 +67,9 @@ class ExecutingTurn:
     tool_bytes: int
     scope_handles: tuple[str, ...]
     sends_conversation: bool
+    # What the head shows that this run may have read differently; None when
+    # the turn is sent as one string, which shows this run's values throughout.
+    world_state: WorldState | None = None
 
     def prepare(
         self,
@@ -89,11 +100,24 @@ class ExecutingTurn:
         boundary: int,
     ) -> PreparedWindow:
         history = rendering.format_history(state, omit_before_step_number=boundary)
-        recorded = self.head + history + self.tail + repair_notice
-        turn_context = TURN_CONTEXT_HEADING + self.tail
+        entries = rendering.history_entries(state)
+        update = (
+            self.world_state.update_since(entries, omit_before_step_number=boundary)
+            if self.world_state is not None
+            else None
+        )
+        update_text = "" if update is None else update.text
+        recorded = (
+            self.head
+            + history
+            + (f"\n\n{update_text}" if update_text else "")
+            + self.tail
+            + repair_notice
+        )
+        turn_context = TURN_CONTEXT_HEADING + update_text + self.tail
         projection = (
             project_action_conversation(
-                rendering.history_entries(state),
+                entries,
                 omit_before_step_number=boundary,
                 turn_context=turn_context,
                 repair_notice=repair_notice,
@@ -113,6 +137,7 @@ class ExecutingTurn:
                 recorded_prompt=recorded,
                 conversation=None,
                 turn_context=None,
+                world_state=None,
                 file_inputs=tuple(
                     collect_state_prompt_file_inputs(
                         state=state,
@@ -129,6 +154,7 @@ class ExecutingTurn:
             recorded_prompt=recorded,
             conversation=projection.conversation,
             turn_context=turn_context,
+            world_state=None if update is None else update.values,
             file_inputs=projection.file_inputs,
             history_bytes=history_bytes,
             # Media rides on the same request but outside the serialized items,
@@ -153,7 +179,11 @@ def build_executing_turn(
     *,
     tools: tuple[LlmToolDefinition, ...],
 ) -> ExecutingTurn:
-    """Render the two fixed halves of this turn and decide how to send them."""
+    """Render the two halves of this turn and decide how to send them.
+
+    The first turn sent as a conversation records the head's field values in
+    the run state, so every later turn of the Action sends the same head.
+    """
 
     rendering = runtime.services.rendering
     # Splitting on the placeholder rather than substituting into it is what
@@ -163,7 +193,6 @@ def build_executing_turn(
         HISTORY_PLACEHOLDER
     )
     fields = {
-        "user_request": state["context"].get("user_request", ""),
         "request_summary": rendering.render_request_summary(state),
         "target_context": rendering.render_target_context(state),
         "memory_context_model": rendering.render_memory_context_model(),
@@ -184,17 +213,38 @@ def build_executing_turn(
         "agents_md_instructions": _agents_md_section(state),
     }
     tail = tail_template.format(**fields)
+    # A conversation has to end on a user item, and the tail is that item, so
+    # a template with nothing after its history is sent as one string.
+    sends_conversation = bool(tail)
+    head_fields = fields
+    world_state = None
+    if sends_conversation:
+        context = state["context"]
+        recorded = context.get("executing_head_fields")
+        if recorded is None:
+            recorded = {
+                name: fields[name]
+                for _, name, _, _ in Formatter().parse(head_template)
+                if name is not None
+            }
+            context["executing_head_fields"] = recorded
+        head_fields = {**fields, **recorded}
+        shown = world_state_fields(recorded)
+        world_state = WorldState(
+            head={name: recorded[name] for name in shown},
+            current={name: fields[name] for name in shown},
+            template=agent.executing_world_state_update,
+        )
     return ExecutingTurn(
-        head=head_template.format(**fields),
+        head=head_template.format(**head_fields),
         tail=tail,
         system_instruction=_system_instruction(
             agent, language=runtime.request.language
         ),
         tool_bytes=sum(len(tool.model_dump_json().encode("utf-8")) for tool in tools),
         scope_handles=supervisor_prompt_scope_handles(state),
-        # A conversation has to end on a user item, and the tail is that item, so
-        # a template with nothing after its history is sent as one string.
-        sends_conversation=bool(tail),
+        sends_conversation=sends_conversation,
+        world_state=world_state,
     )
 
 

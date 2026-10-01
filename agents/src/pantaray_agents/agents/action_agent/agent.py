@@ -228,6 +228,10 @@ class ActionAgent(
         """Executing prompt の tool use rule を返す。"""
         return self._executing_config.require_tool_use_rule(key)
 
+    def executing_world_state_update(self, key: str) -> str:
+        """Executing prompt の world state 更新テンプレートを返す。"""
+        return self._executing_config.require_world_state_update(key)
+
     def get_response_class(self) -> type[ActionAgentResponse]:
         return ActionAgentResponse
 

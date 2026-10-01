@@ -9,6 +9,9 @@ from pantaray_agents.agents.action_agent.runtime.handlers.tool_runtime import (
     PARALLEL_SAFE_TOOL_IDS,
     SOLO_TURN_TOOL_IDS,
 )
+from pantaray_agents.agents.action_agent.support.world_state import (
+    WORLD_STATE_SECTIONS,
+)
 from pantaray_llm.profiles.subagent_models import SUBAGENT_MODEL_SETTINGS
 
 
@@ -199,13 +202,14 @@ _TURN_TAIL_PROMPT_FIELDS = frozenset(
     }
 )
 # On ordinary turns, action_history grows at the end of the cacheable prefix.
+# The head renders these once per Action; the world-state ones a later run reads
+# differently reach the model through world_state_updates instead.
 _PREFIX_PROMPT_FIELDS = frozenset(
     {
         "workspace_path_contract",
         "workspace_context_rules",
         "workspace_context_prompt",
         "agents_md_instructions",
-        "user_request",
         "request_summary",
         "target_context",
         "memory_context_model",
@@ -235,6 +239,15 @@ def test_every_executing_prompt_field_is_classified_as_prefix_or_turn_tail() -> 
     assert _prompt_fields(_executing_prompt_template()) == (
         _PREFIX_PROMPT_FIELDS | _TURN_TAIL_PROMPT_FIELDS
     )
+
+
+def test_every_world_state_section_has_an_update_naming_only_its_fields() -> None:
+    updates = _executing_config().get("world_state_updates")
+    assert isinstance(updates, dict)
+    for section, fields in WORLD_STATE_SECTIONS:
+        assert _prompt_fields(updates[section]) == set(fields)
+        assert set(fields) <= _PREFIX_PROMPT_FIELDS
+    assert _prompt_fields(updates["agents_md_removed"]) == set()
 
 
 def test_turn_tail_sections_are_rendered_after_action_history() -> None:

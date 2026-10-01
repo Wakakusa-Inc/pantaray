@@ -29,6 +29,7 @@ from pantaray_agents.agents.action_agent.support.conversation_projection import 
 )
 from pantaray_agents.agents.action_agent.support.formatter import ActionAgentFormatter
 from pantaray_agents.schema.agent.action import StepType
+from pantaray_agents.utils.prompt_loader import PromptLoader
 from pantaray_llm.contracts.conversation import (
     AnthropicProviderTurn,
     LlmConversation,
@@ -596,6 +597,173 @@ def test_the_recorded_context_is_the_one_the_next_turn_replays() -> None:
     assert second[: len(first.conversation)] == list(first.conversation)
 
 
+# --- 新しい依頼をまたぐ追記のみ -------------------------------------------------
+
+_RUN_1 = {
+    "insight_data": "I-1",
+    "agents_md_instructions": "# AGENTS.md instructions for ~/.pantaray\nA-1",
+    "workspace_context_prompt": "W-1",
+}
+
+
+def _executing_agent() -> Any:
+    """The production executing template, as the agent reads it."""
+
+    config = PromptLoader().load_config("action/executing")
+    return SimpleNamespace(
+        executing_prompt=config.prompt,
+        executing_system_instruction=config.system_instruction,
+        DEFAULT_SYSTEM_INSTRUCTION="D",
+        executing_tool_use_rule=config.require_tool_use_rule,
+        executing_world_state_update=config.require_world_state_update,
+    )
+
+
+def _think_once(
+    state: Any, *, think: int, call_id: str, omit: int = 0
+) -> tuple[str, Any]:
+    """One THINK through the production template; its row is then recorded.
+
+    The row goes through the checkpoint model, which is what a resumed run
+    reads back.
+    """
+
+    runtime = SimpleNamespace(
+        services=SimpleNamespace(rendering=_RENDERING),
+        request=SimpleNamespace(language="ja"),
+    )
+    state["context"]["context_body_omitted_before_step"] = omit
+    turn = turn_input.build_executing_turn(
+        _executing_agent(), state, cast(Any, runtime), tools=()
+    )
+    prepared = turn.prepare(
+        state, rendering=_RENDERING, repair_notice="", provider_turns={}
+    )
+    recorded = _build_llm_history_entry(
+        step_id=f"THINK-{think}",
+        step_number=think,
+        phase="executing",
+        summary="",
+        tool_id="read",
+        started_at="2026-09-19T00:00:00Z",
+        completed_at="2026-09-19T00:00:01Z",
+        short_step_id=f"S-{think}-THINK",
+        turn_context=prepared.turn_context,
+        world_state=prepared.world_state,
+    )
+    restored = HistoryEntryModel.model_validate(recorded).model_dump(exclude_none=True)
+    state["history_by_scope"]["S"].extend(
+        [restored, _tool(think, think=think, call_id=call_id)]
+    )
+    return turn.head, prepared
+
+
+def _two_runs(second_run: dict[str, str]) -> tuple[list[str], Any, Any, Any]:
+    """Run 1 takes two THINKs; a new message starts run 2 with ``second_run``."""
+
+    state = _state([_user(1, "りんごを英語にして")])
+    state["context"].update(_RUN_1)
+    head_1, _ = _think_once(state, think=2, call_id="c2")
+    head_2, last = _think_once(state, think=3, call_id="c3")
+    state["history_by_scope"]["S"].append(_user(4, "みかんは？"))
+    state["context"].update(second_run)
+    head_3, first = _think_once(state, think=5, call_id="c5")
+    head_4, after = _think_once(state, think=6, call_id="c6")
+    return [head_1, head_2, head_3, head_4], last, first, after
+
+
+_UPDATE_HEADINGS = ("## Workspace Update", "## AGENTS.md Update", "## Memory Update")
+
+
+def _updates(prepared: Any) -> list[str]:
+    return [heading for heading in _UPDATE_HEADINGS if heading in prepared.turn_context]
+
+
+@pytest.mark.parametrize(
+    ("second_run", "expected"),
+    [
+        ({}, []),
+        ({"insight_data": "I-2"}, ["## Memory Update"]),
+        (
+            {"agents_md_instructions": "# AGENTS.md instructions\nA-2"},
+            ["## AGENTS.md Update"],
+        ),
+        ({"workspace_context_prompt": "W-2"}, ["## Workspace Update"]),
+        (
+            {"insight_data": "I-2", "workspace_context_prompt": "W-2"},
+            ["## Workspace Update", "## Memory Update"],
+        ),
+    ],
+)
+def test_a_new_message_appends_to_the_last_request_and_only_what_changed(
+    second_run: dict[str, str], expected: list[str]
+) -> None:
+    """新しい依頼の最初の要求は、前の依頼の最後の要求を項目単位の接頭辞に持つ。
+
+    The head used to show the latest message and this run's memory, so every
+    new message rewrote the request's first item and re-billed the whole
+    conversation behind it.
+    """
+
+    heads, last, first, after = _two_runs(second_run)
+
+    assert len(set(heads)) == 1
+    assert "りんご" not in heads[0] and "みかん" not in heads[0]
+    assert first.conversation[: len(last.conversation)] == last.conversation
+    assert after.conversation[: len(first.conversation)] == first.conversation
+    assert _updates(last) == []
+    assert _updates(first) == expected
+    # Sent once: the next turn reads it off the row that carried it.
+    assert _updates(after) == []
+    for field, value in second_run.items():
+        assert value in first.turn_context
+        # Recorded as the head renders it, which is what a later turn compares.
+        assert value in first.world_state[field]
+
+
+def test_a_removed_agents_md_is_withdrawn_once() -> None:
+    _, _, first, after = _two_runs({"agents_md_instructions": ""})
+
+    assert "no longer apply" in first.turn_context
+    assert first.world_state == {"agents_md_instructions": ""}
+    assert _updates(after) == []
+
+
+def test_a_rebuilt_window_sends_the_update_it_dropped() -> None:
+    """境界より前の turn context は再生されないので、その回に出し直す。"""
+
+    state = _state([_user(1)])
+    state["context"].update(_RUN_1)
+    _think_once(state, think=2, call_id="c2")
+    state["history_by_scope"]["S"].append(_user(3))
+    state["context"]["insight_data"] = "I-2"
+    _, sent = _think_once(state, think=4, call_id="c4")
+    _, kept = _think_once(state, think=5, call_id="c5")
+    _, rebuilt = _think_once(state, think=6, call_id="c6", omit=5)
+
+    assert _updates(sent) == ["## Memory Update"]
+    assert _updates(kept) == []
+    assert _updates(rebuilt) == ["## Memory Update"]
+
+
+def test_a_rebuilt_window_sends_nothing_when_the_head_is_current_again() -> None:
+    state = _state([_user(1)])
+    state["context"].update(_RUN_1)
+    _think_once(state, think=2, call_id="c2")
+    state["history_by_scope"]["S"].append(_user(3))
+    state["context"]["insight_data"] = "I-2"
+    _think_once(state, think=4, call_id="c4")
+    state["history_by_scope"]["S"].append(_user(5))
+    state["context"]["insight_data"] = "I-1"
+    _, back = _think_once(state, think=6, call_id="c6")
+    _, rebuilt = _think_once(state, think=7, call_id="c7", omit=6)
+
+    # The update to I-2 is still shown, so returning to I-1 is itself an update;
+    # once the window drops it, the head already shows I-1.
+    assert _updates(back) == ["## Memory Update"]
+    assert _updates(rebuilt) == []
+
+
 def test_a_retry_appends_its_notice_behind_the_context_already_sent() -> None:
     entries = [_user(1), _think(2), _tool(2, think=2, call_id="call_a")]
     attempt = _require(entries, turn_context="TC-3")
@@ -695,7 +863,9 @@ def test_the_conversation_route_sends_the_head_alone_and_still_records_the_strin
 
 
 def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> None:
-    template = "Request: {user_request}\n{action_history}\nCurrent time: {current_time}"
+    template = (
+        "Summary: {request_summary}\n{action_history}\nCurrent time: {current_time}"
+    )
     agent = cast(
         Any,
         SimpleNamespace(
@@ -703,6 +873,7 @@ def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> Non
             executing_system_instruction="SYS for {final_answer_language}",
             DEFAULT_SYSTEM_INSTRUCTION="D",
             executing_tool_use_rule=lambda key: "RULE",
+            executing_world_state_update=lambda key: "UPDATE",
         ),
     )
     runtime = cast(
@@ -713,11 +884,10 @@ def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> Non
         ),
     )
     state = _state([_user(1)])
-    state["context"]["user_request"] = "調べてください"
 
     built = turn_input.build_executing_turn(agent, state, runtime, tools=())
 
-    assert built.head == "Request: 調べてください\n"
+    assert built.head == "Summary: (none)\n"
     assert built.tail.startswith("\nCurrent time: ")
     assert built.system_instruction == "SYS for Japanese"
     assert built.sends_conversation is True
