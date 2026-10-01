@@ -195,6 +195,7 @@ async def run_validated_tool_impl(
         )
     elif tool_def.tool_id == SPAWN_SUBAGENT_TOOL_ID:
         result = await run_spawn_subagent_tool(
+            agent,
             step_id=resolved_step_id,
             tool_def=tool_def,
             args=args,

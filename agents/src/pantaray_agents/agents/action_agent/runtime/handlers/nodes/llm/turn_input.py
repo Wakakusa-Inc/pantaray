@@ -8,6 +8,10 @@ The head is rendered once, from the values the Action's first turn saw, and kept
 in the run state; what a later turn reads differently reaches the model as an
 update in its turn context (``support/world_state.py``), and a turn that reads
 nothing new sends no turn context at all.
+
+A subagent the Supervisor spawns is sent the same head and the same system
+instruction but for its role's section, as a Codex child gets its parent's base
+instructions and AGENTS.md (``codex-rs/core/src/agent/child_config.rs``).
 """
 
 from __future__ import annotations
@@ -49,8 +53,9 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 HISTORY_PLACEHOLDER = "{action_history}"
-TOOL_USE_RULE_PLACEHOLDER = "{tool_use_rules}"
-SUPERVISOR_PARENT_RULE_KEY = "supervisor_soft_orchestration"
+ROLE_RULES_PLACEHOLDER = "{role_rules}"
+SUPERVISOR_ROLE = "supervisor"
+SUBAGENT_ROLE = "subagent"
 _FINAL_ANSWER_LANGUAGE_PLACEHOLDER = "{final_answer_language}"
 
 
@@ -192,16 +197,7 @@ def build_executing_turn(
     """
 
     rendering = runtime.services.rendering
-    # Splitting on the placeholder rather than substituting into it is what
-    # gives the history a place of its own. A template that omits the
-    # placeholder puts the history last, which is where it already grows.
-    head_template, seam, tail_template = agent.executing_prompt.partition(
-        HISTORY_PLACEHOLDER
-    )
-    if tail_template.strip():
-        # Whatever follows the history is sent on every turn whether or not it
-        # changed; it belongs in the head or in a world-state section instead.
-        raise ValueError("The executing prompt must end with {action_history}.")
+    head_template, sends_conversation = _split_head(agent.executing_prompt)
     fields = {
         "request_summary": rendering.render_request_summary(state),
         "target_context": rendering.render_target_context(state),
@@ -220,8 +216,7 @@ def build_executing_turn(
         "pantaray_default_agents_md": PANTARAY_DEFAULT_AGENTS_MD,
         "agents_md_instructions": _agents_md_section(state),
     }
-    sends_conversation = bool(seam)
-    head_fields = fields
+    head: str | None = None
     world_state = None
     if sends_conversation:
         context = state["context"]
@@ -236,7 +231,7 @@ def build_executing_turn(
         if unrecorded:
             recorded = {**recorded, **unrecorded}
             context["executing_head_fields"] = recorded
-        head_fields = {**fields, **recorded}
+        head = frozen_executing_head(agent, state)
         shown = world_state_fields(recorded)
         world_state = WorldState(
             head={name: recorded[name] for name in shown},
@@ -244,7 +239,7 @@ def build_executing_turn(
             template=agent.executing_world_state_update,
         )
     return ExecutingTurn(
-        head=head_template.format(**head_fields),
+        head=head_template.format(**fields) if head is None else head,
         system_instruction=_system_instruction(
             agent, language=runtime.request.language
         ),
@@ -253,6 +248,39 @@ def build_executing_turn(
         sends_conversation=sends_conversation,
         world_state=world_state,
     )
+
+
+def frozen_executing_head(agent: ActionAgent, state: ActionAgentState) -> str:
+    """The head this Action's first conversation turn froze, byte for byte.
+
+    Every later Supervisor turn sends it, and so does every subagent the
+    Supervisor spawns: the child works from the Action as the Supervisor's head
+    shows it, and children of one Supervisor share it as their cache prefix.
+    """
+
+    head_template, _ = _split_head(agent.executing_prompt)
+    # A head without fields records none; one with fields fails to format.
+    return head_template.format(**state["context"].get("executing_head_fields", {}))
+
+
+def role_system_instruction(instruction: str, *, role_rule: str) -> str:
+    """The shared Executing rules with one role's own section in place."""
+
+    return instruction.replace(ROLE_RULES_PLACEHOLDER, role_rule)
+
+
+def _split_head(prompt: str) -> tuple[str, bool]:
+    """The head template, and whether the history is sent as items after it."""
+
+    # Splitting on the placeholder rather than substituting into it is what
+    # gives the history a place of its own. A template that omits the
+    # placeholder puts the history last, which is where it already grows.
+    head_template, seam, tail_template = prompt.partition(HISTORY_PLACEHOLDER)
+    if tail_template.strip():
+        # Whatever follows the history is sent on every turn whether or not it
+        # changed; it belongs in the head or in a world-state section instead.
+        raise ValueError("The executing prompt must end with {action_history}.")
+    return head_template, bool(seam)
 
 
 def _agents_md_section(state: ActionAgentState) -> str:
@@ -275,16 +303,20 @@ def _system_instruction(agent: ActionAgent, *, language: str) -> str:
         _FINAL_ANSWER_LANGUAGE_PLACEHOLDER,
         "Japanese" if language == "ja" else "English",
     )
-    if TOOL_USE_RULE_PLACEHOLDER not in instruction:
+    if ROLE_RULES_PLACEHOLDER not in instruction:
         return instruction
-    return instruction.replace(
-        TOOL_USE_RULE_PLACEHOLDER,
-        agent.executing_tool_use_rule(SUPERVISOR_PARENT_RULE_KEY),
+    return role_system_instruction(
+        instruction, role_rule=agent.executing_role_rule(SUPERVISOR_ROLE)
     )
 
 
 __all__ = [
+    "ROLE_RULES_PLACEHOLDER",
+    "SUBAGENT_ROLE",
+    "SUPERVISOR_ROLE",
     "ExecutingTurn",
     "build_executing_turn",
+    "frozen_executing_head",
+    "role_system_instruction",
     "supervisor_prompt_scope_handles",
 ]

@@ -887,7 +887,7 @@ def _executing_agent() -> SimpleNamespace:
         executing_prompt=config["prompt"],
         executing_system_instruction="SYS",
         DEFAULT_SYSTEM_INSTRUCTION="SYS",
-        executing_tool_use_rule=lambda key: "",
+        executing_role_rule=lambda key: "",
         executing_world_state_update=lambda key: config["world_state_updates"][key],
     )
 

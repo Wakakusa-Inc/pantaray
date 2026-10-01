@@ -4,6 +4,11 @@ import asyncio
 import json
 from pathlib import Path
 
+from pantaray_agents.agents.action_agent import ActionAgent
+from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm.turn_input import (
+    SUBAGENT_ROLE,
+    role_system_instruction,
+)
 from pantaray_agents.agents.artifact_react import (
     NativeReactCompletion,
     NativeReactRunInput,
@@ -57,6 +62,7 @@ from pantaray_agents.local_runtime.runtime.job_executor import (
 from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.schema.agent.base import JSONValue
 from pantaray_agents.tasks.types import ActionSubagentJobPayload
+from pantaray_agents.utils.prompt_loader import load_config
 from pantaray_llm.contracts.conversation import LlmConversation
 from pantaray_llm.contracts.tool_use import (
     LlmToolContinuation,
@@ -79,12 +85,6 @@ _CONFIGURED_PROFILE_IDS = frozenset(
     settings.profile_id for settings in SUBAGENT_MODEL_SETTINGS
 )
 _ACTION_SUBAGENT_MAX_REPORT_REPAIRS = 2
-_ACTION_SUBAGENT_SYSTEM_INSTRUCTION = (
-    "Complete only the assigned task. Do not expose private reasoning. "
-    "Return the concise final result with submit_subagent_report. "
-    "Only when you will change files in a repository, first read the AGENTS.md "
-    "files from its root to the directory you change; skip this for read-only work."
-)
 
 
 class ActionSubagentJobFailed(RuntimeError):
@@ -180,11 +180,14 @@ async def execute_action_subagent_job(
             process_id=payload["process_id"],
         )
         turn_conversation = build_action_subagent_conversation(
-            entries, repair_notice=last_error
+            entries,
+            assigned_task=_assigned_task_message(payload),
+            repair_notice=last_error,
         )
-        # The assigned task alone, byte for byte on every turn: it is the cache
-        # prefix the conversation items grow behind.
-        return _build_initial_prompt(payload)
+        # The parent's frozen head, byte for byte on every turn and for every
+        # child of that parent: the cache prefix the task and the transcript
+        # grow behind.
+        return payload["action_context"]
 
     async def project_result(result: ReactToolResult) -> ReactToolResult:
         _raise_if_cancellation_requested(
@@ -291,7 +294,7 @@ def run_action_subagent_job(payload: ActionSubagentJobPayload) -> None:
         runner = _ActionSubagentToolLlmRunner(
             client=build_local_llm_proxy_client(),
             llm_config={},
-            default_system_instruction=_ACTION_SUBAGENT_SYSTEM_INSTRUCTION,
+            default_system_instruction=_subagent_system_instruction(),
             error_code_prefix="ACTION_SUBAGENT",
             llm_inference_profile_id=payload["inference_profile_id"],
         )
@@ -419,12 +422,18 @@ def _report_tool_definition() -> LlmToolDefinition:
     )
 
 
-def _build_initial_prompt(payload: ActionSubagentJobPayload) -> str:
-    context_refs = json.dumps(payload["context_refs"], ensure_ascii=False)
-    return (
-        "# Assigned Task\n"
-        f"{payload['task']}\n\n"
-        "# Context References\n"
-        f"{context_refs}\n\n"
-        f"Call {SUBMIT_SUBAGENT_REPORT_TOOL_NAME} when the report is ready."
+def _subagent_system_instruction() -> str:
+    """The Supervisor's system instruction with the subagent's role section."""
+
+    config = load_config(ActionAgent.EXECUTING_PROMPT_NAME)
+    if config.system_instruction is None:
+        raise RuntimeError("The Action prompt has no system instruction")
+    return role_system_instruction(
+        config.system_instruction,
+        role_rule=config.require_role_rule(SUBAGENT_ROLE),
     )
+
+
+def _assigned_task_message(payload: ActionSubagentJobPayload) -> str:
+    context_refs = json.dumps(payload["context_refs"], ensure_ascii=False)
+    return f"# Assigned Task\n{payload['task']}\n\n# Context References\n{context_refs}"
