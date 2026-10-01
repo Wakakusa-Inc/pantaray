@@ -1636,3 +1636,61 @@ def test_a_pause_inside_a_turn_answers_every_call_and_runs_none_twice(
             *([("apply_patch", 1)] if decision == "approved_once" else []),
             *([("read", 1)] if position == "middle" else []),
         ]
+
+
+@pytest.mark.parametrize("report_position", ("first", "last"))
+def test_a_report_mixed_with_other_calls_waits_for_a_turn_of_its_own(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, report_position: str
+) -> None:
+    """報告が他の呼び出しと同じターンなら終わらせず、他を実行して報告は出し直させる。"""
+
+    db_path, payload = _running_child(
+        tmp_path,
+        profile_id=SUBAGENT_MODEL_SETTINGS[0].profile_id,
+        claim_workspace=True,
+    )
+    _allow_workspace_commands(db_path)
+    launched: list[str] = []
+
+    async def command(
+        *, request: ValidatedCommandRequest, **_kwargs: object
+    ) -> UnprojectedBrokerToolOutcome:
+        launched.append(request.argv[-1])
+        return UnprojectedBrokerToolOutcome(
+            status="success",
+            output={"status": "success", "exit_code": 0, "stdout": "", "stderr": ""},
+        )
+
+    monkeypatch.setattr(broker_module, "run_command_via_sandbox", command)
+    mixed = (
+        (_REPORT_CALL, _BASH_CALL)
+        if report_position == "first"
+        else (_BASH_CALL, _REPORT_CALL)
+    )
+    client = _Client(calls=(mixed, _REPORT_CALL))
+    monkeypatch.setattr(subagent_job, "build_local_llm_proxy_client", lambda: client)
+    with bind_local_runtime_db_execution_context(
+        db_path=db_path, busy_timeout_ms=1_000
+    ):
+        subagent_job.run_action_subagent_job(payload)
+
+    # The mixed turn did not end the run; the report alone did, one turn later.
+    assert len(client.prompts) == 2
+    assert len(launched) == 1 and "pwd" in launched[0]
+    conversation = client.tool_uses[1].conversation
+    assert conversation is not None
+    answers = {
+        item.name: json.dumps(item.output)
+        for item in conversation
+        if isinstance(item, LlmTurnToolResultItem)
+    }
+    assert set(answers) == {"bash", "submit_subagent_report"}
+    assert '"status": "completed"' in answers["bash"]
+    assert "TOOL_CALL_NOT_RUN" in answers["submit_subagent_report"]
+    assert "must be the only call of its turn" in answers["submit_subagent_report"]
+    with sqlite3.connect(db_path) as connection:
+        terminal = connection.execute(
+            "SELECT payload_json FROM process_events "
+            "WHERE process_id='child-process' AND event_name='stream_end'"
+        ).fetchone()
+    assert json.loads(terminal[0]) == {"outcome": "success", "report": "Child report"}

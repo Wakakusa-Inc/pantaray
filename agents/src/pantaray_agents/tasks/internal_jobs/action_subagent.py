@@ -463,11 +463,20 @@ def _plan_turn(
     """Split one turn's calls by the parent's batch policy.
 
     Read-only calls run at once, a changing call runs alone in order, and a call
-    the policy leaves out is answered with the parent's reason for it.
+    the policy leaves out is answered with the parent's reason for it. The
+    runner ends the run on a report only when it is the turn's sole call, so a
+    report reaching here shares its turn: it is answered as not run, whatever
+    its position, and the other calls run, so no requested work is reported
+    as done without running.
     """
 
+    reports = [c for c in turn.calls if c.name == SUBMIT_SUBAGENT_REPORT_TOOL_ID]
     plan = plan_tool_batch(
-        tuple(_PlannedCall(call) for call in turn.calls),
+        tuple(
+            _PlannedCall(call)
+            for call in turn.calls
+            if call.name != SUBMIT_SUBAGENT_REPORT_TOOL_ID
+        ),
         max_parallel=max_parallel,
         remaining_tool_steps=remaining_tool_calls,
     )
@@ -479,6 +488,10 @@ def _plan_turn(
         )
         for entry in (*plan.deferred, *plan.dropped)
     ]
+    skipped.extend(
+        (report.name, report.arguments, EXCLUSION_NOTICES["solo_turn_tool"])
+        for report in reports
+    )
     skipped.extend(
         (name, {}, PROVIDER_DROPPED_NOTICE) for name in turn.dropped_call_names
     )
