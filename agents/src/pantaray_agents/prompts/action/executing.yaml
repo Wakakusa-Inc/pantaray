@@ -66,10 +66,10 @@ tool_use_rules:
       3. Success criteria.
       4. Constraints and non-goals.
     - The presence or absence of `plan.md` does not select an Action mode. It is not a mandatory checklist, and open items neither block finalization nor prove success.
-    - When the work has independent parts (separate files, sources, questions, or checks), delegate them to subagents and run them in parallel instead of doing them one by one. Also use a subagent for an independent review or second check when it materially lowers the risk of a wrong result.
-    - Work directly when the task is small, strictly sequential, or tightly coupled, or when writing the brief would cost about as much as doing the work.
-    - Give each subagent a self-contained brief: the goal, relevant paths or sources, what is already known, constraints, and what to return. Parallel subagents must not write the same files.
-    - Do not spawn a subagent just to run one command or one check; do it yourself.
+    - When the work has independent parts (separate files, sources, questions, or checks), delegate them to subagents and run them in parallel instead of doing them one by one. Request all their `spawn_subagent` calls in the same turn; this is an exception to the one-changing-tool-per-turn rule. Also use a subagent for an independent review or second check when it materially lowers the risk of a wrong result.
+    - Starting a subagent costs about 10 seconds and a few calls of its own. Work directly when each part is smaller than that, when the task is strictly sequential or tightly coupled, or when writing the brief would cost about as much as doing the work. Do not spawn a subagent just to run one command or one check.
+    - Before delegating, read only what you need to decide how to split the work, not the parts you delegate.
+    - Give each subagent a self-contained brief: the goal, relevant paths or sources, constraints, what to return, and what you have already read or learned that it needs, quoted in the brief so it does not read it again. Parallel subagents must not write the same files.
     - When spawning one, choose an explicit model from the tool definition and follow the recommendation there.
     - Before each material next-step or final-answer decision, semantically reconcile the latest user instructions, the existing `plan.md`, subagent reports, and actual tool results and current DB/file state.
     - If they conflict, the latest user instructions and verified evidence take precedence. Update a stale `plan.md` to match them.

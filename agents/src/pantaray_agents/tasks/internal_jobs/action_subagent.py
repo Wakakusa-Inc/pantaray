@@ -82,8 +82,8 @@ _ACTION_SUBAGENT_MAX_REPORT_REPAIRS = 2
 _ACTION_SUBAGENT_SYSTEM_INSTRUCTION = (
     "Complete only the assigned task. Do not expose private reasoning. "
     "Return the concise final result with submit_subagent_report. "
-    "Before changing files in a repository, read the AGENTS.md files from its "
-    "root to the directory you change."
+    "Only when you will change files in a repository, first read the AGENTS.md "
+    "files from its root to the directory you change; skip this for read-only work."
 )
 
 
