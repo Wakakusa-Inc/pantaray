@@ -224,9 +224,9 @@ class ActionAgent(
         """Executing の system_instruction を返す。"""
         return self._executing_config.system_instruction
 
-    def executing_tool_use_rule(self, key: str) -> str:
-        """Executing prompt の tool use rule を返す。"""
-        return self._executing_config.require_tool_use_rule(key)
+    def executing_role_rule(self, key: str) -> str:
+        """Executing prompt の role rule を返す。"""
+        return self._executing_config.require_role_rule(key)
 
     def executing_world_state_update(self, key: str) -> str:
         """Executing prompt の world state 更新テンプレートを返す。"""

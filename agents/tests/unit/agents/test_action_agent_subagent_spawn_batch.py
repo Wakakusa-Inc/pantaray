@@ -89,6 +89,8 @@ async def test_adopted_spawn_calls_execute_and_resume_with_their_original_identi
     state["phase"] = "executing"
     state["step"] = 2
     state["context"]["local_step_counters"] = {"S": 1}
+    # What the THINK that requested the spawns froze as its head.
+    state["context"]["executing_head_fields"] = {"current_time": "T0"}
     state["history_by_scope"]["S"] = [
         {
             "step_id": "root-user-step",
@@ -264,5 +266,6 @@ async def test_adopted_spawn_calls_execute_and_resume_with_their_original_identi
     ]
     assert all(
         json.loads(row[0])["inference_profile_id"] == "action.subagent.luna"
+        and json.loads(row[0])["action_context"] == "T0"
         for row in payloads
     )

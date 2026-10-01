@@ -10,6 +10,9 @@ from unittest.mock import patch
 import pytest
 from pydantic import TypeAdapter
 
+from pantaray_agents.agents.action_agent.runtime.agents_md import (
+    PANTARAY_DEFAULT_AGENTS_MD,
+)
 from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm import turn_input
 from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm.builders import (
     _build_llm_history_entry,
@@ -32,6 +35,7 @@ from pantaray_agents.agents.action_agent.support.conversation_projection import 
 from pantaray_agents.agents.action_agent.support.formatter import ActionAgentFormatter
 from pantaray_agents.agents.action_agent.support.world_state import WorldState
 from pantaray_agents.schema.agent.action import StepType
+from pantaray_agents.tasks.internal_jobs import action_subagent as subagent_job
 from pantaray_agents.utils.prompt_loader import PromptLoader
 from pantaray_llm.contracts.conversation import (
     AnthropicProviderTurn,
@@ -618,7 +622,7 @@ def _executing_agent() -> Any:
         executing_prompt=config.prompt,
         executing_system_instruction=config.system_instruction,
         DEFAULT_SYSTEM_INSTRUCTION="D",
-        executing_tool_use_rule=config.require_tool_use_rule,
+        executing_role_rule=config.require_role_rule,
         executing_world_state_update=config.require_world_state_update,
     )
 
@@ -853,6 +857,67 @@ def test_a_head_field_added_after_the_action_started_is_frozen_once() -> None:
     assert prepared.turn_context == TURN_CONTEXT_HEADING + "Current time: T6"
 
 
+def test_a_subagent_is_spawned_with_the_head_the_supervisor_froze() -> None:
+    """子は親の先頭をそのまま受け取る。親が後で読み直した値は混ざらない。"""
+
+    state = _state([_user(1)])
+    state["context"].update(_RUN_1)
+    head, _ = _think_once(state, think=2, call_id="c2", now="T0")
+    state["context"]["agents_md_instructions"] = (
+        "# AGENTS.md instructions for ~/.pantaray\nA-2"
+    )
+    later, prepared = _think_once(state, think=3, call_id="c3", now="T1")
+
+    spawned = turn_input.frozen_executing_head(_executing_agent(), state)
+
+    # The parent learns of the new file in its turn context; its head, and so
+    # the child's context, stays the one the first turn froze.
+    assert _updates(prepared) == ["## AGENTS.md Update", "Current time: "]
+    assert spawned == head == later
+    assert PANTARAY_DEFAULT_AGENTS_MD in spawned
+    assert "# AGENTS.md instructions for ~/.pantaray\nA-1" in spawned
+    assert "A-2" not in spawned
+    assert "W-1" in spawned and "Current time: T0" in spawned
+
+
+def test_a_subagent_shares_the_supervisor_rules_after_its_role_section() -> None:
+    """役割の節の後ろは親子で同じ文字列。親だけの指示は子に届かない。"""
+
+    config = PromptLoader().load_config("action/executing")
+    assert config.system_instruction is not None
+    shared = config.system_instruction.partition(turn_input.ROLE_RULES_PLACEHOLDER)[2]
+    runtime = SimpleNamespace(
+        services=SimpleNamespace(rendering=_RENDERING),
+        request=SimpleNamespace(language="ja"),
+    )
+    parent = turn_input.build_executing_turn(
+        _executing_agent(), _state([_user(1)]), cast(Any, runtime), tools=()
+    ).system_instruction
+    child = subagent_job._subagent_system_instruction()
+
+    # The role leads, so the Supervisor reads its own role first.
+    assert parent.startswith("## Your Role\nYou are the Action Agent Supervisor.")
+    assert child.startswith("## Your Role\nYou are a subagent of an Action.")
+    assert parent.endswith(shared) and child.endswith(shared)
+    for rule in ("## Quality of Work", "## Checking Results", "## AGENTS.md"):
+        assert rule in shared
+    assert "submit_subagent_report" in child
+    assert "Only when you will change files in a repository" in child
+    for supervisor_only in (
+        "draft_final_answer",
+        "submit_final_answer",
+        "plan.md",
+        "spawn_subagent",
+        "wait_subagents",
+        "step_note",
+        "commentary",
+        "history_fetch",
+    ):
+        assert supervisor_only in parent
+        assert supervisor_only not in child
+    assert "submit_subagent_report" not in parent
+
+
 def test_a_rebuilt_window_sends_the_update_it_dropped() -> None:
     """境界より前の turn context は再生されないので、その回に出し直す。"""
 
@@ -1011,7 +1076,7 @@ def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> Non
             executing_prompt=template,
             executing_system_instruction="SYS for {final_answer_language}",
             DEFAULT_SYSTEM_INSTRUCTION="D",
-            executing_tool_use_rule=lambda key: "RULE",
+            executing_role_rule=lambda key: "RULE",
             executing_world_state_update=lambda key: "UPDATE",
         ),
     )

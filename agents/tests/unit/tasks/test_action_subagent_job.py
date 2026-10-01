@@ -98,6 +98,7 @@ class _Models:
         assert isinstance(config, GenerateContentConfig)
         self.client.profiles.append(str(config.inference_profile))
         self.client.prompts.append(str(kwargs["contents"]))
+        self.client.system_instructions.append(str(config.system_instruction))
         self.client.tool_uses.append(config.tool_use)
         if self.client.on_call is not None:
             self.client.on_call(len(self.client.prompts))
@@ -148,12 +149,17 @@ class _Client:
         self.calls = calls
         self.profiles: list[str] = []
         self.prompts: list[str] = []
+        self.system_instructions: list[str] = []
         self.tool_uses: list[LlmToolUseRequest | None] = []
         self.aio = SimpleNamespace(models=_Models(self))
 
 
 def _running_child(
-    tmp_path: Path, *, profile_id: str, claim_workspace: bool = False
+    tmp_path: Path,
+    *,
+    profile_id: str,
+    claim_workspace: bool = False,
+    task: str = "Inspect the assigned boundary",
 ) -> tuple[Path, ActionSubagentJobPayload]:
     db_path = tmp_path / "runtime.db"
     apply_migrations(db_path, 1_000, load_default_migrations())
@@ -165,7 +171,8 @@ def _running_child(
             "action_id": "action-1",
             "parent_process_id": "parent-process",
             "inference_profile_id": profile_id,
-            "task": "Inspect the assigned boundary",
+            "action_context": "# Workspace Paths\nparent context",
+            "task": task,
             "context_refs": ["conversation:step-1"],
             "resource_claim_ids": ["child-claim"] if claim_workspace else [],
         }
@@ -559,8 +566,8 @@ def test_message_between_turns_rebuilds_the_durable_prompt(
         subagent_job.run_action_subagent_job(payload)
 
     assert len(client.prompts) == 2
-    # Nothing precedes the first turn, and an empty conversation is invalid.
-    assert client.tool_uses[0] is not None and client.tool_uses[0].conversation is None
+    # The first turn already carries the assigned task behind the context.
+    assert _items(client, 0).count("Inspect the assigned boundary") == 1
     assert _items(client, 1).count("Use the corrected evidence") == 1
     assert _results(client, 1) == [("submit_subagent_report", "error")]
     assert "界" not in _items(client, 1)
@@ -1125,6 +1132,7 @@ def _enqueue_sibling_child(db_path: Path) -> None:
             "action_id": "action-1",
             "parent_process_id": "parent-process",
             "inference_profile_id": SUBAGENT_MODEL_SETTINGS[0].profile_id,
+            "action_context": "# Workspace Paths\nparent context",
             "task": "Inspect the sibling boundary",
             "context_refs": [],
             "resource_claim_ids": [],
@@ -1256,26 +1264,31 @@ def test_the_transcript_is_sent_as_appended_conversation_items(
         subagent_job.run_action_subagent_job(payload)
 
     assert len(client.tool_uses) == 3
-    # Nothing precedes the first turn, and an empty conversation is invalid.
-    assert client.tool_uses[0] is not None and client.tool_uses[0].conversation is None
-    second, third = (
-        _conversation(client.tool_uses[1]),
-        _conversation(client.tool_uses[2]),
+    first, second, third = (
+        _conversation(client.tool_uses[index]) for index in range(3)
     )
     # What earns the cache read: the later turn is the earlier one plus items.
+    assert second[: len(first)] == first
     assert third[: len(second)] == second
-    assert len(second) == 3 and len(third) == 5
-    # The request's own message is the task alone, byte for byte on every turn,
-    # so the durable transcript never re-renders into it.
+    assert (len(first), len(second), len(third)) == (1, 4, 6)
+    # The request's own message is the parent's context alone, byte for byte on
+    # every turn, so the durable transcript never re-renders into it.
     assert len(set(client.prompts)) == 1
 
     conversation = client.tool_uses[2].conversation
     assert conversation is not None
     kinds = [item.type for item in conversation]
-    # The parent's message landed while the first turn was still in flight, so
-    # it is ordered by the row it took, ahead of the call that turn went on to
-    # make.
-    assert kinds == ["user", "assistant", "tool_result", "assistant", "tool_result"]
+    # The assigned task comes first. The parent's message landed while the first
+    # turn was still in flight, so it is ordered by the row it took, ahead of
+    # the call that turn went on to make.
+    assert kinds == [
+        "user",
+        "user",
+        "assistant",
+        "tool_result",
+        "assistant",
+        "tool_result",
+    ]
     calls = [
         call for item in conversation if item.type == "assistant" for call in item.calls
     ]
@@ -1294,7 +1307,12 @@ def test_the_transcript_is_sent_as_appended_conversation_items(
         and "broker evidence" in json.dumps(result.output["result"])
         for result in results
     )
-    assert conversation[0].content[0].text == "Use the corrected evidence"
+    assert (
+        conversation[0]
+        .content[0]
+        .text.startswith("# Assigned Task\nInspect the assigned boundary\n")
+    )
+    assert conversation[1].content[0].text == "Use the corrected evidence"
 
 
 def test_the_repair_notice_is_appended_without_touching_what_was_sent(
@@ -1358,3 +1376,35 @@ def test_the_repair_notice_is_appended_without_touching_what_was_sent(
     assert notice.type == "user"
     assert notice.content[0].text.startswith("# Previous Error\n")
     assert "multiple_calls" in notice.content[0].text
+
+
+def test_children_of_one_parent_send_its_context_and_differ_only_in_the_task(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """同じ親の子どうしは、system と親の先頭まで同じバイト列で、task だけが違う。"""
+
+    sent = []
+    for task in ("Fix module a", "Fix module b"):
+        db_path, payload = _running_child(
+            tmp_path / task.replace(" ", "-"),
+            profile_id=SUBAGENT_MODEL_SETTINGS[0].profile_id,
+            task=task,
+        )
+        client = _Client()
+        monkeypatch.setattr(
+            subagent_job, "build_local_llm_proxy_client", lambda client=client: client
+        )
+        with bind_local_runtime_db_execution_context(
+            db_path=db_path, busy_timeout_ms=1_000
+        ):
+            subagent_job.run_action_subagent_job(payload)
+        sent.append((client, payload))
+
+    (first, first_payload), (second, _) = sent
+    assert first.system_instructions == [subagent_job._subagent_system_instruction()]
+    assert first.system_instructions == second.system_instructions
+    # The request's own message is the parent's context, byte for byte.
+    assert first.prompts == second.prompts == [str([first_payload["action_context"]])]
+    first_items, second_items = _items(first, 0), _items(second, 0)
+    assert "Fix module a" in first_items and "Fix module a" not in second_items
+    assert "Fix module b" in second_items

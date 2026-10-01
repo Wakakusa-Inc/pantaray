@@ -42,11 +42,17 @@ def _executing_prompt_template() -> str:
 
 def _soft_plan_section() -> str:
     config = _executing_config()
-    rules = config.get("tool_use_rules")
+    rules = config.get("role_rules")
     assert isinstance(rules, dict)
-    rule = rules.get("supervisor_soft_orchestration")
+    rule = rules.get("supervisor")
     assert isinstance(rule, str)
     return rule
+
+
+def _shared_system_instruction() -> str:
+    instruction = _executing_config().get("system_instruction")
+    assert isinstance(instruction, str)
+    return instruction
 
 
 def test_executing_prompt_defines_supervisor_final_answer_flow() -> None:
@@ -78,9 +84,9 @@ def test_executing_prompt_defines_one_parent_tool_use_rule() -> None:
     )
     assert "## Supervisor Mode Rules" not in text
     assert "## Tool Use Rules" in text
-    assert "{tool_use_rules}" in text
-    assert "tool_use_rules:" in text
-    assert "supervisor_soft_orchestration:" in text
+    assert "{role_rules}" in text
+    assert "role_rules:" in text
+    assert "supervisor:" in text
     # 親プロンプトは Goal Worker 協調セクションを持たない。
     assert "supervisor_goal_worker:" not in text
     assert "{goal_conversations}" not in text
@@ -123,10 +129,12 @@ def test_executing_prompt_reconciles_plan_and_reports_against_current_evidence()
     assert "Update a stale `plan.md`" in section
     assert "evidence candidates, not truth" in section
     assert "instead of accepting them blindly" in section
-    assert "inspect the resulting current state" in section
-    assert "mutation tool's success" in section
-    assert "purely inline answer" in section
     assert "call `history_fetch`" in section
+    # Checking a change is not tied to the role, so subagents get it too.
+    shared = _shared_system_instruction()
+    assert "inspect the resulting current state" in shared
+    assert "mutation tool's success" in shared
+    assert "purely inline answer" in shared
 
 
 def test_executing_prompt_delegates_model_guidance_to_spawn_tool_metadata() -> None:
