@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import pantaray_agents.agents.action_agent.services.memory_sql as memory_sql_module
 from pantaray_agents.agents.action_agent.services.memory_sql import execute_memory_sql
 from pantaray_agents.local_runtime.storage.migrations import (
     apply_migrations,
@@ -589,6 +590,25 @@ def test_execute_memory_sql_limits_rows_and_cell_text(tmp_path: Path) -> None:
     assert description.endswith("...")
 
 
+def _insert_bulk_activity_logs(db_path: Path, *, count: int, description: str) -> None:
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+            INSERT INTO activity_logs(
+                log_id, user_id, period_start, period_end, status, description,
+                prompt_name, prompt_version, created_at, updated_at
+            )
+            SELECT
+                'bulk-' || i, 'user-1', printf('2026-04-02T%05d', i),
+                printf('2026-04-03T%05d', i), 'success', ?, 'prompt', 'v1',
+                '2026-04-02T00:05:00Z', '2026-04-02T00:05:00Z'
+            FROM n
+            """,
+            (count, description),
+        )
+
+
 def _nested_hex(expression: str, depth: int) -> str:
     for _ in range(depth):
         expression = f"hex({expression})"
@@ -651,21 +671,7 @@ def test_execute_memory_sql_limits_result_columns(tmp_path: Path) -> None:
 
 def test_execute_memory_sql_holds_one_row_at_a_time(tmp_path: Path) -> None:
     db_path = _bootstrap_db(tmp_path)
-    with sqlite3.connect(db_path) as connection:
-        connection.execute(
-            """
-            WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 250)
-            INSERT INTO activity_logs(
-                log_id, user_id, period_start, period_end, status, description,
-                prompt_name, prompt_version, created_at, updated_at
-            )
-            SELECT
-                'bulk-' || i, 'user-1', printf('2026-04-02T%05d', i),
-                printf('2026-04-03T%05d', i), 'success', 'abcd', 'prompt', 'v1',
-                '2026-04-02T00:05:00Z', '2026-04-02T00:05:00Z'
-            FROM n
-            """
-        )
+    _insert_bulk_activity_logs(db_path, count=250, description="abcd")
 
     tracemalloc.start()
     try:
@@ -689,3 +695,26 @@ def test_execute_memory_sql_holds_one_row_at_a_time(tmp_path: Path) -> None:
     assert 0 < result.data["row_count"] < 200
     assert result.data["truncated"] is True
     assert peak_bytes < 16 * 1024 * 1024
+
+
+def test_execute_memory_sql_stops_a_query_past_its_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    _insert_bulk_activity_logs(db_path, count=100, description="x" * 5_000)
+    # Each row builds a ~2.5 MB value in a few opcodes and returns one integer,
+    # so neither the row, output, nor value limits stop it.
+    monkeypatch.setattr(memory_sql_module, "MEMORY_SQL_MAX_SECONDS", 0.05)
+
+    result = execute_memory_sql(
+        db_path=str(db_path),
+        busy_timeout_ms=BUSY_TIMEOUT_MS,
+        user_id="user-1",
+        sql=(f"SELECT sum(length({_nested_hex('description', 9)})) FROM activity_logs"),
+        limit=1,
+    )
+
+    assert result.data is None
+    assert result.error is not None
+    assert "ran longer than 0.05 seconds" in result.error

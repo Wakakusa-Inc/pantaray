@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import secrets
 import sqlite3
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import TypedDict
@@ -18,8 +19,12 @@ DEFAULT_MEMORY_SQL_LIMIT = 100
 MAX_MEMORY_SQL_LIMIT = 200
 MAX_MEMORY_SQL_CELL_CHARS = 4_000
 MAX_MEMORY_SQL_OUTPUT_CHARS = 30_000
-MEMORY_SQL_PROGRESS_HANDLER_OPCODES = 1_000
-MEMORY_SQL_MAX_PROGRESS_CALLBACKS = 20_000
+# SQLite checks the progress handler only at jumps (about once per row), so a
+# smaller interval stops a query with heavy per-row expressions closer to the
+# deadline. At 100 a plain table scan pays about 10% for the callbacks.
+MEMORY_SQL_PROGRESS_HANDLER_OPCODES = 100
+# Seconds. One query runs on a worker thread; this bounds how long it holds it.
+MEMORY_SQL_MAX_SECONDS = 10.0
 # Bytes. Caps every string or blob SQLite builds, so a query cannot inflate a cell
 # (nested hex(), replace()) to gigabytes before the cell truncation runs. Real
 # stores stay well below this; a stored value above it fails even length(x).
@@ -134,6 +139,7 @@ def execute_memory_sql(
     normalized_limit = _normalize_limit(limit)
 
     notes: list[str] = []
+    timed_out = False
     try:
         with _connect_read_only(
             db_path=db_path, busy_timeout_ms=busy_timeout_ms
@@ -143,12 +149,12 @@ def execute_memory_sql(
                 user_id=normalized_user_id,
                 table_names=validated_sql["referenced_tables"],
             )
-            progress_count = 0
+            deadline = time.monotonic() + MEMORY_SQL_MAX_SECONDS
 
             def _progress_handler() -> int:
-                nonlocal progress_count
-                progress_count += 1
-                return int(progress_count > MEMORY_SQL_MAX_PROGRESS_CALLBACKS)
+                nonlocal timed_out
+                timed_out = time.monotonic() > deadline
+                return int(timed_out)
 
             observed_base_reads: set[str] = set()
             conn.set_authorizer(
@@ -174,6 +180,12 @@ def execute_memory_sql(
                 notes=notes,
             )
     except sqlite3.DatabaseError as exc:
+        if timed_out:
+            return _validation_error(
+                "memory_sql rejected query: it ran longer than "
+                f"{MEMORY_SQL_MAX_SECONDS:g} seconds. Read fewer rows (WHERE, "
+                "LIMIT) or compute less per row."
+            )
         return _validation_error(f"memory_sql rejected query: {exc}")
 
     rows = serialized["rows"]
