@@ -82,6 +82,20 @@ SOLO_TURN_TOOL_IDS: frozenset[str] = frozenset(
 - ``submit_subagent_report``: 子の終端。後続の兄弟呼び出しは報告に含まれない。
 """
 
+RUN_ENDING_TOOL_IDS: frozenset[str] = frozenset(
+    {
+        SUBMIT_FINAL_ANSWER_TOOL_ID,
+        SUBMIT_SUBAGENT_REPORT_TOOL_ID,
+    }
+)
+"""SOLO_TURN のうち、実行すると run を終えるツール。
+
+先頭で単独実行すると、後回しにした兄弟呼び出しはモデルが出し直す前に run が
+終わって二度と実行されない。そこで他の呼び出しと同じターンなら位置にかかわらず
+実行せず（``solo_turn_tool``）、残りを実行して、単独のターンで出し直させる。
+``wait_subagents`` は run を終えないので、後回しにした兄弟は次ターンで出し直せる。
+"""
+
 SERIAL_ONLY_TOOL_IDS: frozenset[str] = frozenset(
     {
         THINKING_TOOL.tool_id,
@@ -194,6 +208,8 @@ def plan_tool_batch[CallT: ToolCallLike](
 
     順序は常に宣言順を保ち、並べ替えは行わない。
 
+    0. RUN_ENDING ツールが他の呼び出しと同じターンにあれば、位置にかかわらず
+       ``solo_turn_tool`` として外し、残りの列で以下を行う。
     1. SOLO_TURN ツールで列を分割する。先頭にあればそれ 1 件だけを実行し、残りは
        ``after_solo_turn_tool`` として次ターンへ回す。途中にあれば、その手前までを
        実行し、SOLO_TURN ツール自身（``solo_turn_tool``）と後続を次ターンへ回す。
@@ -203,6 +219,11 @@ def plan_tool_batch[CallT: ToolCallLike](
        ``parallel``。それ以外は ``sequential``。
     """
 
+    ending = [call for call in calls if call.tool_id in RUN_ENDING_TOOL_IDS]
+    held_back: tuple[ExcludedToolCall[CallT], ...] = ()
+    if ending and len(ending) < len(calls):
+        held_back = _defer_all(ending, "solo_turn_tool")
+        calls = [call for call in calls if call.tool_id not in RUN_ENDING_TOOL_IDS]
     runnable, deferred = _split_at_solo_turn_tool(calls)
     limit = max(min(max_parallel, remaining_tool_steps), 0)
     dropped = tuple(
@@ -220,7 +241,7 @@ def plan_tool_batch[CallT: ToolCallLike](
     return ToolBatchPlan(
         calls=accepted,
         mode=_batch_mode(accepted),
-        deferred=deferred,
+        deferred=(*deferred, *held_back),
         dropped=dropped,
     )
 
@@ -261,6 +282,7 @@ __all__ = [
     "EXCLUSION_NOTICES",
     "MEMORY_EPOCH_WRITER_TOOL_IDS",
     "PROVIDER_DROPPED_NOTICE",
+    "RUN_ENDING_TOOL_IDS",
     "PARALLEL_SAFE_TOOL_IDS",
     "SERIAL_ONLY_TOOL_IDS",
     "SOLO_TURN_TOOL_IDS",
