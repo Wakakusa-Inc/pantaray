@@ -74,6 +74,23 @@ def open_workspace_file_descriptor(*, root_path: Path, relative_path: str) -> in
         raise BrokerPolicyError(_WORKSPACE_FILE_POLICY_ERROR) from exc
 
 
+def open_workspace_entry_descriptor(*, root_path: Path, relative_path: str) -> int:
+    """Open a file or directory below root without following any symlink.
+
+    The caller reads the kind from the descriptor. Opened like a file so a FIFO
+    does not block; a directory opened this way still lists with os.scandir.
+    """
+
+    components = _relative_components(relative_path, allow_dot=True)
+    if not components:
+        return _open_directory(root_path, ".")
+    parent = _open_directory(root_path, "/".join(components[:-1]) or ".")
+    try:
+        return _open(components[-1], _FILE_FLAGS, parent=parent)
+    finally:
+        os.close(parent)
+
+
 def scan_workspace_entries(
     *,
     root_path: Path,

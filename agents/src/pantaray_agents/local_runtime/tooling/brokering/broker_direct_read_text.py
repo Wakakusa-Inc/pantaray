@@ -5,7 +5,6 @@ import os
 import stat
 from dataclasses import dataclass
 from io import StringIO
-from pathlib import Path
 from typing import TextIO
 
 from .broker_common import BrokerPolicyError
@@ -56,30 +55,6 @@ class TextLineRead:
     stream_has_line_remainder: bool
     scanned_bytes: int
     consumed_chars: int
-
-
-def read_text_lines(
-    *,
-    filepath: Path,
-    offset: int,
-    limit: int,
-    column: int = 1,
-    max_bytes: int | None = None,
-) -> ReadLinesResult:
-    descriptor = os.open(
-        filepath,
-        os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
-    )
-    try:
-        return read_text_descriptor_lines(
-            descriptor=descriptor,
-            offset=offset,
-            limit=limit,
-            column=column,
-            max_bytes=max_bytes,
-        )
-    finally:
-        os.close(descriptor)
 
 
 def read_text_descriptor_lines(
@@ -512,6 +487,5 @@ __all__ = [
     "READ_FILE_PAGE_LIMIT_RETRY_HINT",
     "ReadLinesResult",
     "read_text_descriptor_lines",
-    "read_text_lines",
     "read_text_value_lines",
 ]

@@ -339,7 +339,10 @@ def _resolve_full_access_path(
                     path=resolved, root_path=root.canonical_real_path
                 ),
             )
-    root_path = resolved if resolved.is_dir() else resolved.parent
+    # Outside every registered folder no directory is trusted, so the reader
+    # walks the whole resolved path down from "/" without following a link: a
+    # directory on the way swapped for one after this check cannot redirect it.
+    root_path = Path(resolved.anchor)
     root = ManifestRoot(
         root_id=f"full_access:{root_path}",
         manifest_id="full_access",
