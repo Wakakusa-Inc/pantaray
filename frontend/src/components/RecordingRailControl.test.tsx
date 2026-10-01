@@ -189,4 +189,43 @@ describe('RecordingRailControl', () => {
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  it('leaves focus where the user put it while a toggle is answered', async () => {
+    localStorage.setItem('pantaray_ui_language', 'ja');
+    let notify: (isEnabled: boolean) => void = () => undefined;
+    let finishStart: (result: string) => void = () => undefined;
+    window.electron = {
+      screenshot: {
+        start: vi.fn(
+          () =>
+            new Promise<string>((resolve) => {
+              finishStart = resolve;
+            })
+        ),
+        stop: vi.fn(async () => true),
+        getStatus: vi.fn(async () => false),
+        onStatusChanged: vi.fn((callback: (isEnabled: boolean) => void) => {
+          notify = callback;
+          return () => undefined;
+        }),
+      },
+    } as unknown as Window['electron'];
+
+    renderControl('ja');
+    await screen.findByRole('button', { name: 'コンピューター操作の記録：オフ' });
+    openPopover();
+    const toggle = await screen.findByRole('switch', { name: 'コンピューター操作の記録' });
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toBeDisabled());
+
+    const link = screen.getByRole('button', { name: '記録するアプリとウェブサイト' });
+    link.focus();
+    await act(async () => {
+      finishStart('started');
+    });
+    act(() => notify(true));
+
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(link).toHaveFocus();
+  });
 });
