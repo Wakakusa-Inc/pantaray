@@ -28,6 +28,8 @@ import type { CapturePrivacySettings } from '../privacy/capturePrivacy';
 import type { BrowserWindowObservation } from '../privacy/windowCapturePolicy';
 import {
   answerScreenCapture,
+  stableBrowserWindows,
+  type BrowserWindowsProbe,
   type CapturedScreenImage,
   type OnScreenWindow,
   type ScreenCaptureAnswer,
@@ -74,29 +76,34 @@ function run() {
   );
 }`;
 
-/** Every window of the browser, each with its active tab; one property per Apple Event. */
+/**
+ * Every window of the browser, each value read through the window's own id, with the
+ * id list read before and after so `stableBrowserWindows` can tell whether the
+ * windows changed underneath the probe.
+ */
+function browserWindowsScript(bundleId: string, activeTab: 'activeTab' | 'currentTab'): string {
+  const mode = bundleId === 'com.google.Chrome' ? 'window.mode() || null' : 'null';
+  return `
+function run() {
+  const windows = Application('${bundleId}').windows;
+  const before = windows.id();
+  const records = before.map((id) => {
+    const window = windows.byId(id);
+    return {
+      id,
+      title: window.name(),
+      bounds: window.bounds(),
+      url: window.${activeTab}.url() || null,
+      mode: ${mode},
+    };
+  });
+  return JSON.stringify({ before, windows: records, after: windows.id() });
+}`;
+}
+
 const BROWSER_WINDOWS_SCRIPTS: Record<'chrome' | 'safari', string> = {
-  chrome: `
-function run() {
-  const windows = Application('com.google.Chrome').windows;
-  const titles = windows.name();
-  const bounds = windows.bounds();
-  const urls = windows.activeTab.url();
-  const modes = windows.mode();
-  return JSON.stringify(titles.map((title, index) => ({
-    title, bounds: bounds[index], url: urls[index] || null, mode: modes[index] || null,
-  })));
-}`,
-  safari: `
-function run() {
-  const windows = Application('com.apple.Safari').windows;
-  const titles = windows.name();
-  const bounds = windows.bounds();
-  const urls = windows.currentTab.url();
-  return JSON.stringify(titles.map((title, index) => ({
-    title, bounds: bounds[index], url: urls[index] || null, mode: null,
-  })));
-}`,
+  chrome: browserWindowsScript('com.google.Chrome', 'activeTab'),
+  safari: browserWindowsScript('com.apple.Safari', 'currentTab'),
 };
 
 async function runJxa(script: string): Promise<string> {
@@ -121,7 +128,7 @@ async function readBrowserWindows(
     // is unknown, and the capture is refused as one whose URL cannot be read.
     return null;
   }
-  return JSON.parse(stdout) as BrowserWindowObservation[];
+  return stableBrowserWindows(JSON.parse(stdout) as BrowserWindowsProbe);
 }
 
 /**

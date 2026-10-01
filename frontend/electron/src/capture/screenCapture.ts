@@ -58,6 +58,16 @@ export type OnScreenWindow = {
   bounds: WindowBounds;
 };
 
+/** Chrome names its windows with text ids, Safari with numbers. */
+type BrowserWindowId = string | number;
+
+/** What the browser probe reports: its window ids before and after, and each window. */
+export type BrowserWindowsProbe = {
+  before: BrowserWindowId[];
+  windows: Array<BrowserWindowObservation & { id: BrowserWindowId }>;
+  after: BrowserWindowId[];
+};
+
 export type CapturedScreenImage = {
   png: Buffer;
   widthPx: number;
@@ -101,6 +111,12 @@ export type ScreenCaptureDeps = {
  */
 const MIN_TARGET_WINDOW_POINTS = 50;
 
+const EDITING_REFUSAL: CaptureRefusal = {
+  status: 'refused',
+  code: 'CAPTURE_REFUSED_BY_PRIVACY_FILTER',
+  axis: 'editing',
+};
+
 /** CoreGraphics and Apple Events report the same frame up to rounding. */
 const FRAME_MATCH_TOLERANCE_POINTS = 1;
 
@@ -111,9 +127,7 @@ export async function answerScreenCapture(
   if (deps.readScreenRecordingStatus() !== 'granted') {
     return { status: 'refused', code: 'SCREEN_RECORDING_PERMISSION_REQUIRED' };
   }
-  if (deps.isCaptureEditing()) {
-    return { status: 'refused', code: 'CAPTURE_REFUSED_BY_PRIVACY_FILTER', axis: 'editing' };
-  }
+  if (deps.isCaptureEditing()) return EDITING_REFUSAL;
   const settings = deps.getCaptureSettings();
   const windows = await deps.listWindows();
   const target = frontWindowOf(windows, appName);
@@ -122,14 +136,39 @@ export async function answerScreenCapture(
   const before = await judgeWindow(deps, settings, target);
   if (before !== null) return before;
   const captured = await deps.captureWindow(target);
-  const after = (await deps.listWindows()).find(
+
+  // The image exists only in memory until the rules as they stand now pass again; a
+  // refusal here discards it. The user may have changed the filter, or started to,
+  // while the window was being captured.
+  if (deps.isCaptureEditing()) return EDITING_REFUSAL;
+  const currentSettings = deps.getCaptureSettings();
+  const currentWindows = await deps.listWindows();
+  const after = currentWindows.find(
     (window) => window.windowId === target.windowId && isTargetable(window)
   );
-  if (captured === null || after === undefined) return targetNotFound(settings, windows);
-  // The image exists only in memory until this passes; a refusal here discards it.
-  const recheck = await judgeWindow(deps, settings, after);
+  if (captured === null || after === undefined) {
+    return targetNotFound(currentSettings, currentWindows);
+  }
+  const recheck = await judgeWindow(deps, currentSettings, after);
   if (recheck !== null) return recheck;
   return storeCapture(deps, { captured, appName: target.appName });
+}
+
+/**
+ * The browser windows a probe read, or null unless every value is tied to one window.
+ *
+ * A browser's windows can open, close and reorder while it is being asked, so each
+ * value is read by the window's own id, and the id list read before and after has to
+ * be the same: otherwise a title and frame could be paired with another window's URL.
+ */
+export function stableBrowserWindows(
+  probe: BrowserWindowsProbe
+): BrowserWindowObservation[] | null {
+  const ids = probe.windows.map((window) => window.id);
+  const same = (left: BrowserWindowId[], right: BrowserWindowId[]) =>
+    left.length === right.length && left.every((id, index) => id === right[index]);
+  if (!same(probe.before, probe.after) || !same(probe.before, ids)) return null;
+  return probe.windows.map(({ title, bounds, url, mode }) => ({ title, bounds, url, mode }));
 }
 
 function frontWindowOf(windows: OnScreenWindow[], appName: string): OnScreenWindow | null {

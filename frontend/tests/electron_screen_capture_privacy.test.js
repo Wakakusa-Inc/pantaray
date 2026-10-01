@@ -5,7 +5,10 @@ const os = require('os');
 const path = require('path');
 const { test } = require('node:test');
 
-const { answerScreenCapture } = require('../electron/dist/capture/screenCapture.js');
+const {
+  answerScreenCapture,
+  stableBrowserWindows,
+} = require('../electron/dist/capture/screenCapture.js');
 const { isAlwaysDeniedCaptureApp } = require('../electron/dist/privacy/alwaysDeniedCaptureApps.js');
 const { isValidImageStoragePath } = require('../electron/dist/protocol/imageStoragePath.js');
 
@@ -400,6 +403,67 @@ test('a page that changes while the window is captured is discarded, not stored'
   assert.equal(answer.code, 'CAPTURE_REFUSED_SENSITIVE_PAGE');
   assert.deepEqual(captures, [21]);
   assert.deepEqual(written, []);
+});
+
+test('a filter changed or opened for editing during the capture discards the image', async () => {
+  const cases = [
+    [
+      'app excluded',
+      (state) => {
+        state.settings = settings({
+          apps: { mode: 'exclude', entries: [{ name: 'Finder', bundleId: 'com.apple.finder' }] },
+        });
+      },
+      { axis: 'app', app_name: 'Finder' },
+    ],
+    [
+      'editing started',
+      (state) => {
+        state.editing = true;
+      },
+      { axis: 'editing' },
+    ],
+  ];
+  for (const [label, change, expected] of cases) {
+    const state = { settings: settings(), editing: false };
+    const { deps, captures, written } = harness({
+      getCaptureSettings: () => state.settings,
+      isCaptureEditing: () => state.editing,
+      captureWindow: async (window) => {
+        captures.push(window.windowId);
+        change(state);
+        return { png: PNG, widthPx: 800, heightPx: 600 };
+      },
+    });
+
+    const answer = await answerScreenCapture(deps, 'Finder');
+
+    assert.deepEqual(
+      answer,
+      { status: 'refused', code: 'CAPTURE_REFUSED_BY_PRIVACY_FILTER', ...expected },
+      label
+    );
+    assert.deepEqual(captures, [11], label);
+    assert.deepEqual(written, [], label);
+  }
+});
+
+test('browser windows are kept only when no window opened, closed or moved during the probe', () => {
+  const record = (id, url) => ({ id, ...page(url) });
+  const windows = [record('7', 'https://a.test/'), record('9', 'https://b.test/')];
+
+  assert.deepEqual(stableBrowserWindows({ before: ['7', '9'], windows, after: ['7', '9'] }), [
+    page('https://a.test/'),
+    page('https://b.test/'),
+  ]);
+  for (const [label, probe] of [
+    ['a window opened', { before: ['7', '9'], windows, after: ['7', '9', '11'] }],
+    ['a window closed', { before: ['7', '9'], windows, after: ['7'] }],
+    ['windows reordered', { before: ['7', '9'], windows, after: ['9', '7'] }],
+    ['records out of step', { before: ['9', '7'], windows, after: ['9', '7'] }],
+  ]) {
+    assert.equal(stableBrowserWindows(probe), null, label);
+  }
 });
 
 test('a window that is gone after the capture, or yields no image, is answered as not found', async () => {
