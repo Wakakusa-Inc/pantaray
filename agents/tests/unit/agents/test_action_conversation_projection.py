@@ -696,15 +696,19 @@ def _updates(prepared: Any) -> list[str]:
     ("second_run", "expected"),
     [
         ({}, []),
-        ({"insight_data": "I-2"}, ["## Memory Update"]),
+        # Memory is read once per Action, so a later run shows no new version.
+        ({"insight_data": "I-2"}, []),
         (
             {"agents_md_instructions": "# AGENTS.md instructions\nA-2"},
             ["## AGENTS.md Update"],
         ),
         ({"workspace_context_prompt": "W-2"}, ["## Workspace Update"]),
         (
-            {"insight_data": "I-2", "workspace_context_prompt": "W-2"},
-            ["## Workspace Update", "## Memory Update"],
+            {
+                "agents_md_instructions": "# AGENTS.md instructions\nA-2",
+                "workspace_context_prompt": "W-2",
+            },
+            ["## Workspace Update", "## AGENTS.md Update"],
         ),
     ],
 )
@@ -729,6 +733,9 @@ def test_a_new_message_appends_to_the_last_request_and_only_what_changed(
     # Sent once: the next turn reads it off the row that carried it.
     assert _updates(after) == []
     for field, value in second_run.items():
+        if not expected:
+            assert first.turn_context is None
+            continue
         assert value in first.turn_context
         # Recorded as the head renders it, which is what a later turn compares.
         assert value in first.world_state[field]
@@ -852,14 +859,14 @@ def test_a_rebuilt_window_sends_the_update_it_dropped() -> None:
     state["context"].update(_RUN_1)
     _think_once(state, think=2, call_id="c2")
     state["history_by_scope"]["S"].append(_user(3))
-    state["context"]["insight_data"] = "I-2"
+    state["context"]["workspace_context_prompt"] = "W-2"
     _, sent = _think_once(state, think=4, call_id="c4")
     _, kept = _think_once(state, think=5, call_id="c5")
     _, rebuilt = _think_once(state, think=6, call_id="c6", omit=5)
 
-    assert _updates(sent) == ["## Memory Update"]
+    assert _updates(sent) == ["## Workspace Update"]
     assert _updates(kept) == []
-    assert _updates(rebuilt) == ["## Memory Update"]
+    assert _updates(rebuilt) == ["## Workspace Update"]
 
 
 def test_a_rebuilt_window_sends_nothing_when_the_head_is_current_again() -> None:
@@ -867,16 +874,16 @@ def test_a_rebuilt_window_sends_nothing_when_the_head_is_current_again() -> None
     state["context"].update(_RUN_1)
     _think_once(state, think=2, call_id="c2")
     state["history_by_scope"]["S"].append(_user(3))
-    state["context"]["insight_data"] = "I-2"
+    state["context"]["workspace_context_prompt"] = "W-2"
     _think_once(state, think=4, call_id="c4")
     state["history_by_scope"]["S"].append(_user(5))
-    state["context"]["insight_data"] = "I-1"
+    state["context"]["workspace_context_prompt"] = "W-1"
     _, back = _think_once(state, think=6, call_id="c6")
     _, rebuilt = _think_once(state, think=7, call_id="c7", omit=6)
 
-    # The update to I-2 is still shown, so returning to I-1 is itself an update;
-    # once the window drops it, the head already shows I-1.
-    assert _updates(back) == ["## Memory Update"]
+    # The update to W-2 is still shown, so returning to W-1 is itself an update;
+    # once the window drops it, the head already shows W-1.
+    assert _updates(back) == ["## Workspace Update"]
     assert _updates(rebuilt) == []
 
 

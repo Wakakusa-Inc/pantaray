@@ -2,10 +2,11 @@
 
 The head is the first item of every Executing request, so rewriting it re-bills
 the whole conversation behind it: the first call after each new message read
-only the fixed prefix from the prompt cache. Every run re-reads the workspace,
-the Pantaray-wide AGENTS.md and memory, and every turn re-reads the linkable
-memory, the memory source coverage and the time, so the head instead shows them
-as they were on the Action's first turn and is never rewritten. A turn that
+only the fixed prefix from the prompt cache. Every run re-reads the workspace
+and the Pantaray-wide AGENTS.md, and every turn re-reads the linkable memory,
+the memory source coverage and the time, so the head instead shows them as they
+were on the Action's first turn and is never rewritten. (Memory itself is read
+once per Action and is not a section here.) A turn that
 reads a different version appends it to its turn context, saying it replaces the
 earlier one, and a turn that reads the same version appends nothing -- the
 world-state pattern Codex uses for its own instructions and environment.
@@ -30,10 +31,6 @@ from pantaray_agents.agents.action_agent.support.conversation_projection import 
 WORLD_STATE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("workspace", ("workspace_path_contract", "workspace_context_prompt")),
     ("agents_md", ("agents_md_instructions",)),
-    (
-        "memory",
-        ("insight_data", "structured_fact_data", "memory_artifact_references"),
-    ),
     ("linkable_persisted_memory", ("linkable_persisted_memory",)),
     ("memory_source_coverage", ("memory_source_coverage",)),
     ("current_time", ("current_time",)),

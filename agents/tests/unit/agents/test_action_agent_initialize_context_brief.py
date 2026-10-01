@@ -109,6 +109,8 @@ async def test_initialize_context_uses_profile_briefs_for_action_prompt(
 
     assert "BRIEF-LT" in ctx["insight_data"]
     assert "FULL-LT" not in ctx["insight_data"]
+    # Recent short-term insights are looked up with tools, not shown up front.
+    assert "short-1" not in ctx["insight_data"]
     assert ctx["structured_fact_data"] == "BRIEF-FACTS"
     assert "FULL-FACTS" not in ctx["structured_fact_data"]
     assert ctx["request_summary"] == "SUM"
@@ -231,6 +233,9 @@ async def test_initialize_context_projects_followup_to_restored_history_once(
     )
     coverage_reader = AsyncMock(wraps=repo.get_memory_source_coverage_snapshot)
     repo.get_memory_source_coverage_snapshot = coverage_reader  # type: ignore[method-assign]
+    memory_reader = AsyncMock(wraps=repo.get_initial_memory_context)
+    repo.get_initial_memory_context = memory_reader  # type: ignore[method-assign]
+    first["context"]["insight_data"] = "insight read when the Action started"
     request = build_action_request(
         action_id="action-1",
         suggestion_id="sug-1",
@@ -264,6 +269,9 @@ async def test_initialize_context_projects_followup_to_restored_history_once(
     assert coverage_reader.await_args.kwargs["suggestion_created_at"] == (
         "2026-03-22T00:30:00Z"
     )
+    # Memory is read once per Action; a follow-up keeps what the head shows.
+    memory_reader.assert_not_awaited()
+    assert updated["context"]["insight_data"] == "insight read when the Action started"
     assert repo.data.get("action_steps", []) == []
 
     replay = await initialize_context(  # type: ignore[arg-type]

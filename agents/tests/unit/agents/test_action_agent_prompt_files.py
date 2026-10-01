@@ -192,17 +192,20 @@ def test_action_prompts_treat_request_summary_as_handoff_note() -> None:
 # - linkable_persisted_memory: memory_context_epoch, extended mid-run.
 # - memory_source_coverage: carries evaluated_at.
 # - current_time: wall clock.
-# - the workspace, ~/.pantaray AGENTS.md and memory: re-read by every run.
+# - the workspace and ~/.pantaray AGENTS.md: re-read by every run.
 _CHANGING_PROMPT_FIELDS = frozenset(
     field for _, fields in WORLD_STATE_SECTIONS for field in fields
 )
-# Fixed for the whole Action.
+# Fixed for the whole Action. Memory is read once, when the Action starts.
 _FIXED_PROMPT_FIELDS = frozenset(
     {
         "workspace_context_rules",
         "request_summary",
         "target_context",
         "memory_context_model",
+        "insight_data",
+        "structured_fact_data",
+        "memory_artifact_references",
     }
 )
 

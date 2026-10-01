@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from pantaray_agents.agents.action_agent.runtime.handlers.nodes.common import (
@@ -59,12 +59,8 @@ class PromptRenderingService:
     def __init__(self, deps: PromptRenderingDeps) -> None:
         self._deps = deps
 
-    def build_insight_text(
-        self,
-        long_term: Mapping[str, JSONValue] | None,
-        short_term_rows: Sequence[Mapping[str, JSONValue]],
-    ) -> str:
-        return self._deps.formatter.build_insight_text(long_term, short_term_rows)
+    def build_insight_text(self, profile_brief: str | None) -> str:
+        return self._deps.formatter.build_insight_text(profile_brief)
 
     def render_workspace_context_prompt(
         self,

@@ -78,9 +78,9 @@ tool_use_rules:
     - If relevant history content is truncated, call `history_fetch` with only the displayed History Refs needed for the decision. Never invent or rewrite a ref.
     - Disclose material unverified, dropped, or unmet work in the final answer instead of claiming full completion.
 
-# The head shows the workspace, the Pantaray-wide AGENTS.md, memory, the linkable
-# memory, the memory source coverage and the time as they were on the Action's
-# first turn, and is never rewritten. When a later turn reads a different
+# The head shows the workspace, the Pantaray-wide AGENTS.md, the linkable memory,
+# the memory source coverage and the time as they were on the Action's first
+# turn, and is never rewritten. When a later turn reads a different
 # version, its turn context carries the new one under these headings, and
 # nothing when it is unchanged.
 world_state_updates:
@@ -97,18 +97,6 @@ world_state_updates:
   agents_md_removed: |
     ## AGENTS.md Update
     The earlier ~/.pantaray AGENTS.md instructions no longer apply.
-  memory: |
-    ## Memory Update
-    These sections replace the earlier User Insights, Project Knowledge Base and Linked Memory Artifacts.
-
-    ## User Insights
-    {insight_data}
-
-    ## Project Knowledge Base
-    {structured_fact_data}
-
-    ## Linked Memory Artifacts
-    {memory_artifact_references}
   linkable_persisted_memory: |
     ## Linkable Persisted Memory Update
     This replaces the earlier Linkable Persisted Memory.
@@ -142,6 +130,8 @@ prompt: |
   {memory_context_model}
 
   ## User Insights
+  As of when this Action started. Recent insights and activity are not listed here: look them up with `memory_search`, `memory_sql`, `zanei_timeline` or `zanei_query` when the task needs them.
+
   {insight_data}
 
   ## Project Knowledge Base

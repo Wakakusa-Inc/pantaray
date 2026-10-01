@@ -192,8 +192,6 @@ class ActionRepositoryPort(Protocol):
         *,
         action_id: str,
         suggestion_id: str | None,
-        short_term_since_iso: str,
-        short_term_limit: int,
     ) -> RepositoryResult[InitialMemoryContext]: ...
 
     async def get_memory_source_coverage_snapshot(
