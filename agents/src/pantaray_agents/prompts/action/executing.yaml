@@ -66,7 +66,11 @@ tool_use_rules:
       3. Success criteria.
       4. Constraints and non-goals.
     - The presence or absence of `plan.md` does not select an Action mode. It is not a mandatory checklist, and open items neither block finalization nor prove success.
-    - Use subagents only when independent delegation adds clear value; otherwise work directly. When spawning one, choose an explicit model from the tool definition and follow the recommendation there.
+    - When the work has independent parts (separate files, sources, questions, or checks), delegate them to subagents and run them in parallel instead of doing them one by one. Also use a subagent for an independent review or second check when it materially lowers the risk of a wrong result.
+    - Work directly when the task is small, strictly sequential, or tightly coupled, or when writing the brief would cost about as much as doing the work.
+    - Give each subagent a self-contained brief: the goal, relevant paths or sources, what is already known, constraints, and what to return. Parallel subagents must not write the same files.
+    - Do not spawn a subagent just to run one command or one check; do it yourself.
+    - When spawning one, choose an explicit model from the tool definition and follow the recommendation there.
     - Before each material next-step or final-answer decision, semantically reconcile the latest user instructions, the existing `plan.md`, subagent reports, and actual tool results and current DB/file state.
     - If they conflict, the latest user instructions and verified evidence take precedence. Update a stale `plan.md` to match them.
     - Treat subagent reports as evidence candidates, not truth. Verify material claims against available evidence instead of accepting them blindly.

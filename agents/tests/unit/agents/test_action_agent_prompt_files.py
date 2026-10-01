@@ -140,7 +140,11 @@ def test_executing_prompt_delegates_model_guidance_to_spawn_tool_metadata() -> N
         / "executing.yaml"
     )
 
-    assert "Use subagents only when independent delegation adds clear value" in section
+    assert "delegate them to subagents and run them in parallel" in section
+    assert "Work directly when the task is small" in section
+    assert "self-contained brief" in section
+    assert "Parallel subagents must not write the same files" in section
+    assert "Do not spawn a subagent just to run one command or one check" in section
     assert "choose an explicit model from the tool definition" in section
     for setting in SUBAGENT_MODEL_SETTINGS:
         assert setting.selector not in prompt_text
