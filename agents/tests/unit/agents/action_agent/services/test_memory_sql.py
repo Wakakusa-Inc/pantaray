@@ -363,8 +363,33 @@ def test_execute_memory_sql_allows_non_conflicting_cte_names(tmp_path: Path) -> 
     ]
 
 
-def test_execute_memory_sql_rejects_private_view_name_spoof(
+@pytest.mark.parametrize(
+    "sql",
+    [
+        (
+            'WITH "{view}" AS (SELECT suggestion_id FROM "main"."agent_suggestions") '
+            'SELECT suggestion_id FROM "{view}" '
+            "UNION ALL SELECT suggestion_id FROM agent_suggestions WHERE 0"
+        ),
+        (
+            "WITH '{view}' AS (SELECT suggestion_id FROM 'main'.'agent_suggestions') "
+            "SELECT suggestion_id FROM '{view}' "
+            "UNION ALL SELECT suggestion_id FROM agent_suggestions WHERE 0"
+        ),
+        (
+            'WITH "{view}" AS (SELECT suggestion_id FROM "main".agent_suggestions) '
+            'SELECT suggestion_id, 1 AS agent_suggestions FROM "{view}"'
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "view",
+    ["__memory_sql_agent_suggestions", "memory_sql_agent_suggestions"],
+)
+def test_execute_memory_sql_rejects_cte_named_like_private_view(
     tmp_path: Path,
+    sql: str,
+    view: str,
 ) -> None:
     db_path = _bootstrap_db(tmp_path)
 
@@ -372,11 +397,7 @@ def test_execute_memory_sql_rejects_private_view_name_spoof(
         db_path=str(db_path),
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id="user-1",
-        sql=(
-            "WITH __memory_sql_agent_suggestions AS ("
-            "SELECT suggestion_id FROM agent_suggestions"
-            ") SELECT suggestion_id FROM __memory_sql_agent_suggestions"
-        ),
+        sql=sql.format(view=view),
         limit=20,
     )
 
@@ -513,6 +534,14 @@ def test_execute_memory_sql_allows_common_search_functions(
         "UPDATE agent_suggestions SET answer = 'bad'",
         "PRAGMA table_info(agent_suggestions)",
         "SELECT user_id FROM users",
+        (
+            'SELECT name FROM "sqlite_temp_master" '
+            "UNION ALL SELECT suggestion_id FROM agent_suggestions"
+        ),
+        (
+            'SELECT name FROM "pragma_table_list" '
+            "UNION ALL SELECT suggestion_id FROM agent_suggestions"
+        ),
         "SELECT format('%1000000s', answer) FROM agent_suggestions",
         "SELECT printf('%1000000s', answer) FROM agent_suggestions",
         "SELECT hex(randomblob(8)) FROM agent_suggestions",

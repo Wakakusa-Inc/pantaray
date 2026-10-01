@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import secrets
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -20,17 +21,6 @@ MAX_MEMORY_SQL_OUTPUT_CHARS = 30_000
 MEMORY_SQL_PROGRESS_HANDLER_OPCODES = 1_000
 MEMORY_SQL_MAX_PROGRESS_CALLBACKS = 20_000
 _SQL_IDENTIFIER_PATTERN = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
-_SQL_SCHEMA_QUALIFIER_PATTERN = re.compile(
-    r"\b(?:main|temp|sqlite_master|sqlite_temp_master)\s*\.",
-    re.IGNORECASE,
-)
-_SQL_CTE_NAME_PATTERN = re.compile(
-    r"(?:\bWITH\b|,)\s*(?:RECURSIVE\s+)?"
-    r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:\([^)]*\)\s*)?\bAS\s*\(",
-    re.IGNORECASE,
-)
-_SQL_FORBIDDEN_SCHEMA_TOKEN = "pragma"
-_PRIVATE_VIEW_PREFIX = "__memory_sql_"
 
 MEMORY_SQL_ALLOWED_TABLES = frozenset(
     {
@@ -208,9 +198,13 @@ def _install_user_scoped_temp_views(
     table_names: frozenset[str],
 ) -> _ScopedViewPlan:
     user_id_literal = _quote_sql_literal(user_id)
+    # The authorizer lets a main table be read only from inside its private view,
+    # identified by the innermost view name SQLite reports. A CTE name is reported
+    # the same way, so the name must be one the query cannot guess.
+    private_view_nonce = secrets.token_hex(16)
     private_view_base_tables: dict[str, frozenset[str]] = {}
     for table_name in sorted(table_names & _MEMORY_SQL_USER_SCOPED_TABLES):
-        private_view_name = _private_view_name(table_name)
+        private_view_name = f"memory_sql_{private_view_nonce}_{table_name}"
         private_view_base_tables[private_view_name] = frozenset({table_name})
         conn.execute(
             f"""
@@ -247,10 +241,6 @@ def _install_public_scoped_view(
     )
 
 
-def _private_view_name(table_name: str) -> str:
-    return f"{_PRIVATE_VIEW_PREFIX}{table_name}"
-
-
 def _quote_identifier(identifier: str) -> str:
     escaped = identifier.replace('"', '""')
     return f'"{escaped}"'
@@ -278,18 +268,6 @@ def _validate_sql(sql: str) -> _ValidatedSql | str:
     first_token = first_token_match.group(0).casefold()
     if first_token not in {"select", "with"}:
         return "memory_sql: only SELECT or WITH ... SELECT is allowed."
-    if _SQL_SCHEMA_QUALIFIER_PATTERN.search(masked_sql):
-        return "memory_sql: schema-qualified table names are not allowed."
-    identifiers = _extract_sql_identifiers(masked_sql)
-    if _SQL_FORBIDDEN_SCHEMA_TOKEN in identifiers or any(
-        identifier.startswith("sqlite_") for identifier in identifiers
-    ):
-        return "memory_sql: sqlite internal schema access is not allowed."
-    if any(identifier.startswith(_PRIVATE_VIEW_PREFIX) for identifier in identifiers):
-        return "memory_sql: internal memory_sql view names are not allowed."
-    cte_names = _extract_cte_names(masked_sql)
-    if cte_names & MEMORY_SQL_ALLOWED_TABLES:
-        return "memory_sql: CTE names must not shadow memory tables."
     referenced_tables = _extract_referenced_memory_tables(masked_sql)
     if not referenced_tables:
         return "memory_sql: query must reference at least one allowed memory table."
@@ -371,12 +349,6 @@ def _mask_block_comment(*, sql: str, characters: list[str], index: int) -> int:
 def _extract_sql_identifiers(sql: str) -> frozenset[str]:
     return frozenset(
         match.group(0).casefold() for match in _SQL_IDENTIFIER_PATTERN.finditer(sql)
-    )
-
-
-def _extract_cte_names(sql: str) -> frozenset[str]:
-    return frozenset(
-        match.group(1).casefold() for match in _SQL_CTE_NAME_PATTERN.finditer(sql)
     )
 
 
