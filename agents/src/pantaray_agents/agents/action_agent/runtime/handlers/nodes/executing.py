@@ -16,7 +16,8 @@ from pantaray_agents.agents.action_agent.runtime.handlers.nodes.assistant_messag
     prepare_llm_turn_commit,
 )
 from pantaray_agents.agents.action_agent.runtime.handlers.tool_runtime import (
-    ExclusionReason,
+    EXCLUSION_NOTICES,
+    PROVIDER_DROPPED_NOTICE,
     ToolBatchPlan,
     plan_tool_batch,
 )
@@ -143,14 +144,6 @@ def _accept_native_calls(
     return tuple(accepted), None
 
 
-_EXCLUSION_NOTICES: dict[ExclusionReason, str] = {
-    "solo_turn_tool": "must be the only call of its turn",
-    "after_solo_turn_tool": "was queued behind a call that must run alone",
-    "max_parallel_exceeded": "exceeded the parallel tool call limit of this turn",
-    "tool_step_budget_exhausted": "exceeded the remaining tool step budget",
-}
-
-
 def _build_batch_notice(
     plan: ToolBatchPlan[PendingToolCallModel],
     *,
@@ -159,12 +152,11 @@ def _build_batch_notice(
     """このターンで実行しない呼び出しをモデルへ伝える結果行を作る。"""
 
     excluded = [
-        f"{entry.call.tool_id} ({_EXCLUSION_NOTICES[entry.reason]})"
+        f"{entry.call.tool_id} ({EXCLUSION_NOTICES[entry.reason]})"
         for entry in (*plan.deferred, *plan.dropped)
     ]
     excluded.extend(
-        f"{name} (was dropped by the model provider above the requested limit)"
-        for name in provider_dropped_call_names
+        f"{name} ({PROVIDER_DROPPED_NOTICE})" for name in provider_dropped_call_names
     )
     if not excluded:
         return None

@@ -899,7 +899,14 @@ def test_a_subagent_shares_the_supervisor_rules_after_its_role_section() -> None
     assert parent.startswith("## Your Role\nYou are the Action Agent Supervisor.")
     assert child.startswith("## Your Role\nYou are a subagent of an Action.")
     assert parent.endswith(shared) and child.endswith(shared)
-    for rule in ("## Quality of Work", "## Checking Results", "## AGENTS.md"):
+    for rule in (
+        "## Tool Use Rules",
+        "One turn may request several read-only calls at once",
+        "Do not request two changing tools",
+        "## Quality of Work",
+        "## Checking Results",
+        "## AGENTS.md",
+    ):
         assert rule in shared
     assert "submit_subagent_report" in child
     assert "Only when you will change files in a repository" in child

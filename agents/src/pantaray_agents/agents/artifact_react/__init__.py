@@ -10,6 +10,8 @@ from .native_runner import (
     NativeReactCompletion,
     NativeReactRunInput,
     NativeReactRunResult,
+    NativeReactSkippedCall,
+    NativeReactTurnPlan,
     run_native_react,
 )
 from .response_schema import (
@@ -57,6 +59,8 @@ __all__ = [
     "NativeReactCompletion",
     "NativeReactRunInput",
     "NativeReactRunResult",
+    "NativeReactSkippedCall",
+    "NativeReactTurnPlan",
     "PatchCommitResult",
     "RESERVED_ARTIFACT_TOOL_NAMES",
     "ReactAgentBase",

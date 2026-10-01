@@ -35,6 +35,7 @@ from pantaray_agents.agents.action_agent.tools import (
     SEND_MESSAGE_TO_SUBAGENT_TOOL_ID,
     SPAWN_SUBAGENT_TOOL_ID,
     SUBMIT_FINAL_ANSWER_TOOL_ID,
+    SUBMIT_SUBAGENT_REPORT_TOOL_ID,
     THINKING_TOOL,
     UNLINK_MEMORY_TOOL,
     WAIT_SUBAGENTS_TOOL_ID,
@@ -68,6 +69,7 @@ SOLO_TURN_TOOL_IDS: frozenset[str] = frozenset(
     {
         WAIT_SUBAGENTS_TOOL_ID,
         SUBMIT_FINAL_ANSWER_TOOL_ID,
+        SUBMIT_SUBAGENT_REPORT_TOOL_ID,
     }
 )
 """そのターンで唯一の呼び出しでなければならないツール。
@@ -77,6 +79,7 @@ SOLO_TURN_TOOL_IDS: frozenset[str] = frozenset(
   待たせる。
 - ``submit_final_answer``: Action の終端書き込みで status を確定させるため、後続の
   兄弟呼び出しは「確定済み Action への追記」になってしまう。
+- ``submit_subagent_report``: 子の終端。後続の兄弟呼び出しは報告に含まれない。
 """
 
 SERIAL_ONLY_TOOL_IDS: frozenset[str] = frozenset(
@@ -136,6 +139,17 @@ type ExclusionReason = Literal[
     "max_parallel_exceeded",
     "tool_step_budget_exhausted",
 ]
+
+
+EXCLUSION_NOTICES: dict[ExclusionReason, str] = {
+    "solo_turn_tool": "must be the only call of its turn",
+    "after_solo_turn_tool": "was queued behind a call that must run alone",
+    "max_parallel_exceeded": "exceeded the parallel tool call limit of this turn",
+    "tool_step_budget_exhausted": "exceeded the remaining tool step budget",
+}
+"""モデルへ伝える、その呼び出しをこのターンで実行しなかった理由。"""
+
+PROVIDER_DROPPED_NOTICE = "was dropped by the model provider above the requested limit"
 
 
 class ToolCallLike(Protocol):
@@ -244,7 +258,9 @@ def _batch_mode[CallT: ToolCallLike](calls: tuple[CallT, ...]) -> BatchMode:
 
 
 __all__ = [
+    "EXCLUSION_NOTICES",
     "MEMORY_EPOCH_WRITER_TOOL_IDS",
+    "PROVIDER_DROPPED_NOTICE",
     "PARALLEL_SAFE_TOOL_IDS",
     "SERIAL_ONLY_TOOL_IDS",
     "SOLO_TURN_TOOL_IDS",

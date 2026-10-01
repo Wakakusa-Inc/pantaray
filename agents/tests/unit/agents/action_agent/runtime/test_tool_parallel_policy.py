@@ -37,7 +37,10 @@ from pantaray_agents.agents.action_agent.runtime.handlers.tool_runtime.plan_docu
     run_action_plan_tool,
 )
 from pantaray_agents.agents.action_agent.runtime.models.tool_call import ToolCallModel
-from pantaray_agents.agents.action_agent.tools import SUPERVISOR_SINGLE_REACT_TOOL_IDS
+from pantaray_agents.agents.action_agent.tools import (
+    SUBMIT_SUBAGENT_REPORT_TOOL_ID,
+    SUPERVISOR_SINGLE_REACT_TOOL_IDS,
+)
 
 # run_validated_tool_impl / run_tool の dispatch を写した、allowlist ツールの実装関数。
 # 新しい allowlist ツールを増やすときはここにも実装関数を登録する。
@@ -101,10 +104,11 @@ def _state_write_keys(handler: Callable[..., object]) -> set[str]:
 
 
 def test_every_supervisor_tool_id_has_exactly_one_classification() -> None:
-    supervisor_tool_ids = set(SUPERVISOR_SINGLE_REACT_TOOL_IDS)
+    # A subagent's tools are the Supervisor's, plus its own terminal report.
+    tool_ids = {*SUPERVISOR_SINGLE_REACT_TOOL_IDS, SUBMIT_SUBAGENT_REPORT_TOOL_ID}
     classified = PARALLEL_SAFE_TOOL_IDS | SOLO_TURN_TOOL_IDS | SERIAL_ONLY_TOOL_IDS
 
-    assert classified == supervisor_tool_ids
+    assert classified == tool_ids
     assert not PARALLEL_SAFE_TOOL_IDS & SOLO_TURN_TOOL_IDS
     assert not PARALLEL_SAFE_TOOL_IDS & SERIAL_ONLY_TOOL_IDS
     assert not SOLO_TURN_TOOL_IDS & SERIAL_ONLY_TOOL_IDS

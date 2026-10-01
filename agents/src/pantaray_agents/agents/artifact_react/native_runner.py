@@ -16,16 +16,21 @@ from pantaray_llm.contracts.tool_use import (
 )
 from pantaray_llm.errors import LlmProxyExecutionError
 
-from .runner import record_fatal_tool_error
+from .native_tool_calls import (
+    NativeReactSkippedCall,
+    NativeReactTurnPlan,
+    execute_planned_turn,
+    project_tool_result,
+    react_tool_call,
+    run_tool,
+    tool_step,
+)
 from .tooling import ReactToolDefinition, ReactToolRegistry
 from .types import (
     ReactLoopPolicy,
     ReactLoopResult,
     ReactLoopStep,
-    ReactStepStatus,
-    ReactToolCall,
     ReactToolResult,
-    ToolCallEnvelope,
 )
 
 type NativeReactLlmCaller = Callable[
@@ -74,6 +79,10 @@ type NativeReactCompletionHandler[T] = Callable[
 ]
 
 
+# The int is how many tool calls the run may still make.
+type NativeReactTurnPlanner = Callable[[LlmToolCallTurn, int], NativeReactTurnPlan]
+
+
 @dataclass(frozen=True, slots=True)
 class NativeReactRunInput[T]:
     run_id: str
@@ -87,6 +96,9 @@ class NativeReactRunInput[T]:
     policy: ReactLoopPolicy
     consume_llm_thoughts: NativeReactThoughtConsumer | None = None
     final_turn_prompt: str | None = None
+    # None runs only a turn's first call. A planner lets a turn run several;
+    # its caller sends no continuation, which carries one result per turn.
+    plan_turn: NativeReactTurnPlanner | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
@@ -324,11 +336,24 @@ async def run_native_react[T](
                 steps=steps,
                 last_error="react loop returned a non-terminal tool after the tool budget",
             )
-        tool_calls += 1
-        continuation, pending_result = await _execute_tool(
+        if run_input.plan_turn is None:
+            tool_calls += 1
+            continuation, pending_result = await _execute_tool(
+                run_input=run_input,
+                registry=registry,
+                turn=turn,
+                steps=steps,
+                tool_results=tool_results,
+            )
+            continue
+        if turn.continuation is not None:
+            raise RuntimeError("A planned turn cannot carry a provider continuation")
+        plan = run_input.plan_turn(turn, run_input.policy.max_tool_calls - tool_calls)
+        tool_calls += len(plan.calls)
+        await execute_planned_turn(
             run_input=run_input,
             registry=registry,
-            turn=turn,
+            plan=plan,
             steps=steps,
             tool_results=tool_results,
         )
@@ -351,10 +376,10 @@ async def _record_rejected_completion[T](
     if tool_calls >= run_input.policy.max_tool_calls:
         return None
     tool_calls += 1
-    call = _react_tool_call(turn)
+    call = react_tool_call(turn.call.name, turn.call.arguments)
     tool_step_number = len(steps) + 1
     await run_input.record_step(
-        _tool_step(
+        tool_step(
             run_input=run_input,
             call=call,
             step_number=tool_step_number,
@@ -371,7 +396,7 @@ async def _record_rejected_completion[T](
         },
         error_message=error_message,
     )
-    final_step = _tool_step(
+    final_step = tool_step(
         run_input=run_input,
         call=call,
         step_number=tool_step_number,
@@ -381,7 +406,7 @@ async def _record_rejected_completion[T](
     )
     await run_input.record_step(final_step)
     steps.append(final_step)
-    projected_result = await _project_tool_result(
+    projected_result = await project_tool_result(
         run_input=run_input,
         result=raw_result,
     )
@@ -406,99 +431,18 @@ async def _execute_tool[T](
     steps: list[ReactLoopStep],
     tool_results: list[ReactToolResult],
 ) -> tuple[LlmToolContinuation | None, LlmToolResult]:
-    call = _react_tool_call(turn)
-    tool_step_number = len(steps) + 1
-    await run_input.record_step(
-        _tool_step(
-            run_input=run_input,
-            call=call,
-            step_number=tool_step_number,
-            status="processing",
-        )
-    )
-    try:
-        raw_result = await registry.execute(call, tool_step_number)
-    except Exception as exc:
-        await record_fatal_tool_error(
-            run_id=run_input.run_id,
-            tool_step_number=tool_step_number,
-            parsed=call,
-            error=exc,
-            record_step=run_input.record_step,
-        )
-        raise
-    final_step = _tool_step(
+    result = await run_tool(
         run_input=run_input,
-        call=call,
-        step_number=tool_step_number,
-        status=raw_result.status,
-        output=raw_result.output,
-        error_message=raw_result.error_message,
+        registry=registry,
+        call=turn.call,
+        steps=steps,
+        tool_results=tool_results,
     )
-    if not raw_result.final_step_recorded:
-        await run_input.record_step(final_step)
-    steps.append(final_step)
-    projected_result = await _project_tool_result(
-        run_input=run_input,
-        result=raw_result,
-    )
-    tool_results.append(projected_result)
     return (
         turn.continuation,
         LlmToolResult(
-            call_id=turn.call.call_id,
-            name=turn.call.name,
-            output=projected_result.output,
+            call_id=turn.call.call_id, name=turn.call.name, output=result.output
         ),
-    )
-
-
-async def _project_tool_result[T](
-    *,
-    run_input: NativeReactRunInput[T],
-    result: ReactToolResult,
-) -> ReactToolResult:
-    projected = await run_input.project_tool_result(result)
-    if projected.tool_name != result.tool_name or projected.status != result.status:
-        raise RuntimeError("Tool result projection must preserve tool name and status")
-    if projected.final_step_recorded != result.final_step_recorded:
-        raise RuntimeError(
-            "Tool result projection must preserve final-step recording ownership"
-        )
-    return projected
-
-
-def _react_tool_call(turn: LlmToolCallTurn) -> ReactToolCall:
-    return ReactToolCall(
-        tool_name=turn.call.name,
-        tool_args=turn.call.arguments,
-        tool_call_envelope=ToolCallEnvelope(
-            tool_id=turn.call.name,
-            reason=None,
-            args=turn.call.arguments,
-        ),
-    )
-
-
-def _tool_step[T](
-    *,
-    run_input: NativeReactRunInput[T],
-    call: ReactToolCall,
-    step_number: int,
-    status: ReactStepStatus,
-    output: JSONValue = None,
-    error_message: str | None = None,
-) -> ReactLoopStep:
-    return ReactLoopStep(
-        run_id=run_input.run_id,
-        step_number=step_number,
-        step_kind="tool",
-        status=status,
-        tool_name=call.tool_name,
-        tool_args=call.tool_args,
-        tool_call_envelope=call.tool_call_envelope.to_json(),
-        tool_output=output,
-        error_message=error_message,
     )
 
 
@@ -522,6 +466,9 @@ __all__ = [
     "NativeReactCompletion",
     "NativeReactRunInput",
     "NativeReactRunResult",
+    "NativeReactSkippedCall",
+    "NativeReactTurnPlan",
+    "NativeReactTurnPlanner",
     "build_native_tool_definitions",
     "run_native_react",
 ]

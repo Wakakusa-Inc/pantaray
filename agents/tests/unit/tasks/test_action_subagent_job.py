@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from collections.abc import Callable
@@ -54,6 +55,9 @@ from pantaray_agents.local_runtime.tooling import (
 from pantaray_agents.local_runtime.tooling.brokering import broker as broker_module
 from pantaray_agents.local_runtime.tooling.brokering.broker_outcome import (
     UnprojectedBrokerToolOutcome,
+)
+from pantaray_agents.local_runtime.tooling.brokering.broker_protocol import (
+    ValidatedCommandRequest,
 )
 from pantaray_agents.local_runtime.tooling.models import (
     ApprovalPreferenceUpsertInput,
@@ -124,7 +128,7 @@ class _Models:
             )
         )
         return SimpleNamespace(
-            tool_calls=(tool_call,),
+            tool_calls=tool_call if isinstance(tool_call, tuple) else (tool_call,),
             dropped_tool_call_names=(),
             tool_continuation=None,
             usage_metadata=None,
@@ -140,7 +144,8 @@ class _Client:
         failures: int = 0,
         retryable: bool = True,
         on_call: Callable[[int], None] | None = None,
-        calls: tuple[LlmToolCall, ...] = (),
+        # One response per entry; a tuple is one response with several calls.
+        calls: tuple[LlmToolCall | tuple[LlmToolCall, ...], ...] = (),
     ) -> None:
         self.reports = reports
         self.failures = failures
@@ -1408,3 +1413,123 @@ def test_children_of_one_parent_send_its_context_and_differ_only_in_the_task(
     first_items, second_items = _items(first, 0), _items(second, 0)
     assert "Fix module a" in first_items and "Fix module a" not in second_items
     assert "Fix module b" in second_items
+
+
+def test_read_only_calls_of_one_turn_all_run_and_keep_their_own_results(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """読み取りは 1 ターンでまとめて走り、結果は宣言順にそれぞれの呼び出しへ対応する。"""
+
+    db_path, payload = _running_child(
+        tmp_path, profile_id=SUBAGENT_MODEL_SETTINGS[0].profile_id
+    )
+    workspace = _workspace(db_path)
+    (workspace / "a.txt").write_text("alpha contents", "utf-8")
+    (workspace / "b.txt").write_text("bravo contents", "utf-8")
+    client = _Client(
+        calls=(
+            (
+                LlmToolCall(call_id="p1", name="read", arguments={"path": "a.txt"}),
+                LlmToolCall(call_id="p2", name="read", arguments={"path": "b.txt"}),
+                # The report must run alone, so this turn answers it as not run.
+                _REPORT_CALL,
+            ),
+            _REPORT_CALL,
+        )
+    )
+    monkeypatch.setattr(subagent_job, "build_local_llm_proxy_client", lambda: client)
+    with bind_local_runtime_db_execution_context(
+        db_path=db_path, busy_timeout_ms=1_000
+    ):
+        subagent_job.run_action_subagent_job(payload)
+
+    first = client.tool_uses[0]
+    assert first is not None and first.max_parallel_tool_calls > 1
+    conversation = client.tool_uses[1].conversation
+    assert conversation is not None
+    calls = [
+        call for item in conversation if item.type == "assistant" for call in item.calls
+    ]
+    results = {
+        item.call_id: item
+        for item in conversation
+        if isinstance(item, LlmTurnToolResultItem)
+    }
+    assert [(call.name, call.arguments.get("path")) for call in calls] == [
+        ("read", "a.txt"),
+        ("read", "b.txt"),
+        ("submit_subagent_report", None),
+    ]
+    outputs = [json.dumps(results[call.call_id].output) for call in calls]
+    assert "alpha contents" in outputs[0] and "bravo" not in outputs[0]
+    assert "bravo contents" in outputs[1] and "alpha" not in outputs[1]
+    assert "TOOL_CALL_NOT_RUN" in outputs[2]
+    assert "must be the only call of its turn" in outputs[2]
+    with sqlite3.connect(db_path) as connection:
+        terminal = connection.execute(
+            "SELECT payload_json FROM process_events "
+            "WHERE process_id='child-process' AND event_name='stream_end'"
+        ).fetchone()
+    assert json.loads(terminal[0]) == {"outcome": "success", "report": "Child report"}
+
+
+def test_two_changing_calls_of_one_turn_run_one_after_another_in_order(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """変更系 2 件は親と同じく宣言順に 1 件ずつ走る。"""
+
+    db_path, payload = _running_child(
+        tmp_path,
+        profile_id=SUBAGENT_MODEL_SETTINGS[0].profile_id,
+        claim_workspace=True,
+    )
+    _allow_workspace_commands(db_path)
+    running: list[str] = []
+    started: list[str] = []
+
+    async def command(
+        *, request: ValidatedCommandRequest, **_kwargs: object
+    ) -> UnprojectedBrokerToolOutcome:
+        script = request.argv[-1]
+        assert not running, "a changing call started while another was running"
+        running.append(script)
+        started.append(script)
+        await asyncio.sleep(0.01)
+        running.pop()
+        return UnprojectedBrokerToolOutcome(
+            status="success",
+            output={
+                "status": "success",
+                "exit_code": 0,
+                "stdout": script,
+                "stderr": "",
+            },
+        )
+
+    monkeypatch.setattr(broker_module, "run_command_via_sandbox", command)
+    client = _Client(
+        calls=(
+            (
+                LlmToolCall(
+                    call_id="c1",
+                    name="bash",
+                    arguments={"command": "echo one", "cwd": "."},
+                ),
+                LlmToolCall(
+                    call_id="c2",
+                    name="bash",
+                    arguments={"command": "echo two", "cwd": "."},
+                ),
+            ),
+            _REPORT_CALL,
+        )
+    )
+    monkeypatch.setattr(subagent_job, "build_local_llm_proxy_client", lambda: client)
+    with bind_local_runtime_db_execution_context(
+        db_path=db_path, busy_timeout_ms=1_000
+    ):
+        subagent_job.run_action_subagent_job(payload)
+
+    assert len(started) == 2
+    assert "echo one" in started[0] and "echo two" in started[1]
+    assert _results(client, 1) == [("bash", "completed"), ("bash", "completed")]
