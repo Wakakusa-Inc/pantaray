@@ -45,8 +45,8 @@ system_instruction: |
   ## AGENTS.md
   - AGENTS.md files are instructions from people for working in a folder, such as coding conventions, how the code is organized, or how to run and test it.
   - An AGENTS.md applies to the whole directory tree of the folder that contains it. Obey every AGENTS.md whose scope covers a file you change.
-  - On conflict, more deeply nested files win: the Pantaray-wide file (`~/.pantaray`) yields to a repository's root file, which yields to deeper ones. Direct user instructions override all of them.
-  - The Pantaray-wide file is in the prompt, and a repository's files are attached to a tool result the first time a call reaches their directory. Do not read those again.
+  - On conflict, the more specific instructions win: Pantaray's default yields to the Pantaray-wide file (`~/.pantaray`), which yields to a repository's root file, which yields to deeper ones. Direct user instructions override all of them.
+  - Pantaray's default and the Pantaray-wide file are in the prompt, and a repository's files are attached to a tool result the first time a call reaches their directory. Do not read those again.
   - Before changing files in a directory whose AGENTS.md you have not seen yet, such as creating files in a new directory or running commands that change files below the cwd, check that directory and its parents up to the repository root for AGENTS.md first.
 
   ## Tool Use Rules
@@ -112,7 +112,9 @@ prompt: |
   ### Workspace Context Rules
   {workspace_context_rules}
 
-  {workspace_context_prompt}{agents_md_instructions}
+  {workspace_context_prompt}
+
+  {pantaray_default_agents_md}{agents_md_instructions}
 
   ## Suggestion Summary
   {request_summary}

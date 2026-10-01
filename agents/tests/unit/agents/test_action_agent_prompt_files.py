@@ -196,9 +196,10 @@ _CHANGING_PROMPT_FIELDS = frozenset(
     field for _, fields in WORLD_STATE_SECTIONS for field in fields
 )
 # Fixed for the whole Action. Memory and its source coverage are read once,
-# when the Action starts.
+# when the Action starts; Pantaray's default AGENTS.md ships with the app.
 _FIXED_PROMPT_FIELDS = frozenset(
     {
+        "pantaray_default_agents_md",
         "workspace_context_rules",
         "request_summary",
         "target_context",

@@ -17,6 +17,9 @@ from dataclasses import dataclass
 from string import Formatter
 from typing import TYPE_CHECKING
 
+from pantaray_agents.agents.action_agent.runtime.agents_md import (
+    PANTARAY_DEFAULT_AGENTS_MD,
+)
 from pantaray_agents.agents.action_agent.runtime.state import HistoryEntry
 from pantaray_agents.agents.action_agent.runtime.tool_attachments import (
     collect_state_prompt_file_inputs,
@@ -214,6 +217,7 @@ def build_executing_turn(
         "workspace_path_contract": rendering.render_workspace_path_contract(state),
         "workspace_context_rules": rendering.render_workspace_context_rules(),
         "workspace_context_prompt": rendering.render_workspace_context_prompt(state),
+        "pantaray_default_agents_md": PANTARAY_DEFAULT_AGENTS_MD,
         "agents_md_instructions": _agents_md_section(state),
     }
     sends_conversation = bool(seam)
