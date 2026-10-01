@@ -623,6 +623,32 @@ def test_execute_memory_sql_rejects_values_inflated_past_the_length_limit(
     assert "too big" in inflated.error
 
 
+def test_execute_memory_sql_limits_result_columns(tmp_path: Path) -> None:
+    db_path = _bootstrap_db(tmp_path)
+
+    def run(sql: str):
+        return execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=sql,
+            limit=1,
+        )
+
+    all_tables_joined = run(
+        "SELECT * FROM activity_logs, activity_summaries, agent_actions, "
+        "agent_facts, agent_insights, agent_suggestions, source_records"
+    )
+    too_many_columns = run(f"SELECT {', '.join(['log_id'] * 201)} FROM activity_logs")
+
+    assert all_tables_joined.error is None
+    assert all_tables_joined.data is not None
+    assert len(all_tables_joined.data["columns"]) == 135
+    assert too_many_columns.data is None
+    assert too_many_columns.error is not None
+    assert "too many columns" in too_many_columns.error
+
+
 def test_execute_memory_sql_holds_one_row_at_a_time(tmp_path: Path) -> None:
     db_path = _bootstrap_db(tmp_path)
     with sqlite3.connect(db_path) as connection:

@@ -24,6 +24,10 @@ MEMORY_SQL_MAX_PROGRESS_CALLBACKS = 20_000
 # (nested hex(), replace()) to gigabytes before the cell truncation runs. Real
 # stores stay well below this; a stored value above it fails even length(x).
 MEMORY_SQL_MAX_VALUE_BYTES = 4 * 1024 * 1024
+# SQLite materializes a whole result row, so the worst row is this many columns
+# times MEMORY_SQL_MAX_VALUE_BYTES. The largest legitimate row, SELECT * over all
+# seven allowed tables joined, has 135 columns.
+MEMORY_SQL_MAX_COLUMNS = 200
 _SQL_IDENTIFIER_PATTERN = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 MEMORY_SQL_ALLOWED_TABLES = frozenset(
@@ -188,6 +192,7 @@ def _connect_read_only(*, db_path: str, busy_timeout_ms: int) -> sqlite3.Connect
     uri = f"{Path(db_path).resolve().as_uri()}?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
     conn.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, MEMORY_SQL_MAX_VALUE_BYTES)
+    conn.setlimit(sqlite3.SQLITE_LIMIT_COLUMN, MEMORY_SQL_MAX_COLUMNS)
     conn.execute(f"PRAGMA busy_timeout = {busy_timeout_ms}")
     conn.row_factory = sqlite3.Row
     return conn
