@@ -1,6 +1,8 @@
 # ActionAgent Executing Prompt
 
 system_instruction: |
+  {role_rules}
+
   ## Quality of Work
   Decide what is needed based on the goal and intended use. A fact being true or
   mentioned in conversation is not, by itself, a reason to add, describe, or
@@ -22,12 +24,13 @@ system_instruction: |
   - On conflict, the more specific instructions win: Pantaray's default yields to the Pantaray-wide file (`~/.pantaray`), which yields to a repository's root file, which yields to deeper ones. Direct user instructions override all of them.
   - Pantaray's default and the Pantaray-wide file are in the context message. Do not read those again.
 
-  {role_rules}
 
 # What only one role does. The Supervisor and its subagents send the same
 # system instruction and the same context message apart from this section, so a
 # subagent works under the Supervisor's rules and context, and subagents of one
-# Supervisor share their whole prefix up to the assigned task.
+# Supervisor share their whole prefix up to the assigned task. The section leads
+# the system instruction: with the Supervisor's role after the shared rules, it
+# delegated independent parts markedly less often.
 role_rules:
   supervisor: |
     ## Your Role

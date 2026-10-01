@@ -880,12 +880,12 @@ def test_a_subagent_is_spawned_with_the_head_the_supervisor_froze() -> None:
     assert "W-1" in spawned and "Current time: T0" in spawned
 
 
-def test_a_subagent_shares_the_supervisor_rules_up_to_its_role_section() -> None:
-    """役割の節より前は親子で同じ文字列。親だけの指示は子に届かない。"""
+def test_a_subagent_shares_the_supervisor_rules_after_its_role_section() -> None:
+    """役割の節の後ろは親子で同じ文字列。親だけの指示は子に届かない。"""
 
     config = PromptLoader().load_config("action/executing")
     assert config.system_instruction is not None
-    shared = config.system_instruction.partition(turn_input.ROLE_RULES_PLACEHOLDER)[0]
+    shared = config.system_instruction.partition(turn_input.ROLE_RULES_PLACEHOLDER)[2]
     runtime = SimpleNamespace(
         services=SimpleNamespace(rendering=_RENDERING),
         request=SimpleNamespace(language="ja"),
@@ -895,7 +895,10 @@ def test_a_subagent_shares_the_supervisor_rules_up_to_its_role_section() -> None
     ).system_instruction
     child = subagent_job._subagent_system_instruction()
 
-    assert parent.startswith(shared) and child.startswith(shared)
+    # The role leads, so the Supervisor reads its own role first.
+    assert parent.startswith("## Your Role\nYou are the Action Agent Supervisor.")
+    assert child.startswith("## Your Role\nYou are a subagent of an Action.")
+    assert parent.endswith(shared) and child.endswith(shared)
     for rule in ("## Quality of Work", "## Checking Results", "## AGENTS.md"):
         assert rule in shared
     assert "submit_subagent_report" in child
