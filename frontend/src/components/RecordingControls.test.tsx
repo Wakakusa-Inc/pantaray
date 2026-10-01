@@ -3,19 +3,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
 import { UiLanguageProvider } from '@/context/UiLanguageContext';
-import { HistoryCaptureControls } from './HistoryCaptureControls';
+import { useScreenshotCaptureStatus } from '@/pages/settings/useScreenshotCaptureStatus';
+import { RecordingControls } from './RecordingControls';
+
+function Controls() {
+  return <RecordingControls capture={useScreenshotCaptureStatus()} onOpenSettings={() => {}} />;
+}
 
 function renderControl(language: 'ja' | 'en') {
   return render(
     <UiLanguageProvider initialLanguage={language}>
       <MemoryRouter>
-        <HistoryCaptureControls />
+        <Controls />
       </MemoryRouter>
     </UiLanguageProvider>
   );
 }
 
-describe('HistoryCaptureControls', () => {
+describe('RecordingControls', () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -23,7 +28,7 @@ describe('HistoryCaptureControls', () => {
     delete window.electron;
   });
 
-  it('turns recording on from the history panel without any filter prerequisite', async () => {
+  it('turns recording on without any filter prerequisite', async () => {
     localStorage.setItem('pantaray_ui_language', 'ja');
     const start = vi.fn(async () => 'started');
     window.electron = {

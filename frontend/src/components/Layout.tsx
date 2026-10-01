@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UserRound } from 'lucide-react';
+import { Clock, Folder, Settings, UserRound } from 'lucide-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useI18n } from '@/context/useI18n';
 import { RecordingIntroDialog } from './RecordingIntroDialog';
+import { RecordingRailControl } from './RecordingRailControl';
 import { AiConnectionNotice } from './AiConnectionNotice';
 import { LocalOwnerBoundary } from './LocalOwnerBoundary';
 import { UpdateReadyNotice } from './UpdateReadyNotice';
@@ -11,8 +12,7 @@ import { PANTARAY_ACCOUNT_LOGIN_ENABLED } from '../../electron/src/auth/accountL
 import './Layout.css';
 
 /**
- * アプリ全体で共通利用するレイアウト。
- * シンプルなヘッダーナビゲーションと中央寄せのコンテンツ領域で構成する。
+ * The main window's shell: an icon rail on the left on every page, and the page beside it.
  */
 const Layout: React.FC = () => {
   const { user, signOut, authStatus } = useAuth();
@@ -67,49 +67,42 @@ const Layout: React.FC = () => {
     return email[0].toUpperCase();
   };
 
-  const isHistoryActive = location.pathname === '/history';
-  const isWorkspaceActive = location.pathname === '/workspace';
-  const isSettingsActive = location.pathname === '/settings';
+  const navItems = [
+    { path: '/history', label: t('nav.history'), Icon: Clock },
+    { path: '/workspace', label: t('settings.workspace.title'), Icon: Folder },
+    { path: '/settings', label: t('nav.settings'), Icon: Settings },
+  ];
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <div className="app-header-inner">
-          <div className="app-header-spacer" />
-          <nav className="app-header-nav">
+      {/* The window has no title bar; this strip above the content is what drags it. */}
+      <div className="app-titlebar" aria-hidden="true" />
+      <nav className="app-rail">
+        {navItems.map(({ path, label, Icon }) => {
+          const isActive = location.pathname === path;
+          return (
             <button
+              key={path}
               type="button"
-              onClick={() => navigate('/history')}
-              className={['app-nav-link', isHistoryActive ? 'app-nav-link--active' : null]
+              onClick={() => navigate(path)}
+              className={['app-rail-item', isActive ? 'app-rail-item--active' : null]
                 .filter(Boolean)
                 .join(' ')}
-              aria-current={isHistoryActive ? 'page' : undefined}
+              aria-label={label}
+              title={label}
+              aria-current={isActive ? 'page' : undefined}
             >
-              {t('nav.history')}
+              <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
             </button>
-            <button
-              type="button"
-              onClick={() => navigate('/workspace')}
-              className={['app-nav-link', isWorkspaceActive ? 'app-nav-link--active' : null]
-                .filter(Boolean)
-                .join(' ')}
-              aria-current={isWorkspaceActive ? 'page' : undefined}
-            >
-              {t('settings.workspace.title')}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/settings')}
-              className={['app-nav-link', isSettingsActive ? 'app-nav-link--active' : null]
-                .filter(Boolean)
-                .join(' ')}
-              aria-current={isSettingsActive ? 'page' : undefined}
-            >
-              {t('nav.settings')}
-            </button>
-          </nav>
+          );
+        })}
+        <div className="app-rail-bottom">
+          {/* Recording belongs to the local owner; without one there is nothing to show. */}
+          <LocalOwnerBoundary fallback={null}>
+            <RecordingRailControl />
+          </LocalOwnerBoundary>
           {PANTARAY_ACCOUNT_LOGIN_ENABLED && (
-            <div className="app-header-user" ref={dropdownRef}>
+            <div className="app-rail-user" ref={dropdownRef}>
               <button
                 type="button"
                 ref={menuButtonRef}
@@ -148,7 +141,7 @@ const Layout: React.FC = () => {
             </div>
           )}
         </div>
-      </header>
+      </nav>
 
       {/* Recording belongs to the local owner; without one there is nothing to ask for. */}
       <LocalOwnerBoundary fallback={null}>
@@ -160,9 +153,8 @@ const Layout: React.FC = () => {
           <AiConnectionNotice />
           <Outlet />
         </div>
+        <UpdateReadyNotice />
       </main>
-
-      <UpdateReadyNotice />
     </div>
   );
 };

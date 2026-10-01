@@ -17,9 +17,6 @@ const mocks = vi.hoisted(() => ({
   setSearchText: vi.fn(),
   unreadActionId: 'A1' as string | null,
 }));
-vi.mock('@/components/history/HistoryCaptureControls', () => ({
-  HistoryCaptureControls: () => null,
-}));
 vi.mock('@/context/useI18n', async () => {
   const { formatDateTime } = await import('@/i18n/translate');
   return {
