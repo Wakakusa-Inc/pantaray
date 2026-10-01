@@ -28,11 +28,12 @@ _DENIAL_KEYWORDS = (
 
 WRITE_FOLDER_REQUEST_HINT = (
     "This may have been blocked because the command tried to write outside the "
-    "writable folders. First check that the output shows a write or file access "
-    "being refused, not some other failure. If it does, rerun the same call with "
-    "additional_write_folders set to the folder it writes (a CLI usually keeps "
-    "its state in its own folder under the home folder, such as ~/.<name>) and a "
-    "justification."
+    "writable folders. If so, rerun the same call with additional_write_folders "
+    "set to the folder it writes (a CLI usually keeps its state in its own folder "
+    "under the home folder, such as ~/.<name>) and a justification. Do not work "
+    "around the block with another location or means, and never copy credentials "
+    "or sign-in files (for example into the work folder); request the folder "
+    "instead."
 )
 
 
