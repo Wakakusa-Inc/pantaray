@@ -2,7 +2,6 @@ import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useLayoutEffect, useState } from 'react';
 
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
-import { HistoryCaptureControls } from '@/components/history/HistoryCaptureControls';
 import { HistoryDeleteDialog } from '@/components/history/HistoryDeleteDialog';
 import HistorySearchField from '@/components/history/HistorySearchField';
 import { getConversationHistoryStatusMeta } from '@/components/history/statusTokens';
@@ -297,7 +296,6 @@ const SuggestionHistoryPage = () => {
       {confirmingDelete ? (
         <HistoryDeleteDialog t={t} onCancel={cancelDelete} onConfirm={() => void confirmDelete()} />
       ) : null}
-      <HistoryCaptureControls />
     </div>
   );
 };

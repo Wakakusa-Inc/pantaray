@@ -1,3 +1,294 @@
+/* Shell: the rail and the page beside it, over the fog ground that body paints. */
+.app-shell {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Grain keeps the fog from banding. The rail and the page are positioned after it in tree
+   order, so it paints under them and never tints text; neither opens a stacking context, so
+   the rail's popovers stack above the page. */
+.app-shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.8  0 0 0 0 0.85  0 0 0 0 0.95  0 0 0 0.05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* The traffic lights sit in this row; nothing interactive may enter it. */
+.app-titlebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  z-index: 2;
+  -webkit-app-region: drag;
+}
+
+.app-rail {
+  position: relative;
+  width: 64px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 58px 0 16px;
+}
+
+.app-rail-item {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 11px;
+  padding: 0;
+  background: transparent;
+  color: #7d889c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.app-rail-item:hover {
+  background: var(--fog-mist);
+  color: var(--fog-text);
+}
+
+.app-rail-item--active,
+.app-rail-item--active:hover {
+  background: var(--fog-mist-strong);
+  color: #eef3fb;
+}
+
+.app-rail-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.app-rail-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-surface {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 46px 56px 0 48px;
+}
+
+/* Recording: a light in the rail that opens the recording controls. */
+.app-recording {
+  position: relative;
+}
+
+.app-recording-light {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4d576a;
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.app-recording-light--on {
+  background: var(--fog-light);
+  box-shadow: 0 0 6px 2px rgba(241, 245, 252, 0.3);
+}
+
+.app-recording-popover {
+  position: absolute;
+  left: calc(100% + 20px);
+  bottom: -2px;
+  z-index: 20;
+  width: 260px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--fog-popover);
+  box-shadow:
+    0 0 0 1px rgba(214, 226, 248, 0.1),
+    0 18px 40px rgba(0, 0, 0, 0.45);
+  -webkit-app-region: no-drag;
+}
+
+.app-recording-popover:focus {
+  outline: none;
+}
+
+.app-recording-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-recording-copy {
+  min-width: 0;
+}
+
+.app-recording-title {
+  color: var(--fog-text);
+  font-size: 13px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+}
+
+.app-recording-status {
+  margin-top: 4px;
+  color: var(--fog-text-3);
+  font-size: var(--text-meta-size);
+  line-height: 1.4;
+}
+
+.app-recording-settings-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fog-text-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-meta-size);
+}
+
+.app-recording-settings-link:hover {
+  color: var(--fog-text);
+}
+
+.app-recording-settings-link:focus-visible {
+  border-radius: 4px;
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* User menu (only while Pantaray account login is enabled). */
+.app-rail-user {
+  position: relative;
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.app-user-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--surface-bg);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.app-user-button:hover {
+  background: var(--surface-bg-hover);
+  border-color: var(--border-color-hover);
+}
+
+.app-user-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.app-user-dropdown {
+  position: absolute;
+  left: calc(100% + 16px);
+  bottom: 0;
+  min-width: 220px;
+  /* Opaque for legibility over whatever the page shows. */
+  background: var(--fog-popover);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  z-index: 1000;
+  animation: dropdownFadeIn 0.15s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-user-dropdown {
+    animation: none;
+  }
+}
+
+.app-user-dropdown-email {
+  padding: 12px 12px;
+  font-size: var(--text-meta-size);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+  word-break: break-all;
+}
+
+.app-user-dropdown-item {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  -webkit-app-region: no-drag;
+}
+
+.app-user-dropdown-item:hover {
+  background: var(--surface-bg-hover);
+  color: var(--text-primary);
+}
+
 .app-user-dropdown a.app-user-dropdown-item {
   display: block;
   text-decoration: none;
@@ -5,12 +296,6 @@
 
 .app-user-dropdown [role='status'] {
   color: var(--text-secondary);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-header .app-user-dropdown {
-    animation: none;
-  }
 }
 
 .app-connection-notice {
