@@ -669,6 +669,31 @@ def test_execute_memory_sql_limits_result_columns(tmp_path: Path) -> None:
     assert "too many columns" in too_many_columns.error
 
 
+def test_execute_memory_sql_limits_statement_length(tmp_path: Path) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    prefix = "SELECT log_id FROM activity_logs WHERE log_id = 'log-1' -- "
+
+    def run(sql: str):
+        return execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=sql,
+            limit=1,
+        )
+
+    at_limit = run(prefix.ljust(20_000, "x"))
+    over_limit = run(prefix.ljust(20_001, "x"))
+
+    assert at_limit.error is None
+    assert at_limit.data is not None
+    assert at_limit.data["rows"] == [{"log_id": "log-1"}]
+    assert over_limit.data is None
+    assert over_limit.error is not None
+    assert over_limit.error.startswith("memory_sql rejected query:")
+    assert "too large" in over_limit.error
+
+
 def test_execute_memory_sql_holds_one_row_at_a_time(tmp_path: Path) -> None:
     db_path = _bootstrap_db(tmp_path)
     _insert_bulk_activity_logs(db_path, count=250, description="abcd")

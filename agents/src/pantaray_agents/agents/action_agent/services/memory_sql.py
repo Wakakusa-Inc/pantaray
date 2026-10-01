@@ -33,6 +33,10 @@ MEMORY_SQL_MAX_VALUE_BYTES = 4 * 1024 * 1024
 # times MEMORY_SQL_MAX_VALUE_BYTES. The largest legitimate row, SELECT * over all
 # seven allowed tables joined, has 135 columns.
 MEMORY_SQL_MAX_COLUMNS = 200
+# Bytes. The progress handler cannot interrupt a row's expressions between jumps,
+# so this caps how many heavy calls one statement can chain and keeps that overrun
+# finite. Queries the model writes are far shorter.
+MEMORY_SQL_MAX_SQL_BYTES = 20_000
 _SQL_IDENTIFIER_PATTERN = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 MEMORY_SQL_ALLOWED_TABLES = frozenset(
@@ -205,6 +209,7 @@ def _connect_read_only(*, db_path: str, busy_timeout_ms: int) -> sqlite3.Connect
     conn = sqlite3.connect(uri, uri=True)
     conn.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, MEMORY_SQL_MAX_VALUE_BYTES)
     conn.setlimit(sqlite3.SQLITE_LIMIT_COLUMN, MEMORY_SQL_MAX_COLUMNS)
+    conn.setlimit(sqlite3.SQLITE_LIMIT_SQL_LENGTH, MEMORY_SQL_MAX_SQL_BYTES)
     conn.execute(f"PRAGMA busy_timeout = {busy_timeout_ms}")
     conn.row_factory = sqlite3.Row
     return conn
