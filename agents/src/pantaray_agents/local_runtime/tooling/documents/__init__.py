@@ -12,7 +12,7 @@ from docx.exceptions import PythonDocxError
 from docx.opc.exceptions import OpcError
 from lxml.etree import XMLSyntaxError
 from pptx.exc import PythonPptxError
-from pypdf.errors import PdfReadError
+from pypdf.errors import LimitReachedError, PdfReadError
 
 from .document_model import (
     DOCUMENT_FORMAT_BY_EXTENSION,
@@ -69,10 +69,12 @@ _ZIP_PACKAGE_FORMATS: Final[frozenset[DocumentFormat]] = frozenset(
 # already covered here, as is python-pptx refusing a package whose main part is
 # not a presentation. A notebook that is not UTF-8 or not JSON reaches the same
 # ValueError, because both UnicodeDecodeError and JSONDecodeError are one.
-# PdfReadError, not pypdf's PyPdfError base: a missing crypt provider is a
-# broken install that would otherwise be reported as an unreadable document.
+# pypdf reports a file it cannot parse as PdfReadError, and a structure past one
+# of its own size limits -- a decompression bomb, an oversized font width table
+# -- as LimitReachedError.
 _MALFORMED_DOCUMENT: Final = (
     KeyError,
+    LimitReachedError,
     OpcError,
     OSError,
     ParseError,
@@ -122,6 +124,15 @@ def extract_document(
     except _MALFORMED_DOCUMENT as exc:
         raise DocumentExtractionError(
             f"not a readable {document_format} file: {exc}"
+        ) from exc
+    except MemoryError as exc:
+        # The libraries size some allocations by counts the file declares, so
+        # an allocation that fails here was sized by the document rather than
+        # by the runtime. Unwinding has already released it, which leaves the
+        # runtime able to carry on and the read to be refused like any other
+        # document past what this tool will expand.
+        raise DocumentTooLargeError(
+            f"{document_format} file asks for more memory than can be allocated"
         ) from exc
 
 
