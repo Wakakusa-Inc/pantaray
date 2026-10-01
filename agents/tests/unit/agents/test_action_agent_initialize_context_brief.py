@@ -266,10 +266,9 @@ async def test_initialize_context_projects_followup_to_restored_history_once(
         "organization_name": "Prior org",
         "project_name": "Prior project",
     }
-    assert coverage_reader.await_args.kwargs["suggestion_created_at"] == (
-        "2026-03-22T00:30:00Z"
-    )
-    # Memory is read once per Action; a follow-up keeps what the head shows.
+    # Memory and its source coverage are read once per Action; a follow-up
+    # keeps what the head shows.
+    coverage_reader.assert_not_awaited()
     memory_reader.assert_not_awaited()
     assert updated["context"]["insight_data"] == "insight read when the Action started"
     assert repo.data.get("action_steps", []) == []

@@ -682,7 +682,6 @@ _UPDATE_HEADINGS = (
     "## AGENTS.md Update",
     "## Memory Update",
     "## Linkable Persisted Memory Update",
-    "## Memory Source Coverage Update",
     "Current time: ",
 )
 
@@ -813,12 +812,14 @@ def test_each_changed_turn_section_is_appended_once() -> None:
         **coverage,
         "evaluated_at": "2026-09-19T01:00:00Z",
     }
+    state["context"]["workspace_context_prompt"] = "W-2"
     _, both = _think_once(state, think=4, call_id="c4", now="T2")
     _, again = _think_once(state, think=5, call_id="c5", now="T2")
 
     assert first.turn_context is None
     assert later.turn_context == TURN_CONTEXT_HEADING + "Current time: T1"
-    assert _updates(both) == ["## Memory Source Coverage Update", "Current time: "]
+    # Memory source coverage is fixed for the Action, like the memory it covers.
+    assert _updates(both) == ["## Workspace Update", "Current time: "]
     assert again.turn_context is None
     for earlier, next_ in ((first, later), (later, both), (both, again)):
         assert next_.conversation[: len(earlier.conversation)] == earlier.conversation

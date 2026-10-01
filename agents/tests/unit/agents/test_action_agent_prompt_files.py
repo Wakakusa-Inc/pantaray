@@ -190,13 +190,13 @@ def test_action_prompts_treat_request_summary_as_handoff_note() -> None:
 # The head is rendered once per Action. These change while it lasts, so they
 # reach the model through world_state_updates instead of a rewritten head:
 # - linkable_persisted_memory: memory_context_epoch, extended mid-run.
-# - memory_source_coverage: carries evaluated_at.
 # - current_time: wall clock.
 # - the workspace and ~/.pantaray AGENTS.md: re-read by every run.
 _CHANGING_PROMPT_FIELDS = frozenset(
     field for _, fields in WORLD_STATE_SECTIONS for field in fields
 )
-# Fixed for the whole Action. Memory is read once, when the Action starts.
+# Fixed for the whole Action. Memory and its source coverage are read once,
+# when the Action starts.
 _FIXED_PROMPT_FIELDS = frozenset(
     {
         "workspace_context_rules",
@@ -206,6 +206,7 @@ _FIXED_PROMPT_FIELDS = frozenset(
         "insight_data",
         "structured_fact_data",
         "memory_artifact_references",
+        "memory_source_coverage",
     }
 )
 

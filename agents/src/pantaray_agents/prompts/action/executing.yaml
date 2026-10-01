@@ -78,9 +78,8 @@ tool_use_rules:
     - If relevant history content is truncated, call `history_fetch` with only the displayed History Refs needed for the decision. Never invent or rewrite a ref.
     - Disclose material unverified, dropped, or unmet work in the final answer instead of claiming full completion.
 
-# The head shows the workspace, the Pantaray-wide AGENTS.md, the linkable memory,
-# the memory source coverage and the time as they were on the Action's first
-# turn, and is never rewritten. When a later turn reads a different
+# The head shows the workspace, the Pantaray-wide AGENTS.md, the linkable memory
+# and the time as they were on the Action's first turn, and is never rewritten. When a later turn reads a different
 # version, its turn context carries the new one under these headings, and
 # nothing when it is unchanged.
 world_state_updates:
@@ -102,11 +101,6 @@ world_state_updates:
     This replaces the earlier Linkable Persisted Memory.
 
     {linkable_persisted_memory}
-  memory_source_coverage: |
-    ## Memory Source Coverage Update
-    This replaces the earlier Memory Source Coverage.
-
-    {memory_source_coverage}
   current_time: |
     Current time: {current_time}
 

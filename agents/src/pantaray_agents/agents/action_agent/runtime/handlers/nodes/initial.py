@@ -40,6 +40,7 @@ from pantaray_agents.agents.action_agent.support.repository_result import (
 )
 from pantaray_agents.agents.workspace_context import render_workspace_context_prompt
 from pantaray_agents.tasks.action_user_message import render_action_user_request_text
+from pantaray_agents.utils.memory_source_policy import MemorySourceCoverageSnapshot
 
 from .assistant_message import project_persisted_assistant_messages
 from .workspace_mount_catalog import load_required_local_workspace_manifest_catalog
@@ -78,29 +79,6 @@ async def initialize_context(
     )
     suggestion_approval = context_user_message.suggestion_approval
     is_continuation = any(state.get("history_by_scope", {}).values())
-    raw_parallel = require_positive_state_config_int(
-        runtime.state_config,
-        key="max_parallel_memory_queries",
-        error_message=(
-            "initialize_context: state_config.max_parallel_memory_queries "
-            "must be a positive int"
-        ),
-    )
-
-    context_anchor = (
-        suggestion_approval.approved_at
-        if suggestion_approval is not None
-        else context_user_step_created_at
-    )
-    coverage_result = await agent.repository.get_memory_source_coverage_snapshot(
-        user_id=str(request.user_id),
-        suggestion_created_at=context_anchor,
-        max_parallel_queries=raw_parallel,
-    )
-    memory_source_coverage = ensure_repository_result(
-        coverage_result,
-        "Failed to fetch memory source coverage snapshot.",
-    )
 
     request_summary = (
         _normalize_optional_text(suggestion_approval.summary)
@@ -125,7 +103,6 @@ async def initialize_context(
         {
             "request_summary": request_summary,
             "target_context": target_context,
-            "memory_source_coverage": memory_source_coverage,
             "prompt_name": runtime.state_config["prompt_name"],
             "prompt_version": runtime.state_config["prompt_version"],
         }
@@ -133,7 +110,18 @@ async def initialize_context(
     if not is_continuation:
         # Read once per Action: the head shows this memory for the whole Action
         # and the model looks up anything newer with its memory tools.
-        context.update(await _load_action_memory(agent, state, runtime))
+        context.update(
+            await _load_action_memory(
+                agent,
+                state,
+                runtime,
+                coverage_anchor=(
+                    suggestion_approval.approved_at
+                    if suggestion_approval is not None
+                    else context_user_step_created_at
+                ),
+            )
+        )
     context["additional_notes"] = []
     context["local_step_counters"] = (
         previous_local_step_counters if is_continuation else {}
@@ -200,16 +188,34 @@ async def initialize_context(
 class _ActionMemoryContext(TypedDict):
     insight_data: str
     structured_fact_data: str
+    memory_source_coverage: MemorySourceCoverageSnapshot
 
 
 async def _load_action_memory(
     agent: ActionAgent,
     state: ActionAgentState,
     runtime: ActionGraphRuntime,
+    *,
+    coverage_anchor: str,
 ) -> _ActionMemoryContext:
     """Read the memory the Action starts from into the state and its context."""
 
     request = runtime.request
+    memory_source_coverage = ensure_repository_result(
+        await agent.repository.get_memory_source_coverage_snapshot(
+            user_id=str(request.user_id),
+            suggestion_created_at=coverage_anchor,
+            max_parallel_queries=require_positive_state_config_int(
+                runtime.state_config,
+                key="max_parallel_memory_queries",
+                error_message=(
+                    "initialize_context: state_config.max_parallel_memory_queries "
+                    "must be a positive int"
+                ),
+            ),
+        ),
+        "Failed to fetch memory source coverage snapshot.",
+    )
     initial_memory = ensure_repository_result(
         await agent.repository.get_initial_memory_context(
             request.user_id,
@@ -253,6 +259,7 @@ async def _load_action_memory(
             if initial_memory.facts is not None
             else ""
         ),
+        "memory_source_coverage": memory_source_coverage,
     }
 
 
