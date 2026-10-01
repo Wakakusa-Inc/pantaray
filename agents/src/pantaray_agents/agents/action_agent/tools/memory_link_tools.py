@@ -93,7 +93,7 @@ LINK_MEMORY_TOOL = _tool(
             name="expected_draft_revision",
             schema={"type": "string", "pattern": "^sha256:"},
             required=True,
-            description="draft_revision returned by draft_final_answer or the previous link tool.",
+            description="draft_revision returned by the latest draft_final_answer, link_memory or unlink_memory.",
         ),
     ),
     output_properties={
@@ -114,13 +114,13 @@ UNLINK_MEMORY_TOOL = _tool(
             name="local_ref_id",
             schema={"type": "string", "pattern": "^ref_"},
             required=True,
-            description="The local ref ID visible in the draft.",
+            description="local_ref_id returned by link_memory.",
         ),
         field_spec(
             name="expected_draft_revision",
             schema={"type": "string", "pattern": "^sha256:"},
             required=True,
-            description="Current draft_revision.",
+            description="draft_revision returned by the latest draft_final_answer, link_memory or unlink_memory.",
         ),
     ),
     output_properties={
