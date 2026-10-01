@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -65,7 +66,7 @@ from .broker_common import (
     BrokerPolicyError,
     ensure_session_capabilities,
 )
-from .broker_direct_read import SAMPLE_BYTES, read_leading_bytes
+from .broker_direct_read import SAMPLE_BYTES, open_read_target, read_leading_bytes
 from .broker_direct_read_document import (
     READ_DOCUMENT_TOO_LARGE,
     READ_DOCUMENT_TOO_LARGE_FIX_HINT,
@@ -107,16 +108,23 @@ async def run_render_pdf_page_executor(
 ) -> UnprojectedBrokerToolOutcome:
     ensure_session_capabilities(context=context)
     target = resolve_read_target(context=context, raw_path=request.path)
-    renderable = _renderable_format(target)
-    if renderable == "pdf":
-        pdf_path = target.real_path
-    else:
-        office_pdf = await _office_pdf(
-            context=context, target=target, office_format=renderable
-        )
-        if office_pdf is None:
-            return _preparing(target)
-        pdf_path = office_pdf
+    descriptor = open_read_target(target)
+    try:
+        renderable = _renderable_format(target, descriptor)
+        if renderable == "pdf":
+            pdf_path = target.real_path
+        else:
+            office_pdf = await _office_pdf(
+                context=context,
+                target=target,
+                descriptor=descriptor,
+                office_format=renderable,
+            )
+            if office_pdf is None:
+                return _preparing(target)
+            pdf_path = office_pdf
+    finally:
+        os.close(descriptor)
     drawn = await _draw(target=target, pdf_path=pdf_path, pages=request.pages)
     stored = [
         _store(user_id=context.execution_session.user_id, page=page)
@@ -172,16 +180,18 @@ async def run_render_pdf_page_executor(
     )
 
 
-def _renderable_format(target: ReadTarget) -> Literal["pdf"] | OfficeFormat:
+def _renderable_format(
+    target: ReadTarget, descriptor: int
+) -> Literal["pdf"] | OfficeFormat:
     """Name the format to draw, refusing anything that cannot be, before any work.
 
     The same recognition the read tool uses, so a PDF saved without an
     extension is still drawn and a notebook never reaches a converter.
     """
 
-    if target.real_path.is_dir():
+    if stat.S_ISDIR(os.fstat(descriptor).st_mode):
         raise _unsupported_format(target)
-    sample = read_leading_bytes(target, limit=SAMPLE_BYTES)
+    sample = read_leading_bytes(descriptor, target=target, limit=SAMPLE_BYTES)
     match document_format(filepath=target.real_path, sample=sample):
         case "pdf":
             return "pdf"
@@ -263,6 +273,7 @@ async def _office_pdf(
     *,
     context: BrokerContext,
     target: ReadTarget,
+    descriptor: int,
     office_format: OfficeFormat,
 ) -> Path | None:
     """The PDF of one Office file, converted on the first call and kept after.
@@ -283,7 +294,9 @@ async def _office_pdf(
         / RENDERED_DOCUMENTS_DIRNAME
     )
     rendered_documents.mkdir(mode=MANAGED_DIRECTORY_MODE, exist_ok=True)
-    payload = read_leading_bytes(target, limit=MAX_DOCUMENT_BYTES + 1)
+    payload = read_leading_bytes(
+        descriptor, target=target, limit=MAX_DOCUMENT_BYTES + 1
+    )
     if len(payload) > MAX_DOCUMENT_BYTES:
         raise _too_large(target, f"larger than {MAX_DOCUMENT_BYTES} bytes")
     cached = rendered_documents / f"{hashlib.sha256(payload).hexdigest()}.pdf"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import errno
+import os
 import stat
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,9 +13,17 @@ from pantaray_agents.local_runtime.tooling.brokering.broker_common import (
     BrokerPolicyError,
 )
 from pantaray_agents.local_runtime.tooling.brokering.broker_direct_read_text import (
+    ReadLinesResult,
     read_text_descriptor_lines,
-    read_text_lines,
 )
+
+
+def read_text_lines(*, filepath: Path, **position: int) -> ReadLinesResult:
+    descriptor = os.open(filepath, os.O_RDONLY)
+    try:
+        return read_text_descriptor_lines(descriptor=descriptor, **position)
+    finally:
+        os.close(descriptor)
 
 
 class _CountingLineStream:
@@ -62,28 +71,6 @@ def _patch_path_stream(
         raising=False,
     )
     monkeypatch.setattr(broker_direct_read_text.os, "close", lambda _fd: None)
-
-
-def test_read_text_lines_reads_regular_file(tmp_path: Path) -> None:
-    path = tmp_path / "regular.txt"
-    path.write_text("first\nsecond\n", encoding="utf-8")
-
-    result = read_text_lines(filepath=path, offset=1, limit=1)
-
-    assert result.content == "first\n"
-    assert result.total_lines == 2
-
-
-def test_read_text_lines_rejects_symlink(tmp_path: Path) -> None:
-    target = tmp_path / "target.txt"
-    target.write_text("secret\n", encoding="utf-8")
-    link = tmp_path / "link.txt"
-    link.symlink_to(target)
-
-    with pytest.raises(OSError) as exc_info:
-        read_text_lines(filepath=link, offset=1, limit=1)
-
-    assert exc_info.value.errno == errno.ELOOP
 
 
 def test_read_text_descriptor_lines_borrows_descriptor(tmp_path: Path) -> None:
