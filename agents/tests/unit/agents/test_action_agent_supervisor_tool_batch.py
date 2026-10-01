@@ -319,7 +319,7 @@ async def test_a_final_answer_mixed_with_other_calls_waits_for_its_own_turn(
     assert [pending.tool_id for pending in batch.calls] == ["read", "memory_sql"]
     notice = _think_history_entry(state)["result_line"]
     assert isinstance(notice, str)
-    assert "submit_final_answer (must be the only call of its turn)" in notice
+    assert "submit_final_answer (must be the only call of its turn" in notice
     assert notice in runtime.services.rendering.format_history(state)
 
     # Asked again on a turn of its own, it is the call that runs.
@@ -332,6 +332,36 @@ async def test_a_final_answer_mixed_with_other_calls_waits_for_its_own_turn(
     assert [pending.tool_id for pending in _require_batch(alone).calls] == [
         "submit_final_answer"
     ]
+
+
+@pytest.mark.asyncio
+async def test_two_final_answers_in_one_turn_run_neither(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """最終回答を 2 件出したターンは、どちらも確定させず 1 件だけを出し直させる。"""
+
+    _agent, runtime, state = await _think(
+        monkeypatch,
+        tmp_path,
+        action_id="act-batch-two-final",
+        turns=_turn(
+            _call(
+                "submit_final_answer", note=_note_for("submit_final_answer"), index=0
+            ),
+            _call(
+                "submit_final_answer", note="訂正したので、こちらで確定する。", index=1
+            ),
+        ),
+    )
+
+    # Nothing runs, so neither answer ends the Action, and the run goes on.
+    assert state["next_action"] is None
+    assert state["status"] == "processing"
+    notice = _think_history_entry(state)["result_line"]
+    assert isinstance(notice, str)
+    assert notice.count("submit_final_answer (must be the only call of its turn") == 2
+    assert "send exactly one, alone" in notice
+    assert notice in runtime.services.rendering.format_history(state)
 
 
 @pytest.mark.asyncio

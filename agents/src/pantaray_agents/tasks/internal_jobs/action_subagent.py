@@ -464,8 +464,8 @@ def _plan_turn(
 
     Read-only calls run at once, a changing call runs alone in order, and a call
     the policy leaves out is answered with the parent's reason for it. A report
-    that shares its turn is one of them, so no requested work is reported as
-    done without running.
+    that is not its turn's single call is one of them, so no requested work and
+    no later correction is lost to a report ending the run early.
     """
 
     plan = plan_tool_batch(

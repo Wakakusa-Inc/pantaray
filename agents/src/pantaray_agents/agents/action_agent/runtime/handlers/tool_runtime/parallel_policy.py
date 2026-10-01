@@ -91,9 +91,11 @@ RUN_ENDING_TOOL_IDS: frozenset[str] = frozenset(
 """SOLO_TURN のうち、実行すると run を終えるツール。
 
 先頭で単独実行すると、後回しにした兄弟呼び出しはモデルが出し直す前に run が
-終わって二度と実行されない。そこで他の呼び出しと同じターンなら位置にかかわらず
-実行せず（``solo_turn_tool``）、残りを実行して、単独のターンで出し直させる。
-``wait_subagents`` は run を終えないので、後回しにした兄弟は次ターンで出し直せる。
+終わって二度と実行されない。同じツールを 2 件出したターンで 1 件目だけを通すと、
+2 件目の訂正が失われる。そこでターンの唯一の呼び出しでなければ、位置や重複に
+かかわらず実行せず（``run_ending_tool``）、残りを実行して、1 件だけを単独の
+ターンで出し直させる。``wait_subagents`` は run を終えないので、後回しにした兄弟は
+次ターンで出し直せる。
 """
 
 SERIAL_ONLY_TOOL_IDS: frozenset[str] = frozenset(
@@ -148,6 +150,7 @@ MEMORY_EPOCH_WRITER_TOOL_IDS: frozenset[str] = frozenset(
 type BatchMode = Literal["parallel", "sequential"]
 
 type ExclusionReason = Literal[
+    "run_ending_tool",
     "solo_turn_tool",
     "after_solo_turn_tool",
     "max_parallel_exceeded",
@@ -156,6 +159,7 @@ type ExclusionReason = Literal[
 
 
 EXCLUSION_NOTICES: dict[ExclusionReason, str] = {
+    "run_ending_tool": "must be the only call of its turn; send exactly one, alone",
     "solo_turn_tool": "must be the only call of its turn",
     "after_solo_turn_tool": "was queued behind a call that must run alone",
     "max_parallel_exceeded": "exceeded the parallel tool call limit of this turn",
@@ -208,8 +212,9 @@ def plan_tool_batch[CallT: ToolCallLike](
 
     順序は常に宣言順を保ち、並べ替えは行わない。
 
-    0. RUN_ENDING ツールが他の呼び出しと同じターンにあれば、位置にかかわらず
-       ``solo_turn_tool`` として外し、残りの列で以下を行う。
+    0. RUN_ENDING ツールがターンの唯一の呼び出しでなければ、位置や重複にかかわらず
+       すべて ``run_ending_tool`` として外し、残りの列で以下を行う。実行分が空の
+       計画もありうる。
     1. SOLO_TURN ツールで列を分割する。先頭にあればそれ 1 件だけを実行し、残りは
        ``after_solo_turn_tool`` として次ターンへ回す。途中にあれば、その手前までを
        実行し、SOLO_TURN ツール自身（``solo_turn_tool``）と後続を次ターンへ回す。
@@ -221,8 +226,8 @@ def plan_tool_batch[CallT: ToolCallLike](
 
     ending = [call for call in calls if call.tool_id in RUN_ENDING_TOOL_IDS]
     held_back: tuple[ExcludedToolCall[CallT], ...] = ()
-    if ending and len(ending) < len(calls):
-        held_back = _defer_all(ending, "solo_turn_tool")
+    if ending and len(calls) > 1:
+        held_back = _defer_all(ending, "run_ending_tool")
         calls = [call for call in calls if call.tool_id not in RUN_ENDING_TOOL_IDS]
     runnable, deferred = _split_at_solo_turn_tool(calls)
     limit = max(min(max_parallel, remaining_tool_steps), 0)

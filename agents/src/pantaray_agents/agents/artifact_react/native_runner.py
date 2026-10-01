@@ -305,13 +305,11 @@ async def run_native_react[T](
         await run_input.record_step(llm_step)
         steps.append(llm_step)
 
-        # With a planner, the terminal tool ends the run only when the turn asks
-        # for nothing else; mixed with other calls, the planner holds it back.
-        only_terminal = not turn.dropped_call_names and all(
-            call.name == run_input.terminal_tool.name for call in turn.calls
-        )
+        # With a planner, the terminal tool ends the run only as the turn's
+        # single call; otherwise the planner holds it back.
+        single_call = len(turn.calls) == 1 and not turn.dropped_call_names
         if turn.call.name == run_input.terminal_tool.name and (
-            run_input.plan_turn is None or only_terminal
+            run_input.plan_turn is None or single_call
         ):
             completion = run_input.complete(turn.call.arguments, force_terminal)
             if completion.error_message is None:
