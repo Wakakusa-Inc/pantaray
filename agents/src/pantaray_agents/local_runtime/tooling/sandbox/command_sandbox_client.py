@@ -515,12 +515,11 @@ async def run_command_via_sandbox(
     # Only here: an Action command can ask for write folders. A suggestion
     # command cannot, and a subagent is refused them without asking (its
     # failed call shows the error message alone, without this feedback).
-    if (
-        terminal_outcome == "exited"
-        and output.error is not None
-        and is_likely_sandbox_denied(
-            exit_code=output.exit_code, stdout=stdout_text, stderr=stderr_text
-        )
+    if output.error is not None and is_likely_sandbox_denied(
+        terminal_outcome=terminal_outcome,
+        exit_code=output.exit_code,
+        stdout=stdout_text,
+        stderr=stderr_text,
     ):
         output.error.llm_feedback = WRITE_FOLDER_REQUEST_HINT
     _write_command_invocation_audit(
