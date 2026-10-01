@@ -34,8 +34,13 @@ from pantaray_llm.contracts.tool_use import (
 
 from .research import SuggestionResearchTools
 
-SUGGESTION_MAX_LLM_TURNS = 30
-SUGGESTION_MAX_RESEARCH_TOOL_CALLS = 30
+# Deep research is the point of the run: quality comes before cost or duration.
+SUGGESTION_MAX_LLM_TURNS = 300
+SUGGESTION_MAX_RESEARCH_TOOL_CALLS = 300
+# Design limit: replays measured about 5 bytes per input token over a run and 2.4 at
+# worst for Japanese tool output, so 400 kB stays under a 200k-token context with the
+# system prompt and tools. Raise it when a supported model's measured ratio allows.
+SUGGESTION_MAX_INPUT_BYTES = 400_000
 SUBMIT_SUGGESTION_TOOL_NAME = "submit_suggestion"
 # Offered only while the user lets commands run without asking.
 SUGGESTION_COMMAND_TOOL_ID = "bash"
@@ -148,14 +153,17 @@ def _terminal_tool() -> LlmToolDefinition:
                     "type": "string",
                     "maxLength": ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
                     "description": (
-                        "Notes for the writer: the one thing to tell the user. "
-                        "Not the finished message."
+                        "Notes for the writer: the single point to tell the user, "
+                        "in one or two short sentences. Not the finished message."
                     ),
                 },
                 "deliverable": {
                     "type": ["string", "null"],
                     "maxLength": ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
-                    "description": "For action_offer, what approval gives the user.",
+                    "description": (
+                        "For action_offer, one short phrase naming what approval "
+                        "gives the user."
+                    ),
                 },
                 "agent_session": {
                     "type": ["boolean", "null"],
@@ -305,6 +313,7 @@ async def run_suggestion_react(
             policy=ReactLoopPolicy(
                 max_llm_turns=SUGGESTION_MAX_LLM_TURNS,
                 max_tool_calls=SUGGESTION_MAX_RESEARCH_TOOL_CALLS,
+                max_input_bytes=SUGGESTION_MAX_INPUT_BYTES,
             ),
             consume_llm_thoughts=discard_thoughts,
             final_turn_prompt=(
