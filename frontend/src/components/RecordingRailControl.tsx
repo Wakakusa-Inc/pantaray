@@ -93,21 +93,7 @@ function RecordingPopover({
       tabIndex={-1}
     >
       <div className="app-recording-row">
-        <div className="app-recording-copy">
-          <div className="app-recording-title">{t('settings.screenshotCapture.title')}</div>
-          <div
-            className="app-recording-status"
-            role={captureStatusUnavailable ? 'alert' : undefined}
-          >
-            {captureStatusUnavailable
-              ? t('settings.screenshotCapture.unavailable')
-              : isCapturingScreenshots === null
-                ? t('settings.loadingStatus')
-                : isCapturingScreenshots
-                  ? t('common.active')
-                  : `${t('common.paused')}・${t('settings.screenshotCapture.pausedSuggestions')}`}
-          </div>
-        </div>
+        <div className="app-recording-title">{t('settings.screenshotCapture.title')}</div>
         {/* role="switch" cannot express an unknown state, so the switch appears only
             once the status IPC has answered; the placeholder holds the row height. */}
         {isCapturingScreenshots === null ? (
@@ -134,6 +120,15 @@ function RecordingPopover({
             </span>
           </button>
         )}
+      </div>
+      <div className="app-recording-status" role={captureStatusUnavailable ? 'alert' : undefined}>
+        {captureStatusUnavailable
+          ? t('settings.screenshotCapture.unavailable')
+          : isCapturingScreenshots === null
+            ? t('settings.loadingStatus')
+            : isCapturingScreenshots
+              ? t('common.active')
+              : `${t('common.paused')}・${t('settings.screenshotCapture.pausedSuggestions')}`}
       </div>
 
       <button

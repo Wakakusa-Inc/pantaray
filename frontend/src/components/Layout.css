@@ -127,7 +127,7 @@
   left: calc(100% + 20px);
   bottom: -2px;
   z-index: 20;
-  width: 260px;
+  width: 300px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -152,11 +152,10 @@
   gap: 12px;
 }
 
-.app-recording-copy {
-  min-width: 0;
-}
-
 .app-recording-title {
+  min-width: 0;
+  /* Japanese wraps between phrases, never inside a word. */
+  word-break: auto-phrase;
   color: var(--fog-text);
   font-size: 13px;
   font-weight: var(--weight-semibold);
@@ -164,7 +163,7 @@
 }
 
 .app-recording-status {
-  margin-top: 4px;
+  word-break: auto-phrase;
   color: var(--fog-text-3);
   font-size: var(--text-meta-size);
   line-height: 1.4;
