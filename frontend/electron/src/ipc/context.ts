@@ -75,13 +75,6 @@ export type AuthState = {
   runtimeState: LocalRuntimeState;
 };
 
-export type BrowserUrlProbeResult = {
-  url: string | null;
-  appName: string | null;
-  windowName: string | null;
-  error: string | null;
-};
-
 /**
  * What the recording screen reads: whether macOS lets the recorder run at all,
  * whether a conversation is waiting on that, and whether the screen was already

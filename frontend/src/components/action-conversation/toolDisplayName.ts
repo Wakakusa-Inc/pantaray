@@ -235,12 +235,12 @@ const TOOL_DISPLAY_NAMES = {
   capture_screen: {
     agentName: 'Capture Screen',
     icon: Camera,
-    ja: '画面を撮影',
-    en: 'Capture the screen',
-    jaDone: '画面を撮影しました',
-    jaRunning: '画面を撮影しています',
-    enDone: 'Captured the screen',
-    enRunning: 'Capturing the screen',
+    ja: 'ウィンドウを撮影',
+    en: 'Capture a window',
+    jaDone: '{subject} を撮影しました',
+    jaRunning: '{subject} を撮影しています',
+    enDone: 'Captured {subject}',
+    enRunning: 'Capturing {subject}',
   },
   read_action_plan: {
     agentName: 'Read Action Plan',

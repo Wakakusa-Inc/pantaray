@@ -79,11 +79,12 @@ export const OVERLAY_MESSAGES = defineMessages({
       'Run a local command with access to your login information.',
     'overlay.approvalRequired.operation.runPython': 'Run Python code.',
     'overlay.approvalRequired.operation.applyPatch': 'Modify files.',
-    'overlay.approvalRequired.operation.captureScreen': 'Capture the screen.',
+    'overlay.approvalRequired.operation.captureScreen': 'Capture a window.',
     'overlay.approvalRequired.operation.generic': 'Run this operation.',
     'overlay.approvalRequired.loginEnvironmentNotice':
       'It runs with access to your login information.',
     'overlay.approvalRequired.command': 'Command',
+    'overlay.approvalRequired.app': 'App',
     'overlay.approvalRequired.pythonCode': 'Python code',
     'overlay.approvalRequired.pythonCodeDescription':
       'Generated Python code will run in the workspace.',
@@ -191,10 +192,11 @@ export const OVERLAY_MESSAGES = defineMessages({
       'ログイン情報を使える状態でローカルコマンドを実行します。',
     'overlay.approvalRequired.operation.runPython': 'Pythonコードを実行します。',
     'overlay.approvalRequired.operation.applyPatch': 'ファイルを変更します。',
-    'overlay.approvalRequired.operation.captureScreen': '画面を撮影します。',
+    'overlay.approvalRequired.operation.captureScreen': 'ウィンドウを撮影します。',
     'overlay.approvalRequired.operation.generic': 'この操作を実行します。',
     'overlay.approvalRequired.loginEnvironmentNotice': 'ログイン情報を使える状態で実行します。',
     'overlay.approvalRequired.command': 'コマンド',
+    'overlay.approvalRequired.app': 'アプリ',
     'overlay.approvalRequired.pythonCode': 'Pythonコード',
     'overlay.approvalRequired.pythonCodeDescription':
       '生成されたPythonコードをワークスペース内で実行します。',

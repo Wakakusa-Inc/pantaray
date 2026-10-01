@@ -214,15 +214,15 @@ function buildToolApprovalDisplay(
     };
   }
 
-  // The capture is of whatever is frontmost at the moment it happens, which only
-  // Electron knows, so the request carries no target to show: naming the act is the
-  // whole disclosure, and the generic line would hide it behind "this operation".
+  // The named app is exactly what Electron is asked to capture, so it is what the user
+  // approves; the generic line would hide the act behind "this operation".
   if (approvalPanel.toolId === 'capture_screen' || summaryKind === 'screen_capture') {
     return {
       operationKey: 'overlay.approvalRequired.operation.captureScreen',
       usesLoginEnvironment: false,
-      primaryLabelKey: 'overlay.approvalRequired.details',
-      primaryValue: '',
+      primaryLabelKey: 'overlay.approvalRequired.app',
+      primaryValue:
+        readStringValue(summary, 'app_name') ?? t('overlay.approvalRequired.unavailable'),
       details: [],
     };
   }
