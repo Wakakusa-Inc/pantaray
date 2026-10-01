@@ -60,7 +60,8 @@ def test_executing_prompt_defines_supervisor_final_answer_flow() -> None:
     )
     assert "<final_answer>" not in text
     assert "## Final Answer Flow" in text
-    assert "Pending Final Answer Draft" in text
+    assert "Pending Final Answer Draft" not in text
+    assert "latest `draft_final_answer` call" in text
     assert "call `draft_final_answer` first" in text
     assert "call `submit_final_answer`" in text
     assert "Do not restate its internal details in the final answer" in text
@@ -186,37 +187,22 @@ def test_action_prompts_treat_request_summary_as_handoff_note() -> None:
     assert "work surface" in text
 
 
-# Rebuilt on every THINK, so they must sit behind the append-only history body
-# for the prefix to stay byte-stable and hit the provider prompt cache.
-# - linkable_persisted_memory: memory_context_epoch, extended by memory_search /
-#   get_memory_reference mid-run.
+# The head is rendered once per Action. These change while it lasts, so they
+# reach the model through world_state_updates instead of a rewritten head:
+# - linkable_persisted_memory: memory_context_epoch, extended mid-run.
 # - memory_source_coverage: carries evaluated_at.
-# - supervisor_pending_final_answer: replaced by draft_final_answer / link_memory.
 # - current_time: wall clock.
-_TURN_TAIL_PROMPT_FIELDS = frozenset(
-    {
-        "linkable_persisted_memory",
-        "memory_source_coverage",
-        "supervisor_pending_final_answer",
-        "current_time",
-    }
+# - the workspace, ~/.pantaray AGENTS.md and memory: re-read by every run.
+_CHANGING_PROMPT_FIELDS = frozenset(
+    field for _, fields in WORLD_STATE_SECTIONS for field in fields
 )
-# On ordinary turns, action_history grows at the end of the cacheable prefix.
-# The head renders these once per Action; the world-state ones a later run reads
-# differently reach the model through world_state_updates instead.
-_PREFIX_PROMPT_FIELDS = frozenset(
+# Fixed for the whole Action.
+_FIXED_PROMPT_FIELDS = frozenset(
     {
-        "workspace_path_contract",
         "workspace_context_rules",
-        "workspace_context_prompt",
-        "agents_md_instructions",
         "request_summary",
         "target_context",
         "memory_context_model",
-        "insight_data",
-        "structured_fact_data",
-        "memory_artifact_references",
-        "action_history",
     }
 )
 
@@ -227,18 +213,20 @@ def _prompt_fields(template: str) -> set[str]:
     }
 
 
-def _render(template: str, *, turn: str) -> str:
-    values = {field: f"<{field}>" for field in _PREFIX_PROMPT_FIELDS}
-    values.update({field: f"<{field} {turn}>" for field in _TURN_TAIL_PROMPT_FIELDS})
-    return template.format(**values)
-
-
-def test_every_executing_prompt_field_is_classified_as_prefix_or_turn_tail() -> None:
-    """新しい差し込み値は、キャッシュ規約のどちら側かを宣言してから足す。"""
+def test_every_executing_prompt_field_is_fixed_or_a_world_state_section() -> None:
+    """新しい差し込み値は、固定か、変わったら追記する側かを宣言してから足す。"""
 
     assert _prompt_fields(_executing_prompt_template()) == (
-        _PREFIX_PROMPT_FIELDS | _TURN_TAIL_PROMPT_FIELDS
+        _FIXED_PROMPT_FIELDS | _CHANGING_PROMPT_FIELDS | {"action_history"}
     )
+
+
+def test_the_executing_prompt_ends_with_the_history() -> None:
+    """履歴の後ろに置いたものは変わらなくても毎回送られるので、何も置かない。"""
+
+    template = _executing_prompt_template()
+    assert template.rstrip().endswith("{action_history}")
+    assert "rebuilt every turn" not in template
 
 
 def test_every_world_state_section_has_an_update_naming_only_its_fields() -> None:
@@ -246,28 +234,4 @@ def test_every_world_state_section_has_an_update_naming_only_its_fields() -> Non
     assert isinstance(updates, dict)
     for section, fields in WORLD_STATE_SECTIONS:
         assert _prompt_fields(updates[section]) == set(fields)
-        assert set(fields) <= _PREFIX_PROMPT_FIELDS
     assert _prompt_fields(updates["agents_md_removed"]) == set()
-
-
-def test_turn_tail_sections_are_rendered_after_action_history() -> None:
-    template = _executing_prompt_template()
-    boundary = template.index("{action_history}")
-
-    for field in sorted(_TURN_TAIL_PROMPT_FIELDS):
-        assert template.index("{" + field + "}") > boundary
-
-
-def test_prompt_prefix_is_byte_identical_when_only_the_turn_tail_changes() -> None:
-    """同じ履歴なら、時刻などが変わってもプレフィックスはバイト一致する。"""
-
-    template = _executing_prompt_template()
-    first = _render(template, turn="turn-1")
-    second = _render(template, turn="turn-2")
-
-    split = first.index("<action_history>") + len("<action_history>")
-    assert first[:split].encode("utf-8") == second[:split].encode("utf-8")
-    assert "## Action History" in first[:split]
-    assert first[split:] != second[split:]
-    for field in sorted(_TURN_TAIL_PROMPT_FIELDS):
-        assert f"<{field} turn-1>" in first[split:]

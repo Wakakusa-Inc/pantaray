@@ -1,13 +1,14 @@
-"""The parts of the Executing head that a new user message may change.
+"""The parts of the Executing head that can change while an Action lasts.
 
 The head is the first item of every Executing request, so rewriting it re-bills
 the whole conversation behind it: the first call after each new message read
 only the fixed prefix from the prompt cache. Every run re-reads the workspace,
-the Pantaray-wide AGENTS.md and memory, so the head instead shows them as they
-were when the Action started and is never rewritten. A run that reads a
-different version appends it to its turn context, saying it replaces the earlier
-one, and a run that reads the same version appends nothing -- the world-state
-pattern Codex uses for its own instructions and environment.
+the Pantaray-wide AGENTS.md and memory, and every turn re-reads the linkable
+memory, the memory source coverage and the time, so the head instead shows them
+as they were on the Action's first turn and is never rewritten. A turn that
+reads a different version appends it to its turn context, saying it replaces the
+earlier one, and a turn that reads the same version appends nothing -- the
+world-state pattern Codex uses for its own instructions and environment.
 
 What the conversation shows is read off the rows that sent it: the head's
 values, then each update a still-replayed turn context carried, later ones
@@ -33,12 +34,15 @@ WORLD_STATE_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "memory",
         ("insight_data", "structured_fact_data", "memory_artifact_references"),
     ),
+    ("linkable_persisted_memory", ("linkable_persisted_memory",)),
+    ("memory_source_coverage", ("memory_source_coverage",)),
+    ("current_time", ("current_time",)),
 )
 
 
 @dataclass(frozen=True, slots=True)
 class WorldStateUpdate:
-    # The text this turn's context carries, ahead of its per-turn sections.
+    # What this turn's context carries after its heading.
     text: str
     # The field values it sends, recorded on the THINK row that sends them.
     values: dict[str, str]

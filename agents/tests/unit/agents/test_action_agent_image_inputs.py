@@ -50,9 +50,7 @@ def _build_agent() -> ActionAgent:
 
     def _fake_load_config(prompt_name: str) -> PromptConfig:
         del prompt_name
-        return PromptConfig(
-            prompt="{current_time}\n{action_history}", system_instruction="SYS"
-        )
+        return PromptConfig(prompt="{current_time}", system_instruction="SYS")
 
     with patch(
         "pantaray_agents.agents.core.base.prompt_loader.load_config",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from types import SimpleNamespace
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 from pydantic import TypeAdapter
@@ -24,10 +25,12 @@ from pantaray_agents.agents.action_agent.services.prompt_rendering_service impor
 from pantaray_agents.agents.action_agent.support.conversation_projection import (
     OMITTED_OUTPUT_MARK,
     TURN_CONTEXT_HEADING,
+    UNCHANGED_TURN_CONTEXT,
     ActionConversationProjection,
     project_action_conversation,
 )
 from pantaray_agents.agents.action_agent.support.formatter import ActionAgentFormatter
+from pantaray_agents.agents.action_agent.support.world_state import WorldState
 from pantaray_agents.schema.agent.action import StepType
 from pantaray_agents.utils.prompt_loader import PromptLoader
 from pantaray_llm.contracts.conversation import (
@@ -125,7 +128,7 @@ def _project(
     entries: list[Any],
     *,
     omit: int = 0,
-    turn_context: str = _NOW,
+    turn_context: str | None = _NOW,
     repair: str = "",
     provider_turns: dict[str, Any] | None = None,
 ) -> ActionConversationProjection | None:
@@ -585,6 +588,7 @@ def test_the_recorded_context_is_the_one_the_next_turn_replays() -> None:
         completed_at="2026-09-19T00:00:01Z",
         short_step_id="S-2-THINK",
         turn_context=first.turn_context,
+        world_state=first.world_state,
     )
     # The same row survives a checkpoint, which is where a resumed run reads it.
     assert HistoryEntryModel.model_validate(recorded).turn_context == first.turn_context
@@ -620,7 +624,7 @@ def _executing_agent() -> Any:
 
 
 def _think_once(
-    state: Any, *, think: int, call_id: str, omit: int = 0
+    state: Any, *, think: int, call_id: str, omit: int = 0, now: str = "T0"
 ) -> tuple[str, Any]:
     """One THINK through the production template; its row is then recorded.
 
@@ -633,9 +637,10 @@ def _think_once(
         request=SimpleNamespace(language="ja"),
     )
     state["context"]["context_body_omitted_before_step"] = omit
-    turn = turn_input.build_executing_turn(
-        _executing_agent(), state, cast(Any, runtime), tools=()
-    )
+    with patch.object(turn_input, "local_now_for_model", return_value=now):
+        turn = turn_input.build_executing_turn(
+            _executing_agent(), state, cast(Any, runtime), tools=()
+        )
     prepared = turn.prepare(
         state, rendering=_RENDERING, repair_notice="", provider_turns={}
     )
@@ -672,11 +677,19 @@ def _two_runs(second_run: dict[str, str]) -> tuple[list[str], Any, Any, Any]:
     return [head_1, head_2, head_3, head_4], last, first, after
 
 
-_UPDATE_HEADINGS = ("## Workspace Update", "## AGENTS.md Update", "## Memory Update")
+_UPDATE_HEADINGS = (
+    "## Workspace Update",
+    "## AGENTS.md Update",
+    "## Memory Update",
+    "## Linkable Persisted Memory Update",
+    "## Memory Source Coverage Update",
+    "Current time: ",
+)
 
 
 def _updates(prepared: Any) -> list[str]:
-    return [heading for heading in _UPDATE_HEADINGS if heading in prepared.turn_context]
+    context = prepared.turn_context or ""
+    return [heading for heading in _UPDATE_HEADINGS if heading in context]
 
 
 @pytest.mark.parametrize(
@@ -734,6 +747,7 @@ def test_a_removed_agents_md_is_withdrawn_once() -> None:
     [
         ({"agents_md_instructions": ""}, "no longer apply"),
         ({"workspace_context_prompt": "W-2"}, "## Workspace Update"),
+        ({}, "Current time: T1"),
     ],
 )
 def test_the_string_fallback_shows_what_changed_since_the_head(
@@ -746,10 +760,10 @@ def test_the_string_fallback_shows_what_changed_since_the_head(
     _think_once(state, think=2, call_id="c2")
     state["history_by_scope"]["S"].append(_user(3))
     state["context"].update(change)
-    _, structured = _think_once(state, think=4, call_id="c2")
+    _, structured = _think_once(state, think=4, call_id="c2", now="T1")
     # A provider reusing a call id makes the window unpairable, so the turn is
     # sent as one string that replays no recorded turn context.
-    _, fallback = _think_once(state, think=5, call_id="c5")
+    _, fallback = _think_once(state, think=5, call_id="c5", now="T1")
 
     assert structured.conversation is not None
     assert shown in structured.turn_context
@@ -758,6 +772,77 @@ def test_the_string_fallback_shows_what_changed_since_the_head(
     for value in change.values():
         assert value in fallback.prompt
     assert fallback.prompt.index(shown) > fallback.prompt.index("S-3-USER")
+
+
+# --- 呼び出しごとの turn context は変わったものだけ ------------------------------
+
+
+def test_a_turn_that_reads_nothing_new_sends_no_turn_context() -> None:
+    """何も変わらなければ turn context の項目そのものを足さない。"""
+
+    state = _state([_user(1)])
+    state["context"].update(_RUN_1)
+    _, first = _think_once(state, think=2, call_id="c2")
+    _, second = _think_once(state, think=3, call_id="c3")
+
+    assert first.turn_context is None and second.turn_context is None
+    assert second.conversation[: len(first.conversation)] == first.conversation
+    # The request ends on the tool's result, which every provider answers.
+    assert isinstance(second.conversation[-1], LlmTurnToolResultItem)
+    assert not any(
+        _text(item).startswith("# Turn Context")
+        for item in second.conversation
+        if isinstance(item, LlmTurnUserItem)
+    )
+
+
+def test_each_changed_turn_section_is_appended_once() -> None:
+    state = _state([_user(1)])
+    state["context"].update(_RUN_1)
+    _, first = _think_once(state, think=2, call_id="c2", now="T0")
+    _, later = _think_once(state, think=3, call_id="c3", now="T1")
+    coverage = state["context"]["memory_source_coverage"]
+    state["context"]["memory_source_coverage"] = {
+        **coverage,
+        "evaluated_at": "2026-09-19T01:00:00Z",
+    }
+    _, both = _think_once(state, think=4, call_id="c4", now="T2")
+    _, again = _think_once(state, think=5, call_id="c5", now="T2")
+
+    assert first.turn_context is None
+    assert later.turn_context == TURN_CONTEXT_HEADING + "Current time: T1"
+    assert _updates(both) == ["## Memory Source Coverage Update", "Current time: "]
+    assert again.turn_context is None
+    for earlier, next_ in ((first, later), (later, both), (both, again)):
+        assert next_.conversation[: len(earlier.conversation)] == earlier.conversation
+
+
+def test_an_assistant_ending_with_nothing_new_gets_a_minimal_turn_context() -> None:
+    """assistant で終わる会話は続きの生成と読まれるので、短い user 項目で閉じる。"""
+
+    entries = [_user(1), _think(2, turn_context=None), _commentary(3, "調べます")]
+    items = _require(entries, turn_context=None)
+    retry = _require(entries, turn_context=None, repair="\nNOTICE")
+
+    assert isinstance(items[-2], LlmTurnAssistantItem)
+    assert _text(items[-1]) == UNCHANGED_TURN_CONTEXT
+    assert retry[: len(items)] == items
+
+
+def test_a_head_field_added_after_the_action_started_is_frozen_once() -> None:
+    """古いテンプレートで固定した先頭に無い欄も、最初に見た値で固定する。"""
+
+    state = _state([_user(1)])
+    state["context"].update(_RUN_1)
+    head, _ = _think_once(state, think=2, call_id="c2", now="T0")
+    recorded = state["context"]["executing_head_fields"]
+    del recorded["current_time"]
+    upgraded, _ = _think_once(state, think=3, call_id="c3", now="T5")
+    later, prepared = _think_once(state, think=4, call_id="c4", now="T6")
+
+    assert upgraded == later != head
+    assert "T5" in later
+    assert prepared.turn_context == TURN_CONTEXT_HEADING + "Current time: T6"
 
 
 def test_a_rebuilt_window_sends_the_update_it_dropped() -> None:
@@ -821,20 +906,30 @@ def _state(entries: list[Any]) -> Any:
     return state
 
 
+# The head showed T1; this turn reads T2.
+_LATER_TIME = WorldState(
+    head={"current_time": "T1"},
+    current={"current_time": "T2"},
+    template=lambda key: "Current time: {current_time}",
+)
+_LATER_TIME_TEXT = "Current time: T2"
+
+
 def _prepare(
     entries: list[Any],
     *,
     sends_conversation: bool,
     repair: str = "",
     provider_turns: dict[str, Any] | None = None,
+    world_state: WorldState | None = _LATER_TIME,
 ) -> Any:
     return turn_input.ExecutingTurn(
         head="HEAD\n",
-        tail="\nTAIL",
         system_instruction="SYS",
         tool_bytes=0,
         scope_handles=("S",),
         sends_conversation=sends_conversation,
+        world_state=world_state,
     ).prepare(
         _state(entries),
         rendering=_RENDERING,
@@ -870,7 +965,7 @@ def test_the_string_route_sends_the_one_rendering_it_also_records() -> None:
     assert prepared.turn_context is None
     assert prepared.prompt == prepared.recorded_prompt
     assert prepared.recorded_prompt.startswith("HEAD\n")
-    assert prepared.recorded_prompt.endswith("\nTAIL")
+    assert prepared.recorded_prompt.endswith("\n\n" + _LATER_TIME_TEXT)
     assert "調べてください" in prepared.recorded_prompt
 
 
@@ -884,18 +979,23 @@ def test_the_conversation_route_sends_the_head_alone_and_still_records_the_strin
     assert prepared.conversation is not None
     assert "S-2-TOOL" not in prepared.prompt
     # The turn context is what gets recorded; the retry notice is not part of it.
-    assert prepared.turn_context == TURN_CONTEXT_HEADING + "\nTAIL"
+    assert prepared.turn_context == TURN_CONTEXT_HEADING + _LATER_TIME_TEXT
+    assert prepared.world_state == {"current_time": "T2"}
     assert _text(prepared.conversation[-2]) == prepared.turn_context
     assert _text(prepared.conversation[-1]) == "\nNOTICE"
     assert prepared.recorded_prompt == (
-        "HEAD\n" + _RENDERING.format_history(_state(entries)) + "\nTAIL" + "\nNOTICE"
+        "HEAD\n"
+        + _RENDERING.format_history(_state(entries))
+        + "\n\n"
+        + _LATER_TIME_TEXT
+        + "\nNOTICE"
     )
     assert prepared.file_inputs == ()
 
 
 def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> None:
     template = (
-        "Summary: {request_summary}\n{action_history}\nCurrent time: {current_time}"
+        "Summary: {request_summary}\nCurrent time: {current_time}\n{action_history}"
     )
     agent = cast(
         Any,
@@ -918,8 +1018,7 @@ def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> Non
 
     built = turn_input.build_executing_turn(agent, state, runtime, tools=())
 
-    assert built.head == "Summary: (none)\n"
-    assert built.tail.startswith("\nCurrent time: ")
+    assert built.head.startswith("Summary: (none)\nCurrent time: ")
     assert built.system_instruction == "SYS for Japanese"
     assert built.sends_conversation is True
     assert (
@@ -928,13 +1027,20 @@ def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> Non
         ).conversation
         is not None
     )
-    # Nothing after the history means no last user item for the items to end on.
-    tailless = cast(
-        Any, SimpleNamespace(**{**vars(agent), "executing_prompt": "H{action_history}"})
+    # Without the seam the history goes last and the turn is one string.
+    seamless = cast(
+        Any, SimpleNamespace(**{**vars(agent), "executing_prompt": "H {current_time}"})
     )
     assert (
         turn_input.build_executing_turn(
-            tailless, state, runtime, tools=()
+            seamless, state, runtime, tools=()
         ).sends_conversation
         is False
     )
+    # Anything after the history would be resent on every turn.
+    trailing = cast(
+        Any,
+        SimpleNamespace(**{**vars(agent), "executing_prompt": "H{action_history}T"}),
+    )
+    with pytest.raises(ValueError, match="must end with"):
+        turn_input.build_executing_turn(trailing, state, runtime, tools=())

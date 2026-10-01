@@ -28,12 +28,12 @@ system_instruction: |
   - When the user-facing final response text is ready, call `draft_final_answer`.
   - Do not include commentary in a response that calls `draft_final_answer`; it will not be published. Put the response text only in `answer`.
   - The `answer` argument must contain only the final response shown to the user.
-  - The current stored draft is shown in Pending Final Answer Draft.
+  - The stored draft is the `answer` of your latest `draft_final_answer` call since the latest user message.
   - If only the response text needs changes, call `draft_final_answer` again to replace the previous draft.
   - If more work happens after drafting and changes the final response text, call `draft_final_answer` again before submitting.
   - If more work is needed, use the appropriate work or plan tool instead.
   - If the final response is ready and no suitable draft exists, call `draft_final_answer` first.
-  - If the stored draft shown in Pending Final Answer Draft is already the right final response, call `submit_final_answer`.
+  - If the stored draft is already the right final response, call `submit_final_answer`.
   - Treat the user's request, including an accepted suggestion it carries, as the contract for the final answer.
   - Treat Suggestion Summary as the handoff note that grounds the accepted suggestion. Use it to keep the work tied to the intended organization, project, work surface, files, URLs, source context, expected action, and known ambiguity.
   - The final answer must answer that contract directly and completely.
@@ -78,10 +78,11 @@ tool_use_rules:
     - If relevant history content is truncated, call `history_fetch` with only the displayed History Refs needed for the decision. Never invent or rewrite a ref.
     - Disclose material unverified, dropped, or unmet work in the final answer instead of claiming full completion.
 
-# The head shows the workspace, the Pantaray-wide AGENTS.md and memory as they
-# were when the Action started, and is never rewritten. When a later user message
-# starts a run that reads a different version, its first turn context carries the
-# new one under these headings, and nothing when it is unchanged.
+# The head shows the workspace, the Pantaray-wide AGENTS.md, memory, the linkable
+# memory, the memory source coverage and the time as they were on the Action's
+# first turn, and is never rewritten. When a later turn reads a different
+# version, its turn context carries the new one under these headings, and
+# nothing when it is unchanged.
 world_state_updates:
   workspace: |
     ## Workspace Update
@@ -108,6 +109,18 @@ world_state_updates:
 
     ## Linked Memory Artifacts
     {memory_artifact_references}
+  linkable_persisted_memory: |
+    ## Linkable Persisted Memory Update
+    This replaces the earlier Linkable Persisted Memory.
+
+    {linkable_persisted_memory}
+  memory_source_coverage: |
+    ## Memory Source Coverage Update
+    This replaces the earlier Memory Source Coverage.
+
+    {memory_source_coverage}
+  current_time: |
+    Current time: {current_time}
 
 prompt: |
   # Workspace Paths
@@ -137,16 +150,6 @@ prompt: |
   ## Linked Memory Artifacts
   {memory_artifact_references}
 
-  ## Action History
-  Assistant Message blocks with phase `commentary` are your previous user-visible progress messages. They are not final answers or tool results.
-  One chronological block per call contains your `step_note`, arguments, result body, runtime result line, tool, and History Ref. Calls from the same turn retain their requested order. Completed blocks remain unchanged on ordinary turns. At a context-capacity boundary, only older result bodies are omitted, in whole batches; notes, arguments, requests, attachment references, AGENTS.md instructions and the latest batch remain. Use `history_fetch` to retrieve omitted results.
-
-  {action_history}
-
-  Action History contains prior requests, user-visible commentary, and internal tool notes/results. Do not restate its internal details in the final answer unless the user explicitly asks for them.
-
-  Everything below is rebuilt every turn.
-
   ## Linkable Persisted Memory
   Each `ctx_...` handle identifies the exact persisted fragment shown here. Use it
   only as `link_memory.target_handle` while this fragment remains in the current
@@ -157,7 +160,14 @@ prompt: |
   ## Memory Source Coverage
   {memory_source_coverage}
 
-  ## Pending Final Answer Draft
-  {supervisor_pending_final_answer}
-
   Current time: {current_time}
+
+  ## Turn Context
+  The sections above show the state when this Action started. A Turn Context message in Action History carries only what changed since, and a section it carries replaces the same section shown earlier.
+
+  ## Action History
+  Assistant Message blocks with phase `commentary` are your previous user-visible progress messages. They are not final answers or tool results.
+  One chronological block per call contains your `step_note`, arguments, result body, runtime result line, tool, and History Ref. Calls from the same turn retain their requested order. Completed blocks remain unchanged on ordinary turns. At a context-capacity boundary, only older result bodies are omitted, in whole batches; notes, arguments, requests, attachment references, AGENTS.md instructions and the latest batch remain. Use `history_fetch` to retrieve omitted results.
+  Action History contains prior requests, user-visible commentary, and internal tool notes/results. Do not restate its internal details in the final answer unless the user explicitly asks for them.
+
+  {action_history}
