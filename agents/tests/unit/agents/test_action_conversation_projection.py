@@ -729,6 +729,37 @@ def test_a_removed_agents_md_is_withdrawn_once() -> None:
     assert _updates(after) == []
 
 
+@pytest.mark.parametrize(
+    ("change", "shown"),
+    [
+        ({"agents_md_instructions": ""}, "no longer apply"),
+        ({"workspace_context_prompt": "W-2"}, "## Workspace Update"),
+    ],
+)
+def test_the_string_fallback_shows_what_changed_since_the_head(
+    change: dict[str, str], shown: str
+) -> None:
+    """記録した turn context を送れない文字列の経路でも、今の状態を示す。"""
+
+    state = _state([_user(1)])
+    state["context"].update(_RUN_1)
+    _think_once(state, think=2, call_id="c2")
+    state["history_by_scope"]["S"].append(_user(3))
+    state["context"].update(change)
+    _, structured = _think_once(state, think=4, call_id="c2")
+    # A provider reusing a call id makes the window unpairable, so the turn is
+    # sent as one string that replays no recorded turn context.
+    _, fallback = _think_once(state, think=5, call_id="c5")
+
+    assert structured.conversation is not None
+    assert shown in structured.turn_context
+    assert fallback.conversation is None
+    assert shown in fallback.prompt
+    for value in change.values():
+        assert value in fallback.prompt
+    assert fallback.prompt.index(shown) > fallback.prompt.index("S-3-USER")
+
+
 def test_a_rebuilt_window_sends_the_update_it_dropped() -> None:
     """境界より前の turn context は再生されないので、その回に出し直す。"""
 

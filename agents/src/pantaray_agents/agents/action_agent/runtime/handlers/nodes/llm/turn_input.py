@@ -15,11 +15,12 @@ an update in its turn context (``support/world_state.py``).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from string import Formatter
 from typing import TYPE_CHECKING
 
+from pantaray_agents.agents.action_agent.runtime.state import HistoryEntry
 from pantaray_agents.agents.action_agent.runtime.tool_attachments import (
     collect_state_prompt_file_inputs,
 )
@@ -29,6 +30,7 @@ from pantaray_agents.agents.action_agent.support.conversation_projection import 
 )
 from pantaray_agents.agents.action_agent.support.world_state import (
     WorldState,
+    WorldStateUpdate,
     world_state_fields,
 )
 from pantaray_agents.schema.agent.action_history import SUPERVISOR_SCOPE_HANDLE
@@ -101,20 +103,20 @@ class ExecutingTurn:
     ) -> PreparedWindow:
         history = rendering.format_history(state, omit_before_step_number=boundary)
         entries = rendering.history_entries(state)
-        update = (
-            self.world_state.update_since(entries, omit_before_step_number=boundary)
-            if self.world_state is not None
-            else None
-        )
-        update_text = "" if update is None else update.text
+        update = self._world_state_update(entries, boundary=boundary)
+        # The string rendering carries no recorded turn context, so it always
+        # shows everything that differs from the head, whichever shape is sent.
+        since_head = self._world_state_update((), boundary=boundary)
         recorded = (
             self.head
             + history
-            + (f"\n\n{update_text}" if update_text else "")
+            + ("" if since_head is None else f"\n\n{since_head.text}")
             + self.tail
             + repair_notice
         )
-        turn_context = TURN_CONTEXT_HEADING + update_text + self.tail
+        turn_context = (
+            TURN_CONTEXT_HEADING + ("" if update is None else update.text) + self.tail
+        )
         projection = (
             project_action_conversation(
                 entries,
@@ -170,6 +172,13 @@ class ExecutingTurn:
                 for item in projection.conversation
             ),
         )
+
+    def _world_state_update(
+        self, entries: Sequence[HistoryEntry], *, boundary: int
+    ) -> WorldStateUpdate | None:
+        if self.world_state is None:
+            return None
+        return self.world_state.update_since(entries, omit_before_step_number=boundary)
 
 
 def build_executing_turn(
