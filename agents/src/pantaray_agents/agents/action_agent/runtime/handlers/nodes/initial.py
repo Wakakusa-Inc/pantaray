@@ -179,7 +179,6 @@ async def initialize_context(
     previous_local_step_counters = dict(context.get("local_step_counters", {}))
     context.update(
         {
-            "user_request": current_user_message.content,
             "request_summary": request_summary,
             "target_context": target_context,
             "insight_data": runtime.services.rendering.build_insight_text(

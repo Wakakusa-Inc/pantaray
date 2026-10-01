@@ -108,7 +108,6 @@ def _build_state() -> dict:
     )
     state["context"].update(
         {
-            "user_request": "look at this",
             "request_summary": "",
             "target_context": {"organization_name": None, "project_name": None},
             "memory_source_coverage": build_unknown_memory_source_coverage_snapshot(

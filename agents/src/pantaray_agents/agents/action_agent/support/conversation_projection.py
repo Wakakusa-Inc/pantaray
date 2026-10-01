@@ -243,9 +243,7 @@ def _think_items(
 
     items: list[LlmTurnItem] = []
     recorded_context = entry.get("turn_context")
-    # Past the boundary the window was rebuilt, and old context does not come
-    # back into it. A THINK from before the field existed has none to replay.
-    if recorded_context and entry["step_number"] >= omit_before_step_number:
+    if recorded_context and replays_turn_context(entry, omit_before_step_number):
         items.append(_text_item(recorded_context))
     if commentary or rows:
         calls = [_tool_call(row) for row in rows]
@@ -273,6 +271,18 @@ def _think_items(
         # model as its own message behind the results it belongs with.
         items.append(_text_item(_NOTICE_PREFIX + notice))
     return items
+
+
+def replays_turn_context(entry: HistoryEntry, omit_before_step_number: int) -> bool:
+    """Whether the conversation still sends the context this THINK recorded."""
+
+    # Past the boundary the window was rebuilt, and old context does not come
+    # back into it. A THINK from before the field existed has none to replay.
+    return (
+        entry["step_type"] == StepType.LLM_OUTPUT
+        and bool(entry.get("turn_context"))
+        and entry["step_number"] >= omit_before_step_number
+    )
 
 
 def _replayable_turn(
@@ -391,4 +401,5 @@ __all__ = [
     "TURN_CONTEXT_HEADING",
     "ActionConversationProjection",
     "project_action_conversation",
+    "replays_turn_context",
 ]

@@ -240,7 +240,7 @@ def _format_target_context(raw_target_context: Mapping[str, object]) -> str:
                 "Treat Target Context as the execution scope.",
                 (
                     "Do not broaden the task to other registered projects unless "
-                    "Suggestion Content or Suggestion Summary clearly requires it."
+                    "the request or Suggestion Summary clearly requires it."
                 ),
             ]
         )

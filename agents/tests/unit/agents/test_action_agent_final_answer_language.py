@@ -85,7 +85,7 @@ async def test_execution_think_injects_final_answer_language_ja() -> None:
 
     # minimal prompt/instruction
     agent.executing_prompt = (
-        "{user_request}{request_summary}{target_context}"
+        "{request_summary}{target_context}"
         "{insight_data}{structured_fact_data}{action_history}{current_time}"
     )
     agent.executing_system_instruction = (
@@ -127,7 +127,7 @@ async def test_execution_think_injects_final_answer_language_en() -> None:
     agent = MagicMock()
 
     agent.executing_prompt = (
-        "{user_request}{request_summary}{target_context}"
+        "{request_summary}{target_context}"
         "{insight_data}{structured_fact_data}{action_history}{current_time}"
     )
     agent.executing_system_instruction = (

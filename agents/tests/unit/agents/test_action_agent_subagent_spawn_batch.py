@@ -88,7 +88,6 @@ async def test_adopted_spawn_calls_execute_and_resume_with_their_original_identi
     )
     state["phase"] = "executing"
     state["step"] = 2
-    state["context"]["user_request"] = "Start work"
     state["context"]["local_step_counters"] = {"S": 1}
     state["history_by_scope"]["S"] = [
         {

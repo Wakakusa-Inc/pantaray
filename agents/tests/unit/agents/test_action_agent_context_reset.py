@@ -280,7 +280,6 @@ async def _build_fixture(
         token_budget=None,
     )
     state["phase"] = "executing"
-    state["context"]["user_request"] = "dummy"
     state["history_by_scope"]["S"] = cast(Any, _turns(prior_turns))
     state["context"]["local_step_counters"] = {"S": prior_turns}
     state = project_request_user_step(state, request)
@@ -685,10 +684,7 @@ async def test_oversized_protected_input_stops_before_any_provider_call(
     )
     monkeypatch.setattr(context_budget, "_window_tokens", lambda: 30_000)
     # User instructions are a real protected input and cannot be discarded.
-    state["context"]["user_request"] = "x" * 120_000
-    state["history_by_scope"]["S"][-1]["user_request_text"] = state["context"][
-        "user_request"
-    ]
+    state["history_by_scope"]["S"][-1]["user_request_text"] = "x" * 120_000
     _install_think(agent, prompt_tokens=1_000)
     await execution_think_step(
         agent, state, runtime, sink=create_state_token_sink(state)
@@ -697,7 +693,7 @@ async def test_oversized_protected_input_stops_before_any_provider_call(
     assert state["status"] == "error"
     assert state["next_action"] is None
     assert state["errors"][-1]["error_code"] == "ACTION_CONTEXT_CAPACITY_EXCEEDED"
-    assert len(state["context"]["user_request"]) == 120_000
+    assert len(state["history_by_scope"]["S"][-1]["user_request_text"]) == 120_000
 
 
 @pytest.mark.parametrize("blocked", [False, True])
