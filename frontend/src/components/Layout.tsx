@@ -97,6 +97,10 @@ const Layout: React.FC = () => {
           );
         })}
         <div className="app-rail-bottom">
+          {/* Recording belongs to the local owner; without one there is nothing to show. */}
+          <LocalOwnerBoundary fallback={null}>
+            <RecordingRailControl />
+          </LocalOwnerBoundary>
           {PANTARAY_ACCOUNT_LOGIN_ENABLED && (
             <div className="app-rail-user" ref={dropdownRef}>
               <button
@@ -136,10 +140,6 @@ const Layout: React.FC = () => {
               )}
             </div>
           )}
-          {/* Recording belongs to the local owner; without one there is nothing to show. */}
-          <LocalOwnerBoundary fallback={null}>
-            <RecordingRailControl />
-          </LocalOwnerBoundary>
         </div>
       </nav>
 

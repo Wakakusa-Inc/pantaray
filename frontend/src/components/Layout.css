@@ -229,10 +229,11 @@
   box-shadow: var(--focus-ring);
 }
 
+/* Opens upward from the bottom of the rail. */
 .app-user-dropdown {
   position: absolute;
-  left: calc(100% + 16px);
-  bottom: 0;
+  left: 0;
+  bottom: calc(100% + 8px);
   min-width: 220px;
   /* Opaque for legibility over whatever the page shows. */
   background: var(--fog-popover);
@@ -247,11 +248,11 @@
 @keyframes dropdownFadeIn {
   from {
     opacity: 0;
-    transform: translateX(-8px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
