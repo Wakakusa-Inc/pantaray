@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import MutableMapping
 from typing import cast
 
@@ -42,7 +43,8 @@ async def run_memory_sql_tool(
     limit = require_int_arg(args, "limit", default_limit)
     user_id = _current_user_id(state)
 
-    repo_result = run_local_memory_sql(
+    repo_result = await asyncio.to_thread(
+        run_local_memory_sql,
         user_id=user_id,
         sql=sql,
         limit=limit,

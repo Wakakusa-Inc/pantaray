@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import sqlite3
+import tracemalloc
 from pathlib import Path
 
 import pytest
 
+import pantaray_agents.agents.action_agent.services.memory_sql as memory_sql_module
 from pantaray_agents.agents.action_agent.services.memory_sql import execute_memory_sql
 from pantaray_agents.local_runtime.storage.migrations import (
     apply_migrations,
@@ -586,3 +588,158 @@ def test_execute_memory_sql_limits_rows_and_cell_text(tmp_path: Path) -> None:
     assert isinstance(description, str)
     assert len(description) < 5_000
     assert description.endswith("...")
+
+
+def _insert_bulk_activity_logs(db_path: Path, *, count: int, description: str) -> None:
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?)
+            INSERT INTO activity_logs(
+                log_id, user_id, period_start, period_end, status, description,
+                prompt_name, prompt_version, created_at, updated_at
+            )
+            SELECT
+                'bulk-' || i, 'user-1', printf('2026-04-02T%05d', i),
+                printf('2026-04-03T%05d', i), 'success', ?, 'prompt', 'v1',
+                '2026-04-02T00:05:00Z', '2026-04-02T00:05:00Z'
+            FROM n
+            """,
+            (count, description),
+        )
+
+
+def _nested_hex(expression: str, depth: int) -> str:
+    for _ in range(depth):
+        expression = f"hex({expression})"
+    return expression
+
+
+def test_execute_memory_sql_rejects_values_inflated_past_the_length_limit(
+    tmp_path: Path,
+) -> None:
+    db_path = _bootstrap_db(tmp_path)
+
+    def run(depth: int):
+        return execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=(
+                f"SELECT {_nested_hex('description', depth)} AS inflated "
+                "FROM activity_logs WHERE log_id = 'log-1'"
+            ),
+            limit=1,
+        )
+
+    # The 5,000-character description doubles per hex(): ~1.3 MB stays allowed,
+    # ~5.1 MB would be built in full before any cell truncation.
+    allowed = run(8)
+    inflated = run(10)
+
+    assert allowed.error is None
+    assert inflated.data is None
+    assert inflated.error is not None
+    assert "too big" in inflated.error
+
+
+def test_execute_memory_sql_limits_result_columns(tmp_path: Path) -> None:
+    db_path = _bootstrap_db(tmp_path)
+
+    def run(sql: str):
+        return execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=sql,
+            limit=1,
+        )
+
+    all_tables_joined = run(
+        "SELECT * FROM activity_logs, activity_summaries, agent_actions, "
+        "agent_facts, agent_insights, agent_suggestions, source_records"
+    )
+    too_many_columns = run(f"SELECT {', '.join(['log_id'] * 201)} FROM activity_logs")
+
+    assert all_tables_joined.error is None
+    assert all_tables_joined.data is not None
+    assert len(all_tables_joined.data["columns"]) == 135
+    assert too_many_columns.data is None
+    assert too_many_columns.error is not None
+    assert "too many columns" in too_many_columns.error
+
+
+def test_execute_memory_sql_limits_statement_length(tmp_path: Path) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    prefix = "SELECT log_id FROM activity_logs WHERE log_id = 'log-1' -- "
+
+    def run(sql: str):
+        return execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=sql,
+            limit=1,
+        )
+
+    at_limit = run(prefix.ljust(20_000, "x"))
+    over_limit = run(prefix.ljust(20_001, "x"))
+
+    assert at_limit.error is None
+    assert at_limit.data is not None
+    assert at_limit.data["rows"] == [{"log_id": "log-1"}]
+    assert over_limit.data is None
+    assert over_limit.error is not None
+    assert over_limit.error.startswith("memory_sql rejected query:")
+    assert "too large" in over_limit.error
+
+
+def test_execute_memory_sql_holds_one_row_at_a_time(tmp_path: Path) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    _insert_bulk_activity_logs(db_path, count=250, description="abcd")
+
+    tracemalloc.start()
+    try:
+        # Each cell is 1 MiB; holding a full page of 200 such rows needs ~200 MiB.
+        result = execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=(
+                f"SELECT {_nested_hex('description', 18)} AS inflated "
+                "FROM activity_logs WHERE log_id LIKE 'bulk-%'"
+            ),
+            limit=200,
+        )
+        _, peak_bytes = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert result.error is None
+    assert result.data is not None
+    assert 0 < result.data["row_count"] < 200
+    assert result.data["truncated"] is True
+    assert peak_bytes < 16 * 1024 * 1024
+
+
+def test_execute_memory_sql_stops_a_query_past_its_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    _insert_bulk_activity_logs(db_path, count=100, description="x" * 5_000)
+    # Each row builds a ~2.5 MB value in a few opcodes and returns one integer,
+    # so neither the row, output, nor value limits stop it.
+    monkeypatch.setattr(memory_sql_module, "MEMORY_SQL_MAX_SECONDS", 0.05)
+
+    result = execute_memory_sql(
+        db_path=str(db_path),
+        busy_timeout_ms=BUSY_TIMEOUT_MS,
+        user_id="user-1",
+        sql=(f"SELECT sum(length({_nested_hex('description', 9)})) FROM activity_logs"),
+        limit=1,
+    )
+
+    assert result.data is None
+    assert result.error is not None
+    assert "ran longer than 0.05 seconds" in result.error
