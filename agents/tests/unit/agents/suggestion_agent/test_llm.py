@@ -17,18 +17,22 @@ from pantaray_agents.utils.prompt_loader import PromptConfig
 def _no_suggestion_output() -> dict[str, object]:
     return {
         "has_suggestion": False,
-        "answer": "",
         "interaction_contract": None,
+        "message_point": "",
+        "deliverable": None,
+        "agent_session": None,
         "suggestion_summary": None,
         "target_context": None,
     }
 
 
-def _suggestion_output(answer: str) -> dict[str, object]:
+def _suggestion_output(point: str) -> dict[str, object]:
     return {
         "has_suggestion": True,
-        "answer": answer,
         "interaction_contract": "action_offer",
+        "message_point": point,
+        "deliverable": "A schedule with the mornings kept free.",
+        "agent_session": False,
         "suggestion_summary": "Action handoff summary",
         "target_context": {
             "organization_name": "Wakakusa",
@@ -156,6 +160,7 @@ def test_parse_suggestion_output_without_suggestion(
 
     assert result["thinking"] is None
     assert result["answer"] == ""
+    assert result["decided"] is None
     assert result["has_suggestion"] is False
 
 
@@ -171,12 +176,36 @@ def test_parse_suggestion_output_with_plain_suggestion(
     )
 
     assert result["thinking"] is None
-    assert (
-        result["answer"]
-        == "I want my schedule to be structured so that I can focus in the morning."
-    )
+    # The decision carries no user-facing text; the writer call adds it.
+    assert result["answer"] == ""
+    assert result["decided"] == {
+        "interaction_contract": "action_offer",
+        "message_point": (
+            "I want my schedule to be structured so that I can focus in the morning."
+        ),
+        "deliverable": "A schedule with the mornings kept free.",
+        "agent_session": False,
+    }
     assert result["has_suggestion"] is True
     assert result["suggestion_summary"] == "Action handoff summary"
+
+
+@pytest.mark.parametrize(
+    ("contract", "deliverable"),
+    [("action_offer", None), ("message_only", "A reply to the client.")],
+)
+def test_parse_suggestion_output_requires_a_deliverable_exactly_for_an_offer(
+    suggestion_agent: SuggestionAgent, contract: str, deliverable: str | None
+) -> None:
+    payload = _suggestion_output("The client asked for the invoice again.")
+    payload["interaction_contract"] = contract
+    payload["deliverable"] = deliverable
+
+    with pytest.raises(ValueError, match="deliverable must be given exactly"):
+        suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+            raw_text=json.dumps(payload, ensure_ascii=False),
+            parsed_output=SuggestionStructuredOutput.model_validate(payload),
+        )
 
 
 def test_parse_suggestion_output_rejects_missing_suggestion_summary(
@@ -266,14 +295,14 @@ def test_system_instruction_renders_answer_language(
     suggestion_agent._prompt_config = PromptConfig(  # noqa: SLF001
         prompt="prompt",
         system_instruction=(
-            "`answer` must be written in natural {answer_language}.\n"
+            "`message_point` must be written in {answer_language}.\n"
             'JSON example: {"has_suggestion": true}'
         ),
     )
     suggestion_agent._current_language = "ja"  # noqa: SLF001
 
     system_instruction = suggestion_agent._system_instruction_for_request()  # noqa: SLF001
-    assert "`answer` must be written in natural Japanese." in system_instruction
+    assert "`message_point` must be written in Japanese." in system_instruction
     assert '{"has_suggestion": true}' in system_instruction
     assert "You must respond in Japanese" not in system_instruction
 

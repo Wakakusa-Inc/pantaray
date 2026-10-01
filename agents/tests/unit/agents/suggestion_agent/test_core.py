@@ -58,18 +58,20 @@ def _prompt_context() -> SuggestionFetchedContext:
 def _no_suggestion_output() -> dict[str, object]:
     return {
         "has_suggestion": False,
-        "answer": "",
         "interaction_contract": None,
+        "message_point": "",
         "suggestion_summary": None,
         "target_context": None,
     }
 
 
-def _suggestion_output(answer: str) -> dict[str, object]:
+def _suggestion_output(point: str) -> dict[str, object]:
     return {
         "has_suggestion": True,
-        "answer": answer,
         "interaction_contract": "action_offer",
+        "message_point": point,
+        "deliverable": "Task 1 done.",
+        "agent_session": False,
         "suggestion_summary": "Action handoff summary",
         "target_context": {
             "organization_name": "Wakakusa",
@@ -199,7 +201,7 @@ async def test_suggestion_agent_sends_large_activity_context_without_truncation(
         research_tools=build_mock_suggestion_research_tools(),
         stable_memory=_STABLE_MEMORY,
     )
-    mock_llm_client.set_next_response(_suggestion_output("次の作業を進めますか？"))
+    mock_llm_client.set_next_response(_no_suggestion_output())
 
     response = await agent.process(
         SuggestionAgentRequest(
@@ -343,7 +345,8 @@ async def test_suggestion_agent_process_with_suggestion(
         reconsideration_reason="The user switched goals.",
     )
 
-    mock_llm_client.set_next_response(_suggestion_output("Try task 1?"))
+    mock_llm_client.set_next_response(_suggestion_output("Task 1 is ready."))
+    mock_llm_client.responses["default"] = "Try task 1?"  # the writer's reply
 
     response = await suggestion_agent.process(request)
 
@@ -587,7 +590,8 @@ async def test_suggestion_agent_repository_error_on_save(
         short_term_insight="# Insight\nThe user is fixing a parser bug.",
         reconsideration_reason="The user switched goals.",
     )
-    mock_llm_client.set_next_response(_suggestion_output("Try task 1?"))
+    mock_llm_client.set_next_response(_suggestion_output("Task 1 is ready."))
+    mock_llm_client.responses["default"] = "Try task 1?"  # the writer's reply
 
     response = await suggestion_agent.process(request)
 

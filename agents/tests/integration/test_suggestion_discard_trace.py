@@ -150,8 +150,9 @@ def _prepare_job(
             SuggestionStructuredOutput.model_validate(
                 {
                     "has_suggestion": True,
-                    "answer": answer,
                     "interaction_contract": "message_only",
+                    "message_point": answer,
+                    "agent_session": False,
                     "suggestion_summary": "Parser review.",
                     "target_context": {
                         "organization_name": None,
@@ -160,6 +161,7 @@ def _prepare_job(
                 }
             ).model_dump()
         )
+        llm.responses["default"] = answer  # what the writer call returns
         await repository.create_processing_suggestion_row(
             user_id=USER_ID, suggestion_id=suggestion_id
         )

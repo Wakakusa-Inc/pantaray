@@ -130,21 +130,38 @@ def _terminal_tool() -> LlmToolDefinition:
             "additionalProperties": False,
             "required": [
                 "has_suggestion",
-                "answer",
                 "interaction_contract",
+                "message_point",
+                "deliverable",
+                "agent_session",
                 "suggestion_summary",
                 "target_context",
                 "candidates",
             ],
             "properties": {
                 "has_suggestion": {"type": "boolean"},
-                "answer": {
-                    "type": "string",
-                    "maxLength": ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
-                },
                 "interaction_contract": {
                     "type": ["string", "null"],
                     "enum": ["action_offer", "message_only", None],
+                },
+                "message_point": {
+                    "type": "string",
+                    "maxLength": ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
+                    "description": (
+                        "Notes for the writer: the one thing to tell the user. "
+                        "Not the finished message."
+                    ),
+                },
+                "deliverable": {
+                    "type": ["string", "null"],
+                    "maxLength": ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
+                    "description": "For action_offer, what approval gives the user.",
+                },
+                "agent_session": {
+                    "type": ["boolean", "null"],
+                    "description": (
+                        "Whether the user is doing this work in an AI agent session."
+                    ),
                 },
                 "suggestion_summary": {"type": ["string", "null"]},
                 "target_context": {

@@ -45,6 +45,10 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
 )
 from pantaray_agents.agents.suggestion_agent.react import run_suggestion_react
 from pantaray_agents.agents.suggestion_agent.research import SuggestionResearchTools
+from pantaray_agents.agents.suggestion_agent.writer import (
+    SUGGESTION_WRITER_PROMPT_NAME,
+    write_suggestion_answer,
+)
 from pantaray_agents.local_runtime.runtime.utc_timestamps import now_utc_iso
 from pantaray_agents.repositories.runtime_ports import (
     SuggestionRepositoryPort,
@@ -58,6 +62,7 @@ from pantaray_agents.schema.agent.base import (
 from pantaray_agents.schema.agent.suggestion import (
     SuggestionAgentRequest,
     SuggestionAgentResponse,
+    SuggestionDecidedContent,
     SuggestionExtraction,
     SuggestionHistoryEntry,
     SuggestionStructuredOutput,
@@ -147,6 +152,10 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
         self._prompt_config: PromptConfig = self._load_prompt_config(
             "suggestion/suggestion"
         )
+        self._writer_prompt_config = self._load_prompt_config(
+            SUGGESTION_WRITER_PROMPT_NAME
+        )
+        self._last_step_number = 0  # the run's latest recorded step
         self._action_agent_capabilities_prompt_text = ACTION_AGENT_CAPABILITY_ENVELOPE
         self._current_user_id = ""
         self._current_suggestion_id = ""
@@ -353,7 +362,8 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
             loaded = json.loads(raw)
             parsed = SuggestionStructuredOutput.model_validate(loaded)
 
-        answer = parsed.answer.strip()
+        message_point = parsed.message_point.strip()
+        deliverable = parsed.deliverable.strip() if parsed.deliverable else None
         suggestion_summary = (
             parsed.suggestion_summary.strip()
             if isinstance(parsed.suggestion_summary, str)
@@ -362,14 +372,21 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
         target_context = _normalize_target_context(parsed.target_context)
 
         if parsed.has_suggestion:
-            if not answer:
+            if not message_point:
                 raise ValueError(
-                    "Suggestion answer must be non-empty when has_suggestion=true"
+                    "message_point must be non-empty when has_suggestion=true"
                 )
             if parsed.interaction_contract is None:
                 raise ValueError(
                     "interaction_contract is required when has_suggestion=true"
                 )
+            if (parsed.interaction_contract == "action_offer") != bool(deliverable):
+                raise ValueError(
+                    "deliverable must be given exactly when interaction_contract "
+                    "is action_offer"
+                )
+            if parsed.agent_session is None:
+                raise ValueError("agent_session is required when has_suggestion=true")
             if not suggestion_summary:
                 raise ValueError(
                     "suggestion_summary must be non-empty when has_suggestion=true"
@@ -378,9 +395,16 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
                 raise ValueError(
                     "target_context must be an object when has_suggestion=true"
                 )
+            decided: SuggestionDecidedContent = {
+                "interaction_contract": parsed.interaction_contract,
+                "message_point": message_point,
+                "deliverable": deliverable,
+                "agent_session": parsed.agent_session,
+            }
             return {
                 "thinking": None,
-                "answer": answer,
+                "answer": "",
+                "decided": decided,
                 "suggestion_summary": suggestion_summary,
                 "target_context": target_context,
                 "prompt_text": "",
@@ -389,9 +413,9 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
                 "interaction_contract": parsed.interaction_contract,
             }
 
-        if answer:
+        if message_point or deliverable:
             raise ValueError(
-                "Suggestion answer must be empty when has_suggestion=false"
+                "message_point and deliverable must be empty when has_suggestion=false"
             )
         if parsed.interaction_contract is not None:
             raise ValueError(
@@ -406,6 +430,7 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
         return {
             "thinking": None,
             "answer": "",
+            "decided": None,
             "suggestion_summary": None,
             "target_context": None,
             "prompt_text": "",
@@ -419,6 +444,7 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
         if not self._current_user_id or not self._current_suggestion_id:
             raise RuntimeError("Suggestion request scope is not initialized")
         sink = CountingSink()
+        self._last_step_number = 0
 
         async def generate_tool_call(
             *,
@@ -452,11 +478,37 @@ class SuggestionAgent(BaseAgent[SuggestionAgentResponse]):
             record_step=self._record_react_step,
             discard_llm_thoughts=self._consume_llm_thoughts,
         )
+        decided = extracted["decided"]
+        if decided is not None:
+
+            async def generate_text(
+                *, prompt: str, system_instruction: str, stage: str
+            ) -> str:
+                text = await self._generate_llm_response(
+                    prompt,
+                    sink=sink,
+                    system_instruction=system_instruction,
+                    stage=stage,
+                )
+                if not isinstance(text, str):
+                    raise RuntimeError("Suggestion writer returned a non-text response")
+                return text
+
+            extracted["answer"] = await write_suggestion_answer(
+                run_id=self._current_suggestion_id,
+                step_number=self._last_step_number + 1,
+                decided=decided,
+                answer_language=self._answer_language_label(),
+                config=self._writer_prompt_config,
+                generate_text=generate_text,
+                record_step=self._record_react_step,
+            )
         self._last_prompt_text = prompt
         self._last_response_text = extracted["response_text"]
         return extracted
 
     async def _record_react_step(self, step: ReactLoopStep) -> None:
+        self._last_step_number = max(self._last_step_number, step.step_number)
         result = await self.repository.save_suggestion_run_step(
             suggestion_id=self._current_suggestion_id,
             step_number=step.step_number,
