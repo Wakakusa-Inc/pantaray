@@ -67,6 +67,10 @@ def _group_alive(pgid: int) -> bool:
         os.killpg(pgid, 0)
     except ProcessLookupError:
         return False
+    except PermissionError:
+        # macOS answers EPERM for a group left with only zombies, or whose id now
+        # belongs to another user's process; either way the command is gone.
+        return False
     return True
 
 
