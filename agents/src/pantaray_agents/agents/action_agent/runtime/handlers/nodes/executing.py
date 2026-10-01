@@ -406,7 +406,13 @@ async def execution_think_step(  # noqa: C901
                 max_parallel=max_parallel_tool_calls,
                 remaining_tool_steps=remaining_tool_steps,
             )
-            batch = PendingToolBatchModel(calls=plan.calls, mode=plan.mode)
+            # A turn of nothing but held-back calls runs nothing; its notice
+            # still reaches the model, as a turn without calls does.
+            batch = (
+                PendingToolBatchModel(calls=plan.calls, mode=plan.mode)
+                if plan.calls
+                else None
+            )
             batch_notice = _build_batch_notice(
                 plan,
                 provider_dropped_call_names=native_turn.dropped_call_names,

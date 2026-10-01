@@ -1694,3 +1694,43 @@ def test_a_report_mixed_with_other_calls_waits_for_a_turn_of_its_own(
             "WHERE process_id='child-process' AND event_name='stream_end'"
         ).fetchone()
     assert json.loads(terminal[0]) == {"outcome": "success", "report": "Child report"}
+
+
+def test_two_reports_in_one_turn_end_nothing_until_one_comes_alone(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """報告を 2 件出したターンでは終わらず、単独で出し直した報告で終わる。"""
+
+    db_path, payload = _running_child(
+        tmp_path, profile_id=SUBAGENT_MODEL_SETTINGS[0].profile_id
+    )
+    first = LlmToolCall(
+        call_id="r1", name="submit_subagent_report", arguments={"report": "Draft"}
+    )
+    corrected = LlmToolCall(
+        call_id="r2", name="submit_subagent_report", arguments={"report": "Corrected"}
+    )
+    client = _Client(calls=((first, corrected), corrected))
+    monkeypatch.setattr(subagent_job, "build_local_llm_proxy_client", lambda: client)
+    with bind_local_runtime_db_execution_context(
+        db_path=db_path, busy_timeout_ms=1_000
+    ):
+        subagent_job.run_action_subagent_job(payload)
+
+    assert len(client.prompts) == 2
+    answers = [
+        json.dumps(item.output)
+        for item in client.tool_uses[1].conversation or ()
+        if isinstance(item, LlmTurnToolResultItem)
+    ]
+    assert len(answers) == 2
+    assert all(
+        "TOOL_CALL_NOT_RUN" in answer and "send exactly one, alone" in answer
+        for answer in answers
+    )
+    with sqlite3.connect(db_path) as connection:
+        terminal = connection.execute(
+            "SELECT payload_json FROM process_events "
+            "WHERE process_id='child-process' AND event_name='stream_end'"
+        ).fetchone()
+    assert json.loads(terminal[0]) == {"outcome": "success", "report": "Corrected"}
