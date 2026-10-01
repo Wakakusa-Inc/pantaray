@@ -43,6 +43,7 @@ COMMON_DRAFT_NEXT_STEP = (
 class DraftFinalAnswerPayload(TypedDict):
     status: str
     next_step: str
+    draft_revision: str
 
 
 async def run_draft_final_answer_tool(
@@ -94,6 +95,8 @@ async def run_draft_final_answer_tool(
     result_payload: DraftFinalAnswerPayload = {
         "status": "draft_updated",
         "next_step": COMMON_DRAFT_NEXT_STEP,
+        # link_memory and unlink_memory must name the revision they edit.
+        "draft_revision": draft.draft_revision,
     }
     return UnprojectedToolExecutionResult(
         step_id=step_id,
