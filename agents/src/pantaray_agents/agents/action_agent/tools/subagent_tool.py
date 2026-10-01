@@ -31,6 +31,8 @@ SPAWN_SUBAGENT_TOOL_ID = "spawn_subagent"
 SEND_MESSAGE_TO_SUBAGENT_TOOL_ID = "send_message_to_subagent"
 WAIT_SUBAGENTS_TOOL_ID = "wait_subagents"
 CANCEL_SUBAGENT_TOOL_ID = "cancel_subagent"
+# The subagent's own terminal tool; the child job defines its contract.
+SUBMIT_SUBAGENT_REPORT_TOOL_ID = "submit_subagent_report"
 _MODEL_GUIDANCE = " ".join(
     f"{setting.selector}: {setting.recommendation}"
     for setting in SUBAGENT_MODEL_SETTINGS

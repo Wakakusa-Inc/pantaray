@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 from typing import cast
 
+from pantaray_agents.agents.action_agent.runtime.handlers.tool_runtime import (
+    PARALLEL_SAFE_TOOL_IDS,
+)
 from pantaray_agents.agents.action_agent.tools.apply_patch_tool import APPLY_PATCH_TOOL
 from pantaray_agents.agents.action_agent.tools.base import ToolDefinition
 from pantaray_agents.agents.action_agent.tools.bash_tool import BASH_TOOL
@@ -245,6 +249,19 @@ def _build_tool(
     authority: ActionSubagentBrokerAuthority,
 ) -> ReactToolDefinition:
     async def execute(call: ReactToolCall, _step_number: int) -> ReactToolResult:
+        # The durable identity is the next transcript row, which calls running
+        # at once would share. Only read-only calls run at once, and they need
+        # no replay after a restart, so each gets an identity of its own; a
+        # changing call keeps the durable one that lets a restart replay it.
+        tool_request_id = (
+            str(uuid.uuid4())
+            if definition.tool_id in PARALLEL_SAFE_TOOL_IDS
+            else next_action_subagent_tool_request_id(
+                db_path=db_path,
+                busy_timeout_ms=busy_timeout_ms,
+                process_id=payload["process_id"],
+            )
+        )
         return await execute_action_subagent_broker_tool(
             db_path=db_path,
             busy_timeout_ms=busy_timeout_ms,
@@ -252,11 +269,7 @@ def _build_tool(
             authority=authority,
             tool_id=definition.tool_id,
             args=cast(dict[str, JSONValue], call.tool_args),
-            tool_request_id=next_action_subagent_tool_request_id(
-                db_path=db_path,
-                busy_timeout_ms=busy_timeout_ms,
-                process_id=payload["process_id"],
-            ),
+            tool_request_id=tool_request_id,
         )
 
     return ReactToolDefinition(

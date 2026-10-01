@@ -153,6 +153,9 @@ def test_executing_prompt_delegates_model_guidance_to_spawn_tool_metadata() -> N
     assert "reasonably substantial, self-contained piece of work" in section
     assert "Brief each subagent in detail so it does not redo your work" in section
     assert "quote content you have already read" in section
+    assert "it knows nothing of this conversation" in section
+    assert "a colleague who just walked in" in section
+    assert "exactly what to return" in section
     assert "Parallel subagents must not write the same files" in section
     assert "Do not spawn a subagent just to run one command or one check" in section
     assert "choose an explicit model from the tool definition" in section

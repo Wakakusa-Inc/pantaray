@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from pantaray_agents.agents.action_agent import ActionAgent
@@ -9,9 +10,18 @@ from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm.turn_input i
     SUBAGENT_ROLE,
     role_system_instruction,
 )
+from pantaray_agents.agents.action_agent.runtime.handlers.tool_runtime import (
+    EXCLUSION_NOTICES,
+    PROVIDER_DROPPED_NOTICE,
+    plan_tool_batch,
+)
+from pantaray_agents.agents.action_agent.tools import SUBMIT_SUBAGENT_REPORT_TOOL_ID
 from pantaray_agents.agents.artifact_react import (
     NativeReactCompletion,
     NativeReactRunInput,
+    NativeReactSkippedCall,
+    NativeReactTurnInterrupt,
+    NativeReactTurnPlan,
     ReactLoopPolicy,
     ReactLoopStep,
     ReactToolResult,
@@ -23,6 +33,7 @@ from pantaray_agents.agents.core.mixins.llm_tool_use_mixin import (
     LlmToolUseMixin,
 )
 from pantaray_agents.agents.core.tool_llm_runner import ToolLlmRunner
+from pantaray_agents.config_tunables import load_local_runtime_tunables
 from pantaray_agents.local_runtime.llm_proxy import build_local_llm_proxy_client
 from pantaray_agents.local_runtime.runtime.action_subagent_approval import (
     load_pending_action_subagent_approval,
@@ -65,6 +76,7 @@ from pantaray_agents.tasks.types import ActionSubagentJobPayload
 from pantaray_agents.utils.prompt_loader import load_config
 from pantaray_llm.contracts.conversation import LlmConversation
 from pantaray_llm.contracts.tool_use import (
+    LlmToolCall,
     LlmToolContinuation,
     LlmToolDefinition,
     LlmToolResult,
@@ -77,7 +89,6 @@ from .action_subagent_broker import (
     execute_action_subagent_broker_tool,
 )
 
-SUBMIT_SUBAGENT_REPORT_TOOL_NAME = "submit_subagent_report"
 ACTION_SUBAGENT_PROFILE_UNAVAILABLE = "ACTION_SUBAGENT_PROFILE_UNAVAILABLE"
 ACTION_SUBAGENT_EXECUTION_FAILED = "ACTION_SUBAGENT_EXECUTION_FAILED"
 
@@ -85,6 +96,17 @@ _CONFIGURED_PROFILE_IDS = frozenset(
     settings.profile_id for settings in SUBAGENT_MODEL_SETTINGS
 )
 _ACTION_SUBAGENT_MAX_REPORT_REPAIRS = 2
+
+
+@dataclass(frozen=True, slots=True)
+class _PlannedCall:
+    """One requested call, in the shape the parent's batch policy reads."""
+
+    call: LlmToolCall
+
+    @property
+    def tool_id(self) -> str:
+        return self.call.name
 
 
 class ActionSubagentJobFailed(RuntimeError):
@@ -111,6 +133,7 @@ async def execute_action_subagent_job(
 ) -> ActionSubagentTerminalSuccess:
     sink = CountingSink()
     terminal_tool = _report_tool_definition()
+    max_parallel = load_local_runtime_tunables().action_agent.max_parallel_tool_calls
     rejected_reports = 0
     turn_conversation: LlmConversation | None = None
 
@@ -130,6 +153,7 @@ async def execute_action_subagent_job(
             tools=tools,
             continuation_mode="disabled",
             conversation=turn_conversation,
+            max_parallel_tool_calls=max_parallel,
             before_attempt=lambda: _raise_if_cancellation_requested(
                 db_path=db_path,
                 busy_timeout_ms=busy_timeout_ms,
@@ -159,7 +183,7 @@ async def execute_action_subagent_job(
             status="completed" if step.status == "success" else "error",
             arguments=(
                 {}
-                if step.tool_name == SUBMIT_SUBAGENT_REPORT_TOOL_NAME
+                if step.tool_name == SUBMIT_SUBAGENT_REPORT_TOOL_ID
                 and step.status == "error"
                 else step.tool_args
             ),
@@ -265,6 +289,17 @@ async def execute_action_subagent_job(
             record_step=record_tool_step,
             project_tool_result=project_result,
             policy=ReactLoopPolicy(),
+            plan_turn=lambda turn, remaining: _plan_turn(
+                turn, max_parallel=max_parallel, remaining_tool_calls=remaining
+            ),
+            # The pause anchor holds only the call that asked; the resumed run
+            # settles it, so the calls after it are answered as not run now.
+            turn_interrupt=NativeReactTurnInterrupt(
+                exception=ActionSubagentApprovalPause,
+                not_run_reason=_not_run_reason(
+                    "came after a call that waited for the user's approval"
+                ),
+            ),
         )
     )
     if result.loop_result.status != "success" or result.value is None:
@@ -405,7 +440,7 @@ def _persist_terminal_until_success(
 
 def _report_tool_definition() -> LlmToolDefinition:
     return LlmToolDefinition(
-        name=SUBMIT_SUBAGENT_REPORT_TOOL_NAME,
+        name=SUBMIT_SUBAGENT_REPORT_TOOL_ID,
         description="Submit the final private report to the parent agent.",
         parameters={
             "type": "object",
@@ -419,6 +454,65 @@ def _report_tool_definition() -> LlmToolDefinition:
             },
             "required": ["report"],
         },
+    )
+
+
+def _plan_turn(
+    turn: LlmToolCallTurn, *, max_parallel: int, remaining_tool_calls: int
+) -> NativeReactTurnPlan:
+    """Split one turn's calls by the parent's batch policy.
+
+    Read-only calls run at once, a changing call runs alone in order, and a call
+    the policy leaves out is answered with the parent's reason for it. The
+    runner ends the run on a report only when it is the turn's sole call, so a
+    report reaching here shares its turn: it is answered as not run, whatever
+    its position, and the other calls run, so no requested work is reported
+    as done without running.
+    """
+
+    reports = [c for c in turn.calls if c.name == SUBMIT_SUBAGENT_REPORT_TOOL_ID]
+    plan = plan_tool_batch(
+        tuple(
+            _PlannedCall(call)
+            for call in turn.calls
+            if call.name != SUBMIT_SUBAGENT_REPORT_TOOL_ID
+        ),
+        max_parallel=max_parallel,
+        remaining_tool_steps=remaining_tool_calls,
+    )
+    skipped = [
+        (
+            entry.call.call.name,
+            entry.call.call.arguments,
+            EXCLUSION_NOTICES[entry.reason],
+        )
+        for entry in (*plan.deferred, *plan.dropped)
+    ]
+    skipped.extend(
+        (report.name, report.arguments, EXCLUSION_NOTICES["solo_turn_tool"])
+        for report in reports
+    )
+    skipped.extend(
+        (name, {}, PROVIDER_DROPPED_NOTICE) for name in turn.dropped_call_names
+    )
+    return NativeReactTurnPlan(
+        calls=tuple(planned.call for planned in plan.calls),
+        parallel=plan.mode == "parallel",
+        skipped=tuple(
+            NativeReactSkippedCall(
+                name=name,
+                arguments=arguments,
+                reason=_not_run_reason(notice),
+            )
+            for name, arguments, notice in skipped
+        ),
+    )
+
+
+def _not_run_reason(notice: str) -> str:
+    return (
+        f"Not run: this call {notice}. "
+        "Request it again in a later turn if it is still needed."
     )
 
 
