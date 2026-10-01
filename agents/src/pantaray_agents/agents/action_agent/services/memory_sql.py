@@ -20,6 +20,10 @@ MAX_MEMORY_SQL_CELL_CHARS = 4_000
 MAX_MEMORY_SQL_OUTPUT_CHARS = 30_000
 MEMORY_SQL_PROGRESS_HANDLER_OPCODES = 1_000
 MEMORY_SQL_MAX_PROGRESS_CALLBACKS = 20_000
+# Bytes. Caps every string or blob SQLite builds, so a query cannot inflate a cell
+# (nested hex(), replace()) to gigabytes before the cell truncation runs. Real
+# stores stay well below this; a stored value above it fails even length(x).
+MEMORY_SQL_MAX_VALUE_BYTES = 4 * 1024 * 1024
 _SQL_IDENTIFIER_PATTERN = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 
 MEMORY_SQL_ALLOWED_TABLES = frozenset(
@@ -155,29 +159,26 @@ def execute_memory_sql(
             )
             cursor = conn.execute(normalized_sql)
             columns = [description[0] for description in cursor.description or ()]
-            raw_rows = cursor.fetchmany(normalized_limit + 1)
             if not observed_base_reads:
                 return _validation_error(
                     "memory_sql: query must read at least one allowed memory table."
                 )
+            serialized = _serialize_rows(
+                cursor=cursor,
+                columns=columns,
+                limit=normalized_limit,
+                notes=notes,
+            )
     except sqlite3.DatabaseError as exc:
         return _validation_error(f"memory_sql rejected query: {exc}")
 
-    truncated = len(raw_rows) > normalized_limit
-    serialized = _serialize_rows(
-        columns=columns,
-        raw_rows=raw_rows[:normalized_limit],
-        notes=notes,
-    )
     rows = serialized["rows"]
-    if serialized["truncated"] or len(rows) < min(len(raw_rows), normalized_limit):
-        truncated = True
     return RepositoryResult(
         data={
             "columns": columns,
             "rows": rows,
             "row_count": len(rows),
-            "truncated": truncated,
+            "truncated": serialized["truncated"],
             "notes": notes,
         }
     )
@@ -186,6 +187,7 @@ def execute_memory_sql(
 def _connect_read_only(*, db_path: str, busy_timeout_ms: int) -> sqlite3.Connection:
     uri = f"{Path(db_path).resolve().as_uri()}?mode=ro"
     conn = sqlite3.connect(uri, uri=True)
+    conn.setlimit(sqlite3.SQLITE_LIMIT_LENGTH, MEMORY_SQL_MAX_VALUE_BYTES)
     conn.execute(f"PRAGMA busy_timeout = {busy_timeout_ms}")
     conn.row_factory = sqlite3.Row
     return conn
@@ -423,14 +425,18 @@ def _is_private_view_base_read(
 
 def _serialize_rows(
     *,
+    cursor: sqlite3.Cursor,
     columns: list[str],
-    raw_rows: list[sqlite3.Row],
+    limit: int,
     notes: list[str],
 ) -> _SerializedRows:
+    # Rows are serialized as they are fetched so only one raw row is held at a time.
     rows: list[dict[str, JSONValue]] = []
     output_chars = 0
     truncated = False
-    for raw_row in raw_rows:
+    for raw_row in cursor:
+        if len(rows) == limit:
+            return {"rows": rows, "truncated": True}
         row: dict[str, JSONValue] = {}
         for column in columns:
             value, cell_truncated = _serialize_value(raw_row[column])

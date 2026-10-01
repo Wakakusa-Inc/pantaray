@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
-import re
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+
+import regex  # type: ignore[import-untyped]
 
 from pantaray_agents.local_runtime.tooling.brokering.broker_common import (
     BrokerPolicyError,
@@ -19,6 +21,7 @@ from pantaray_agents.local_runtime.tooling.brokering.private_app_storage import 
     is_within_any,
 )
 from pantaray_agents.local_runtime.tooling.brokering.workspace_descriptor_access import (
+    SEARCH_TIMEOUT_SECONDS,
     bound_grep_line,
     glob_workspace_files,
     grep_workspace_files,
@@ -195,13 +198,12 @@ class ReadOnlyFileAccess:
         root = self._root(root_id)
         relative_base = _relative_path(base_path, allow_dot=True)
         if isinstance(root, MemoryReadRoot):
-            matches = _memory_grep_matches(
+            matches, upstream_reason = _memory_grep_matches(
                 root=root,
                 base_path=relative_base,
                 pattern=pattern,
                 include_glob=include_glob,
             )
-            upstream_reason = None
             skipped_files = 0
         else:
             matches, upstream_reason, skipped_files = _workspace_grep_matches(
@@ -358,25 +360,32 @@ def _memory_grep_matches(
     base_path: str,
     pattern: str,
     include_glob: str | None,
-) -> list[JSONValue]:
+) -> tuple[list[JSONValue], str | None]:
+    deadline = time.monotonic() + SEARCH_TIMEOUT_SECONDS
     try:
-        expression = re.compile(pattern)
-    except re.error as exc:
+        expression = regex.compile(pattern)
+    except (regex.error, RecursionError) as exc:
         raise BrokerPolicyError(f"grep pattern is invalid: {exc}") from exc
     if include_glob is not None:
         _validate_glob_pattern(include_glob)
     prefix = "" if base_path == "." else f"{base_path.rstrip('/')}/"
     matches: list[JSONValue] = []
-    for document in sorted(root.documents, key=lambda item: item.source_path):
-        if not document.source_path.startswith(prefix):
-            continue
-        relative = document.source_path[len(prefix) :]
-        if include_glob is not None and not matches_workspace_glob(
-            relative, include_glob
-        ):
-            continue
-        for line_number, line in enumerate(document.content.splitlines(), start=1):
-            if expression.search(line):
+    try:
+        for document in sorted(root.documents, key=lambda item: item.source_path):
+            if not document.source_path.startswith(prefix):
+                continue
+            relative = document.source_path[len(prefix) :]
+            if include_glob is not None and not matches_workspace_glob(
+                relative, include_glob
+            ):
+                continue
+            lines = document.content.splitlines()
+            for line_number, line in enumerate(lines, start=1):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError
+                if expression.search(line, timeout=remaining) is None:
+                    continue
                 matches.append(
                     {
                         "path": document.source_path,
@@ -384,7 +393,9 @@ def _memory_grep_matches(
                         "line": bound_grep_line(line),
                     }
                 )
-    return matches
+    except TimeoutError:
+        return matches, "timeout"
+    return matches, None
 
 
 def _workspace_grep_matches(

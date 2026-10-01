@@ -74,6 +74,7 @@ from pantaray_agents.local_runtime.tooling.brokering.broker_common import (
     BrokerPolicyError,
 )
 from pantaray_agents.local_runtime.tooling.react_tools import (
+    MemoryReadRoot,
     ReadOnlyFileAccess,
     WorkspaceReadRoot,
     memory_revision_by_source,
@@ -686,6 +687,47 @@ def test_published_insight_snapshot_seeds_index_and_reads_leaf(
         )["content"]
         == "# Topic\nInsight leaf detail\n"
     )
+
+
+def test_memory_grep_stops_a_backtracking_pattern_at_the_search_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A plain backtracking engine needs ~0.3 s here and the timed engine ~0.7 s,
+    # so the shortened deadline must cut the search off instead of finishing it.
+    monkeypatch.setattr(file_access_module, "SEARCH_TIMEOUT_SECONDS", 0.05)
+    backtracking_line = ("来週の定例で見積もりの件を先方に確認" * 2)[:24]
+    reader = ReadOnlyFileAccess(
+        roots=(
+            MemoryReadRoot(
+                root_id="facts",
+                display_name="Facts",
+                revision_id="revision-1",
+                node_id="node-1",
+                entry_path="facts/index.md",
+                documents=(
+                    MemoryDocument(
+                        "facts/notes.md",
+                        f"release 2\n{backtracking_line}\nrelease 3\n",
+                    ),
+                ),
+            ),
+        )
+    )
+
+    result = reader.grep(
+        root_id="facts",
+        base_path=".",
+        pattern=r"(?:\w|\w\w|\w\w\w)*[0-9]$",
+        include_glob=None,
+        offset=1,
+        max_matches=10,
+    )
+
+    assert result["matches"] == [
+        {"path": "facts/notes.md", "line_number": 1, "line": "release 2"}
+    ]
+    assert result["truncated"] is True
+    assert result["truncation_reason"] == "timeout"
 
 
 def test_stable_memory_bounds_include_truncation_markers() -> None:

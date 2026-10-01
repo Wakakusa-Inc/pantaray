@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import tracemalloc
 from pathlib import Path
 
 import pytest
@@ -586,3 +587,79 @@ def test_execute_memory_sql_limits_rows_and_cell_text(tmp_path: Path) -> None:
     assert isinstance(description, str)
     assert len(description) < 5_000
     assert description.endswith("...")
+
+
+def _nested_hex(expression: str, depth: int) -> str:
+    for _ in range(depth):
+        expression = f"hex({expression})"
+    return expression
+
+
+def test_execute_memory_sql_rejects_values_inflated_past_the_length_limit(
+    tmp_path: Path,
+) -> None:
+    db_path = _bootstrap_db(tmp_path)
+
+    def run(depth: int):
+        return execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=(
+                f"SELECT {_nested_hex('description', depth)} AS inflated "
+                "FROM activity_logs WHERE log_id = 'log-1'"
+            ),
+            limit=1,
+        )
+
+    # The 5,000-character description doubles per hex(): ~1.3 MB stays allowed,
+    # ~5.1 MB would be built in full before any cell truncation.
+    allowed = run(8)
+    inflated = run(10)
+
+    assert allowed.error is None
+    assert inflated.data is None
+    assert inflated.error is not None
+    assert "too big" in inflated.error
+
+
+def test_execute_memory_sql_holds_one_row_at_a_time(tmp_path: Path) -> None:
+    db_path = _bootstrap_db(tmp_path)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 250)
+            INSERT INTO activity_logs(
+                log_id, user_id, period_start, period_end, status, description,
+                prompt_name, prompt_version, created_at, updated_at
+            )
+            SELECT
+                'bulk-' || i, 'user-1', printf('2026-04-02T%05d', i),
+                printf('2026-04-03T%05d', i), 'success', 'abcd', 'prompt', 'v1',
+                '2026-04-02T00:05:00Z', '2026-04-02T00:05:00Z'
+            FROM n
+            """
+        )
+
+    tracemalloc.start()
+    try:
+        # Each cell is 1 MiB; holding a full page of 200 such rows needs ~200 MiB.
+        result = execute_memory_sql(
+            db_path=str(db_path),
+            busy_timeout_ms=BUSY_TIMEOUT_MS,
+            user_id="user-1",
+            sql=(
+                f"SELECT {_nested_hex('description', 18)} AS inflated "
+                "FROM activity_logs WHERE log_id LIKE 'bulk-%'"
+            ),
+            limit=200,
+        )
+        _, peak_bytes = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert result.error is None
+    assert result.data is not None
+    assert 0 < result.data["row_count"] < 200
+    assert result.data["truncated"] is True
+    assert peak_bytes < 16 * 1024 * 1024
