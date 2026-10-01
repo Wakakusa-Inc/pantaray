@@ -193,102 +193,6 @@
   box-shadow: var(--focus-ring);
 }
 
-/* User menu (only while Pantaray account login is enabled). */
-.app-rail-user {
-  position: relative;
-  display: flex;
-  align-items: center;
-  -webkit-app-region: no-drag;
-}
-
-.app-user-button {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--border-color);
-  background: var(--surface-bg);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  -webkit-app-region: no-drag;
-}
-
-.app-user-button:hover {
-  background: var(--surface-bg-hover);
-  border-color: var(--border-color-hover);
-}
-
-.app-user-button:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-
-/* Opens upward from the bottom of the rail. */
-.app-user-dropdown {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 8px);
-  min-width: 220px;
-  /* Opaque for legibility over whatever the page shows. */
-  background: var(--fog-popover);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  padding: 8px;
-  z-index: 1000;
-  animation: dropdownFadeIn 0.15s ease;
-}
-
-@keyframes dropdownFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .app-user-dropdown {
-    animation: none;
-  }
-}
-
-.app-user-dropdown-email {
-  padding: 12px 12px;
-  font-size: var(--text-meta-size);
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border-color);
-  word-break: break-all;
-}
-
-.app-user-dropdown-item {
-  width: 100%;
-  padding: var(--space-sm) var(--space-md);
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  -webkit-app-region: no-drag;
-}
-
-.app-user-dropdown-item:hover {
-  background: var(--surface-bg-hover);
-  color: var(--text-primary);
-}
-
 .app-user-dropdown a.app-user-dropdown-item {
   display: block;
   text-decoration: none;
@@ -296,6 +200,12 @@
 
 .app-user-dropdown [role='status'] {
   color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-rail .app-user-dropdown {
+    animation: none;
+  }
 }
 
 .app-connection-notice {
