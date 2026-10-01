@@ -11,6 +11,7 @@ from .native_runner import (
     NativeReactRunInput,
     NativeReactRunResult,
     NativeReactSkippedCall,
+    NativeReactTurnInterrupt,
     NativeReactTurnPlan,
     run_native_react,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "NativeReactRunInput",
     "NativeReactRunResult",
     "NativeReactSkippedCall",
+    "NativeReactTurnInterrupt",
     "NativeReactTurnPlan",
     "PatchCommitResult",
     "RESERVED_ARTIFACT_TOOL_NAMES",

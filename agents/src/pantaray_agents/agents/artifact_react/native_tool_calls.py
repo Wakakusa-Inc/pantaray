@@ -39,6 +39,19 @@ class NativeReactSkippedCall:
 
 
 @dataclass(frozen=True, slots=True)
+class NativeReactTurnInterrupt:
+    """A tool exception that stops the turn to resume the run later.
+
+    The calls after the one that raised it, and the calls the plan left out,
+    are recorded as not run before it propagates, so the resumed run shows the
+    model an answer for each of them instead of nothing.
+    """
+
+    exception: type[BaseException]
+    not_run_reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class NativeReactTurnPlan:
     """Which of one turn's calls run now, in the order the model gave them."""
 
@@ -70,20 +83,55 @@ async def execute_planned_turn[T](
             tool_results=tool_results,
         )
     else:
-        for call in plan.calls:
-            await run_tool(
-                run_input=run_input,
-                registry=registry,
-                call=call,
-                steps=steps,
-                tool_results=tool_results,
-            )
-    for skipped in plan.skipped:
-        react_call = react_tool_call(skipped.name, skipped.arguments)
+        for index, call in enumerate(plan.calls):
+            try:
+                await run_tool(
+                    run_input=run_input,
+                    registry=registry,
+                    call=call,
+                    steps=steps,
+                    tool_results=tool_results,
+                )
+            except BaseException as exc:
+                interrupt = run_input.turn_interrupt
+                if interrupt is None or not isinstance(exc, interrupt.exception):
+                    raise
+                not_run = tuple(
+                    NativeReactSkippedCall(
+                        name=later.name,
+                        arguments=later.arguments,
+                        reason=interrupt.not_run_reason,
+                    )
+                    for later in plan.calls[index + 1 :]
+                )
+                await _record_skipped(
+                    run_input=run_input,
+                    skipped=(*not_run, *plan.skipped),
+                    steps=steps,
+                    tool_results=tool_results,
+                )
+                raise
+    await _record_skipped(
+        run_input=run_input,
+        skipped=plan.skipped,
+        steps=steps,
+        tool_results=tool_results,
+    )
+
+
+async def _record_skipped[T](
+    *,
+    run_input: NativeReactRunInput[T],
+    skipped: tuple[NativeReactSkippedCall, ...],
+    steps: list[ReactLoopStep],
+    tool_results: list[ReactToolResult],
+) -> None:
+    for skipped_call in skipped:
+        react_call = react_tool_call(skipped_call.name, skipped_call.arguments)
         output: JSONValue = {
             "status": "error",
             "error_code": "TOOL_CALL_NOT_RUN",
-            "message": skipped.reason,
+            "message": skipped_call.reason,
         }
         step = tool_step(
             run_input=run_input,
@@ -91,16 +139,16 @@ async def execute_planned_turn[T](
             step_number=len(steps) + 1,
             status="error",
             output=output,
-            error_message=skipped.reason,
+            error_message=skipped_call.reason,
         )
         await run_input.record_step(step)
         steps.append(step)
         tool_results.append(
             ReactToolResult(
-                tool_name=skipped.name,
+                tool_name=skipped_call.name,
                 status="error",
                 output=output,
-                error_message=skipped.reason,
+                error_message=skipped_call.reason,
             )
         )
 
@@ -269,6 +317,7 @@ def tool_step[T](
 
 __all__ = [
     "NativeReactSkippedCall",
+    "NativeReactTurnInterrupt",
     "NativeReactTurnPlan",
     "execute_planned_turn",
     "project_tool_result",

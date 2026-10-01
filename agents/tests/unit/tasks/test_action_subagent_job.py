@@ -1533,3 +1533,106 @@ def test_two_changing_calls_of_one_turn_run_one_after_another_in_order(
     assert len(started) == 2
     assert "echo one" in started[0] and "echo two" in started[1]
     assert _results(client, 1) == [("bash", "completed"), ("bash", "completed")]
+
+
+def _patch_call(call_id: str, path: str) -> LlmToolCall:
+    return LlmToolCall(
+        call_id=call_id,
+        name="apply_patch",
+        arguments={
+            "changes": [
+                {
+                    "op": "add",
+                    "path": path,
+                    "new_lines": [path],
+                    "trailing_newline": True,
+                }
+            ]
+        },
+    )
+
+
+@pytest.mark.parametrize("position", ("first", "middle"))
+@pytest.mark.parametrize("decision", ("approved_once", "denied"))
+def test_a_pause_inside_a_turn_answers_every_call_and_runs_none_twice(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    position: str,
+    decision: str,
+) -> None:
+    """ターンの途中で承認待ちになっても、どの呼び出しにも結果か未実行の通知が付く。"""
+
+    db_path, payload = _running_child(
+        tmp_path,
+        profile_id=SUBAGENT_MODEL_SETTINGS[0].profile_id,
+        claim_workspace=True,
+    )
+    workspace = _workspace(db_path)
+    (workspace / "notes.txt").write_text("read before the edit", "utf-8")
+    # Without a standing approval every edit asks, so the first edit pauses.
+    gated = _patch_call("gated", "gated.txt")
+    later = _patch_call("later", "later.txt")
+    turn = (
+        (gated, later)
+        if position == "first"
+        else (
+            LlmToolCall(
+                call_id="earlier", name="read", arguments={"path": "notes.txt"}
+            ),
+            gated,
+            later,
+        )
+    )
+    client = _Client(calls=(turn,))
+    monkeypatch.setattr(subagent_job, "build_local_llm_proxy_client", lambda: client)
+    with bind_local_runtime_db_execution_context(
+        db_path=db_path, busy_timeout_ms=1_000
+    ):
+        subagent_job.run_action_subagent_job(payload)
+    assert len(client.prompts) == 1
+    with sqlite3.connect(db_path) as connection:
+        session = connection.execute(
+            "SELECT approval_session_id,tool_request_id,tool_id FROM approval_sessions"
+        ).fetchone()
+    assert session is not None and session[2] == "apply_patch"
+
+    _decide(db_path, str(session[0]), str(session[1]), decision)
+    resumed = _resume_child(monkeypatch, db_path, payload)
+
+    conversation = resumed.tool_uses[0].conversation
+    assert conversation is not None
+    calls = [
+        call for item in conversation if item.type == "assistant" for call in item.calls
+    ]
+    results = {
+        item.call_id: json.dumps(item.output)
+        for item in conversation
+        if isinstance(item, LlmTurnToolResultItem)
+    }
+    seen = {
+        (call.name, json.dumps(call.arguments, sort_keys=True)): results[call.call_id]
+        for call in calls
+    }
+    # Every call of the turn is answered exactly once in what the model reads.
+    assert len(calls) == len(turn) == len(seen)
+    for requested in turn:
+        answer = seen[(requested.name, json.dumps(requested.arguments, sort_keys=True))]
+        if requested is gated:
+            assert ('"kind": "approval_denied"' in answer) == (decision == "denied")
+            assert "TOOL_CALL_NOT_RUN" not in answer
+        elif requested is later:
+            assert "TOOL_CALL_NOT_RUN" in answer
+            assert "waited for the user's approval" in answer
+        else:
+            assert "read before the edit" in answer
+    assert (workspace / "gated.txt").exists() == (decision == "approved_once")
+    assert not (workspace / "later.txt").exists()
+    # Nothing runs twice: the read once, the gated edit once if allowed.
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute(
+            "SELECT tool_id,COUNT(*) FROM tool_invocations GROUP BY tool_id "
+            "ORDER BY tool_id"
+        ).fetchall() == [
+            *([("apply_patch", 1)] if decision == "approved_once" else []),
+            *([("read", 1)] if position == "middle" else []),
+        ]

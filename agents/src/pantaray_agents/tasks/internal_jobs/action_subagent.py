@@ -20,6 +20,7 @@ from pantaray_agents.agents.artifact_react import (
     NativeReactCompletion,
     NativeReactRunInput,
     NativeReactSkippedCall,
+    NativeReactTurnInterrupt,
     NativeReactTurnPlan,
     ReactLoopPolicy,
     ReactLoopStep,
@@ -291,6 +292,14 @@ async def execute_action_subagent_job(
             plan_turn=lambda turn, remaining: _plan_turn(
                 turn, max_parallel=max_parallel, remaining_tool_calls=remaining
             ),
+            # The pause anchor holds only the call that asked; the resumed run
+            # settles it, so the calls after it are answered as not run now.
+            turn_interrupt=NativeReactTurnInterrupt(
+                exception=ActionSubagentApprovalPause,
+                not_run_reason=_not_run_reason(
+                    "came after a call that waited for the user's approval"
+                ),
+            ),
         )
     )
     if result.loop_result.status != "success" or result.value is None:
@@ -480,11 +489,17 @@ def _plan_turn(
             NativeReactSkippedCall(
                 name=name,
                 arguments=arguments,
-                reason=f"Not run: this call {notice}. Request it again in a "
-                "later turn if it is still needed.",
+                reason=_not_run_reason(notice),
             )
             for name, arguments, notice in skipped
         ),
+    )
+
+
+def _not_run_reason(notice: str) -> str:
+    return (
+        f"Not run: this call {notice}. "
+        "Request it again in a later turn if it is still needed."
     )
 
 

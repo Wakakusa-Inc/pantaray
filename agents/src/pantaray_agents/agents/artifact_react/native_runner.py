@@ -18,6 +18,7 @@ from pantaray_llm.errors import LlmProxyExecutionError
 
 from .native_tool_calls import (
     NativeReactSkippedCall,
+    NativeReactTurnInterrupt,
     NativeReactTurnPlan,
     execute_planned_turn,
     project_tool_result,
@@ -99,6 +100,7 @@ class NativeReactRunInput[T]:
     # None runs only a turn's first call. A planner lets a turn run several;
     # its caller sends no continuation, which carries one result per turn.
     plan_turn: NativeReactTurnPlanner | None = None
+    turn_interrupt: NativeReactTurnInterrupt | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id.strip():
@@ -467,6 +469,7 @@ __all__ = [
     "NativeReactRunInput",
     "NativeReactRunResult",
     "NativeReactSkippedCall",
+    "NativeReactTurnInterrupt",
     "NativeReactTurnPlan",
     "NativeReactTurnPlanner",
     "build_native_tool_definitions",
