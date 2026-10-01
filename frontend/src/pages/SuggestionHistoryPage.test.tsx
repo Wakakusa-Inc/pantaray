@@ -308,6 +308,50 @@ it('バッジは running / approval_pending だけに出し、idle には出さ�
   ]);
 });
 
+it('日の見出しが増えたり行が別の日へ移ったりしても、残った行はフォーカスを保つ', () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 9, 2, 9));
+  window.electron = {} as unknown as Window['electron'];
+  mocks.error = null;
+  mocks.unreadActionId = null;
+  const row = (id: string, updatedAt: Date) => ({
+    kind: 'suggestion' as const,
+    suggestion_id: id,
+    title: id,
+    updated_at: updatedAt.toISOString(),
+    status: 'idle' as const,
+  });
+  mocks.itemsOverride = [
+    row('Y1', new Date(2026, 9, 1, 8)),
+    row('O1', new Date(2026, 8, 29, 8)),
+    row('O2', new Date(2026, 8, 29, 7)),
+  ];
+  try {
+    const { rerender } = render(<SuggestionHistoryPage />);
+    const older = screen.getByRole('button', { name: /^O1/ });
+    older.focus();
+
+    // A live update brings a first row for today, and O2 moves to today as well.
+    mocks.itemsOverride = [
+      row('N1', new Date(2026, 9, 2, 8)),
+      row('O2', new Date(2026, 9, 2, 7)),
+      row('Y1', new Date(2026, 9, 1, 8)),
+      row('O1', new Date(2026, 8, 29, 8)),
+    ];
+    rerender(<SuggestionHistoryPage />);
+
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+      'history.day.today',
+      'history.day.yesterday',
+      '9月29日',
+    ]);
+    expect(screen.getByRole('button', { name: /^O1/ })).toBe(older);
+    expect(older).toHaveFocus();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 function installDeleteBridge(result: { ok: true } | { ok: false; errorCode: string | null }) {
   const deleteItem = vi.fn(async () => result);
   window.electron = { history: { deleteItem } } as unknown as Window['electron'];

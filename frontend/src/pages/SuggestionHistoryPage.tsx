@@ -1,5 +1,5 @@
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { Fragment, useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
 import { HistoryDeleteDialog } from '@/components/history/HistoryDeleteDialog';
@@ -233,6 +233,9 @@ const SuggestionHistoryPage = () => {
 
     const locale = getLocaleForUiLanguage(language);
     const formatTime = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' });
+    // Headings and rows are siblings in one flat list keyed by identity, so a live update that
+    // adds or moves a day never remounts the rows that stay, nor takes focus from them.
+    const headingsPerDay = new Map<string, number>();
     return (
       <div className="history-list">
         {groupHistoryByDay(
@@ -240,15 +243,16 @@ const SuggestionHistoryPage = () => {
           new Date(),
           { today: t('history.day.today'), yesterday: t('history.day.yesterday') },
           locale
-        ).map((day, index) => (
-          // A day can recur if the rows are not in date order, so its position keeps keys unique.
-          <Fragment key={`${index}:${day.key}`}>
-            <h2 className="history-day">{day.label}</h2>
-            {day.items.map((item) => {
-              const identity =
-                item.kind === 'conversation'
-                  ? `conversation:${item.action_id}`
-                  : `suggestion:${item.suggestion_id}`;
+        ).flatMap((day) => {
+          // Rows out of date order can bring a day back; its repeat count keeps the key unique.
+          const repeat = headingsPerDay.get(day.key) ?? 0;
+          headingsPerDay.set(day.key, repeat + 1);
+          return [
+            <h2 key={`day:${day.key}:${repeat}`} className="history-day">
+              {day.label}
+            </h2>,
+            ...day.items.map((item) => {
+              const identity = itemIdentity(item);
               const statusMeta = getConversationHistoryStatusMeta(item.status);
               const content = (
                 <div className="history-item-body">
@@ -308,9 +312,9 @@ const SuggestionHistoryPage = () => {
                   </button>
                 </div>
               );
-            })}
-          </Fragment>
-        ))}
+            }),
+          ];
+        })}
         {error ? (
           <div className="history-error" role="alert">
             {error}
