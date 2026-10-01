@@ -51,9 +51,8 @@ _XLSX_NOTES: Final = (
     "an empty cell, and a merged range carries its value in its first cell.",
     f"Each sheet is read up to {MAX_SHEET_ROWS} rows and {MAX_SHEET_COLUMNS} "
     "columns, and trailing empty rows and columns are dropped.",
-    "An image is listed by the cell it is anchored at, because the library "
-    "does not keep the package part it was loaded from. A chart title taken "
-    "from a cell is not resolved.",
+    "An image is listed by the cell it is anchored at. A chart title taken from "
+    "a cell is not resolved.",
 )
 
 
