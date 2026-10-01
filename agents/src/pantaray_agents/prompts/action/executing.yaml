@@ -30,7 +30,7 @@ system_instruction: |
 # subagent works under the Supervisor's rules and context, and subagents of one
 # Supervisor share their whole prefix up to the assigned task. The section leads
 # the system instruction: with the Supervisor's role after the shared rules, it
-# delegated independent parts markedly less often.
+# delegated independent parts less often in live runs.
 role_rules:
   supervisor: |
     ## Your Role
