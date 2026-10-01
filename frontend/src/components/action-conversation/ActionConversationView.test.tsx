@@ -1152,13 +1152,13 @@ describe('ActionConversationView', () => {
       status: 'success',
       startedAt: '2026-08-30T00:00:00.000000Z',
       completedAt: '2026-08-30T00:00:01.000000Z',
-      lines: [tool('capture', 'capture_screen', 'success', 1, STORED_IMAGES)],
+      lines: [tool('capture', 'capture_screen', 'success', 1, STORED_IMAGES, 'Google Chrome')],
     };
     renderView(viewWith([run], 'success'));
 
     expect(screen.queryByRole('img')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /^Pantaray's work 1, Run 1:/ }));
-    await userEvent.click(screen.getByRole('button', { name: /^Captured the screen, Step 1,/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Captured Google Chrome, Step 1,/ }));
 
     expect(screen.getByRole('list', { name: '2 screenshots' })).toBeVisible();
     const thumbnails = screen.getAllByRole('img');

@@ -30,7 +30,6 @@ import { createExternalUrlOpener } from '../security/openExternalUrl';
 import {
   createScreenshotSyncManager,
   type RecordingStartResult,
-  type ScreenshotLib,
 } from '../screenshot/screenshotSync';
 import {
   holdsCaptureOsPermissions,
@@ -78,8 +77,6 @@ type FeatureRuntimeParams = {
   resolveUiSettingsPath: (userId: string | null) => string;
   getUiLanguage: () => UiLanguage;
   setUiLanguage: (language: UiLanguage) => void;
-  screenshotLib: ScreenshotLib;
-  execPromise: (command: string) => Promise<{ stdout: string; stderr: string }>;
   logger: LoggerLike | null;
 };
 const ACTION_CONVERSATION_LATEST_PAGE_LIMIT = 25;
@@ -239,8 +236,6 @@ export function createDesktopFeatureRuntime(params: FeatureRuntimeParams) {
       if (!result.contained) throw new Error(result.reason);
     },
     capturePrivacy,
-    screenshotLib: params.screenshotLib,
-    execPromise: params.execPromise,
     onCaptureStatusChanged: () => void params.updateUi.refreshCaptureStatus(),
     // The runtime greets only an owner who has no data yet, so every start may ask.
     onRecordingStarted: (userId) => {

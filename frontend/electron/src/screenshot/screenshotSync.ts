@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { BrowserWindow } from 'electron';
 import type { LocalOwner } from '../auth/localRuntimeState';
-import type { BrowserUrlProbeResult } from '../ipc/context';
 import type { CapturePrivacyManager } from '../privacy/capturePrivacy';
 import { resolveScopedSettingsPath, SCOPED_PREFERENCE_FILES } from '../settings/scope';
 import type { CaptureStatusSnapshot } from './captureStatus';
@@ -20,16 +19,6 @@ import type {
   SourceTransitionResult,
   StopReason,
 } from '../context/sourceControl';
-type ExecPromise = (command: string) => Promise<{ stdout: string; stderr?: string }>;
-type ProbeBrowserUrlForAppFn = (
-  execPromise: ExecPromise,
-  activeAppName: string | null
-) => Promise<BrowserUrlProbeResult>;
-
-export type ScreenshotLib = {
-  probeBrowserUrlForApp?: ProbeBrowserUrlForAppFn;
-};
-
 export type ScreenshotSyncManager = ReturnType<typeof createScreenshotSyncManager>;
 
 /**
@@ -47,8 +36,6 @@ export function createScreenshotSyncManager(params: {
   getMainWindow: () => BrowserWindow | null;
   isBackendRuntimeReady: () => boolean;
   capturePrivacy: CapturePrivacyManager;
-  screenshotLib: ScreenshotLib;
-  execPromise: ExecPromise;
   getManifestPath: () => string;
   requestPermissions: (missing: CapturePermission[]) => Promise<void>;
   readSource: (userId: string) => Promise<SourceState>;

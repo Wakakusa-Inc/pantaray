@@ -69,7 +69,7 @@ describe('resolveToolDisplay', () => {
     ['Recent Computer Activity', '最近の操作を確認', 'Check recent activity'],
     ['zanei_query', '操作の詳細を確認', 'Check activity details'],
     ['draft_final_answer', '回答を作成', 'Draft the answer'],
-    ['capture_screen', '画面を撮影', 'Capture the screen'],
+    ['capture_screen', 'ウィンドウを撮影', 'Capture a window'],
     ['bash', 'コマンドを実行', 'Run a command'],
     // PDF だけでなく Office 文書のページも描くので、名前は「PDF」に限らない。
     ['render_pdf_page', 'ページを見る', 'Look at pages'],
@@ -108,8 +108,8 @@ describe('resolveToolLine', () => {
     ['render_pdf_page', 'report.pdf', 'report.pdf のページを見ました'],
     ['web_search', '日本語検索', 'ウェブを検索しました 日本語検索'],
     ['grep', 'retrieval (src)', 'retrieval (src) を検索しました'],
+    ['capture_screen', 'Google Chrome', 'Google Chrome を撮影しました'],
     // 引数を持たないツールは主語なしで完結する。
-    ['capture_screen', null, '画面を撮影しました'],
     ['zanei_timeline', null, '最近の操作を確認しました'],
     ['draft_final_answer', null, '回答を作成しました'],
     // 引数の残っていない古い行は動詞の文を作らず、ツール名だけを出す。

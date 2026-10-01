@@ -351,6 +351,7 @@ export type ScreenCaptureRequestedEvent = OrchestrationEventEnvelope<
     action_id: string;
     tool_request_id: string;
     capture_request_id: string;
+    app_name: string;
   }
 >;
 

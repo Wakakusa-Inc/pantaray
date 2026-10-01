@@ -400,6 +400,8 @@ async def run_tool(
                 step_id=step_id,
                 tool_def=tool_def,
                 state=state,
+                # The input schema requires a non-blank string.
+                app_name=str(validated_args["app_name"]),
                 tool_request_id=tool_request_id,
                 requested_at=format_utc_iso(started_at),
             )
@@ -473,6 +475,7 @@ async def run_tool(
                 step_id=step_id,
                 tool_def=tool_def,
                 state=state,
+                app_name=str(validated_args["app_name"]),
                 tool_request_id=tool_request_id,
                 tool_invocation_id=invocation_id,
                 requested_at=format_utc_iso(started_at),

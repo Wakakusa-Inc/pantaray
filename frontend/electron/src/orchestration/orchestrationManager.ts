@@ -355,6 +355,7 @@ export function createOrchestrationManager(params: {
         actionId: message.data.action_id,
         processId: message.data.process_id,
         toolRequestId: message.data.tool_request_id,
+        appName: message.data.app_name,
       });
       return;
     }
