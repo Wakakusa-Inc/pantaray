@@ -140,7 +140,13 @@ def test_executing_prompt_delegates_model_guidance_to_spawn_tool_metadata() -> N
         / "executing.yaml"
     )
 
-    assert "Use subagents only when independent delegation adds clear value" in section
+    assert "delegate them to subagents and run them in parallel" in section
+    assert "Request all their `spawn_subagent` calls in the same turn" in section
+    assert "reasonably substantial, self-contained piece of work" in section
+    assert "Brief each subagent in detail so it does not redo your work" in section
+    assert "quote content you have already read" in section
+    assert "Parallel subagents must not write the same files" in section
+    assert "Do not spawn a subagent just to run one command or one check" in section
     assert "choose an explicit model from the tool definition" in section
     for setting in SUBAGENT_MODEL_SETTINGS:
         assert setting.selector not in prompt_text
@@ -196,9 +202,10 @@ _CHANGING_PROMPT_FIELDS = frozenset(
     field for _, fields in WORLD_STATE_SECTIONS for field in fields
 )
 # Fixed for the whole Action. Memory and its source coverage are read once,
-# when the Action starts.
+# when the Action starts; Pantaray's default AGENTS.md ships with the app.
 _FIXED_PROMPT_FIELDS = frozenset(
     {
+        "pantaray_default_agents_md",
         "workspace_context_rules",
         "request_summary",
         "target_context",

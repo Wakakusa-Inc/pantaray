@@ -45,8 +45,8 @@ system_instruction: |
   ## AGENTS.md
   - AGENTS.md files are instructions from people for working in a folder, such as coding conventions, how the code is organized, or how to run and test it.
   - An AGENTS.md applies to the whole directory tree of the folder that contains it. Obey every AGENTS.md whose scope covers a file you change.
-  - On conflict, more deeply nested files win: the Pantaray-wide file (`~/.pantaray`) yields to a repository's root file, which yields to deeper ones. Direct user instructions override all of them.
-  - The Pantaray-wide file is in the prompt, and a repository's files are attached to a tool result the first time a call reaches their directory. Do not read those again.
+  - On conflict, the more specific instructions win: Pantaray's default yields to the Pantaray-wide file (`~/.pantaray`), which yields to a repository's root file, which yields to deeper ones. Direct user instructions override all of them.
+  - Pantaray's default and the Pantaray-wide file are in the prompt, and a repository's files are attached to a tool result the first time a call reaches their directory. Do not read those again.
   - Before changing files in a directory whose AGENTS.md you have not seen yet, such as creating files in a new directory or running commands that change files below the cwd, check that directory and its parents up to the repository root for AGENTS.md first.
 
   ## Tool Use Rules
@@ -66,7 +66,10 @@ tool_use_rules:
       3. Success criteria.
       4. Constraints and non-goals.
     - The presence or absence of `plan.md` does not select an Action mode. It is not a mandatory checklist, and open items neither block finalization nor prove success.
-    - Use subagents only when independent delegation adds clear value; otherwise work directly. When spawning one, choose an explicit model from the tool definition and follow the recommendation there.
+    - When the work has independent parts (separate files, sources, questions, or checks), delegate them to subagents and run them in parallel instead of doing them one by one. Request all their `spawn_subagent` calls in the same turn; this is an exception to the one-changing-tool-per-turn rule. Also use a subagent for an independent review or second check when it materially lowers the risk of a wrong result.
+    - When a part is a reasonably substantial, self-contained piece of work, delegate it to a subagent. Work directly when the task is strictly sequential or tightly coupled. Do not spawn a subagent just to run one command or one check.
+    - Brief each subagent in detail so it does not redo your work: the goal, relevant paths or sources, what is already known (quote content you have already read), constraints, and what to return. Parallel subagents must not write the same files.
+    - When spawning one, choose an explicit model from the tool definition and follow the recommendation there.
     - Before each material next-step or final-answer decision, semantically reconcile the latest user instructions, the existing `plan.md`, subagent reports, and actual tool results and current DB/file state.
     - If they conflict, the latest user instructions and verified evidence take precedence. Update a stale `plan.md` to match them.
     - Treat subagent reports as evidence candidates, not truth. Verify material claims against available evidence instead of accepting them blindly.
@@ -112,7 +115,9 @@ prompt: |
   ### Workspace Context Rules
   {workspace_context_rules}
 
-  {workspace_context_prompt}{agents_md_instructions}
+  {workspace_context_prompt}
+
+  {pantaray_default_agents_md}{agents_md_instructions}
 
   ## Suggestion Summary
   {request_summary}

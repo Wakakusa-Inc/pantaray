@@ -1,7 +1,9 @@
 """AGENTS.md instructions for the Action.
 
-The Pantaray-wide file (``~/.pantaray/AGENTS.md``) is read once when the Action
-starts and rides in the stable prompt head. Repository files are attached to the
+Pantaray's default instructions ship with the package and ride in the stable
+prompt head ahead of every file the user wrote. The Pantaray-wide file
+(``~/.pantaray/AGENTS.md``) is read once when the Action starts and rides in the
+stable prompt head. Repository files are attached to the
 result of the first tool call that works in their directory: every AGENTS.md from
 the project root down to that directory, each at most once per Action. The
 attached set lives in the checkpointed context, so a resumed Action does not send
@@ -56,6 +58,24 @@ AGENTS_MD_MAX_BYTES = 32 * 1024
 _PROJECT_ROOT_MARKER = ".git"
 
 
+def _render_block(heading: str, data: bytes) -> str:
+    # Codex's wrapper (codex-rs/core/src/context/user_instructions.rs).
+    text = data.decode("utf-8", errors="replace")
+    return (
+        f"# AGENTS.md instructions {heading}\n\n<INSTRUCTIONS>\n{text}\n</INSTRUCTIONS>"
+    )
+
+
+# Read at import so a package built without the file fails when the helper
+# starts, not when the first Action does.
+PANTARAY_DEFAULT_AGENTS_MD = _render_block(
+    "(Pantaray default)",
+    (
+        Path(__file__).parents[3] / "prompts" / "action" / "default_agents.md"
+    ).read_bytes(),
+)
+
+
 def load_pantaray_agents_md() -> str:
     """The Pantaray-wide instructions block, or ``""`` when there is none."""
 
@@ -71,7 +91,7 @@ def load_pantaray_agents_md() -> str:
     data = _read_regular_file(descriptor, path, max_bytes=AGENTS_MD_MAX_BYTES)
     if data is None:
         return ""
-    return _render_block(PANTARAY_AGENTS_MD_DISPLAY_DIR, data)
+    return _render_block(f"for {PANTARAY_AGENTS_MD_DISPLAY_DIR}", data)
 
 
 def attach_repository_agents_md(
@@ -109,7 +129,7 @@ def attach_repository_agents_md(
                 continue
             attached.append(key)
             remaining -= len(data)
-            blocks.append(_render_block(str(scope), data))
+            blocks.append(_render_block(f"for {scope}", data))
     context["agents_md_attached_paths"] = attached
     return "\n\n".join(blocks) if blocks else None
 
@@ -242,17 +262,9 @@ def _read_regular_file(descriptor: int, path: Path, *, max_bytes: int) -> bytes 
     return data
 
 
-def _render_block(directory: str, data: bytes) -> str:
-    # Codex's wrapper (codex-rs/core/src/context/user_instructions.rs).
-    text = data.decode("utf-8", errors="replace")
-    return (
-        f"# AGENTS.md instructions for {directory}\n\n"
-        f"<INSTRUCTIONS>\n{text}\n</INSTRUCTIONS>"
-    )
-
-
 __all__ = [
     "AGENTS_MD_MAX_BYTES",
+    "PANTARAY_DEFAULT_AGENTS_MD",
     "attach_repository_agents_md",
     "load_pantaray_agents_md",
 ]

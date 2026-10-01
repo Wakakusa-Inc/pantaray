@@ -12,6 +12,7 @@ from tests.unit.local_runtime.action_seed import insert_agent_action
 
 from pantaray_agents.agents.action_agent import ActionAgent
 from pantaray_agents.agents.action_agent.runtime.agents_md import (
+    PANTARAY_DEFAULT_AGENTS_MD,
     load_pantaray_agents_md,
 )
 from pantaray_agents.agents.action_agent.runtime.handlers.nodes.initial import (
@@ -871,24 +872,33 @@ async def test_assistant_utterance_precedes_reply_and_survives_checkpoint(
     assert history.count("- Assistant Message (phase: commentary):") == 1
 
 
-@pytest.mark.asyncio
-async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def _executing_agent() -> SimpleNamespace:
+    """The production executing template, as the agent reads it."""
+
     import yaml
 
-    from pantaray_agents.agents.action_agent.runtime.checkpoint import (
-        build_runtime_state_checkpoint,
-        restore_runtime_state_checkpoint,
+    config = yaml.safe_load(
+        (
+            Path(__file__).parents[3]
+            / "src/pantaray_agents/prompts/action/executing.yaml"
+        ).read_text(encoding="utf-8")
     )
-    from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm.turn_input import (
-        build_executing_turn,
+    return SimpleNamespace(
+        executing_prompt=config["prompt"],
+        executing_system_instruction="SYS",
+        DEFAULT_SYSTEM_INSTRUCTION="SYS",
+        executing_tool_use_rule=lambda key: "",
+        executing_world_state_update=lambda key: config["world_state_updates"][key],
     )
 
+
+async def _initialized_with_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, user_agents_md: str | None
+) -> tuple[ActionAgentState, SimpleNamespace]:
     home = tmp_path / "home"
     (home / ".pantaray").mkdir(parents=True)
-    (home / ".pantaray" / "AGENTS.md").write_text("Be brief.\n", encoding="utf-8")
+    if user_agents_md is not None:
+        (home / ".pantaray" / "AGENTS.md").write_text(user_agents_md, encoding="utf-8")
     monkeypatch.setenv("HOME", str(home))
     repo = MockActionAgentRepository()
     agent = _build_agent(repo)
@@ -898,19 +908,52 @@ async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
     )
     runtime = _runtime(agent)
     updated = await initialize_context(agent, state, runtime)  # type: ignore[arg-type]
-    config = yaml.safe_load(
-        (
-            Path(__file__).parents[3]
-            / "src/pantaray_agents/prompts/action/executing.yaml"
-        ).read_text(encoding="utf-8")
+    return updated, runtime
+
+
+@pytest.mark.asyncio
+async def test_pantaray_default_agents_md_leads_the_head_without_a_user_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm.turn_input import (
+        build_executing_turn,
     )
-    executing = SimpleNamespace(
-        executing_prompt=config["prompt"],
-        executing_system_instruction="SYS",
-        DEFAULT_SYSTEM_INSTRUCTION="SYS",
-        executing_tool_use_rule=lambda key: "",
-        executing_world_state_update=lambda key: config["world_state_updates"][key],
+
+    updated, runtime = await _initialized_with_home(
+        tmp_path, monkeypatch, user_agents_md=None
     )
+
+    head = build_executing_turn(_executing_agent(), updated, runtime, tools=()).head  # type: ignore[arg-type]
+    assert PANTARAY_DEFAULT_AGENTS_MD.startswith(
+        "# AGENTS.md instructions (Pantaray default)\n\n"
+        "<INSTRUCTIONS>\n# Working principles\n"
+    )
+    assert (
+        head.index("### Workspace Context Rules")
+        < head.index(PANTARAY_DEFAULT_AGENTS_MD)
+        < head.index("## Suggestion Summary")
+    )
+    assert "AGENTS.md instructions for ~/.pantaray" not in head
+
+
+@pytest.mark.asyncio
+async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pantaray_agents.agents.action_agent.runtime.checkpoint import (
+        build_runtime_state_checkpoint,
+        restore_runtime_state_checkpoint,
+    )
+    from pantaray_agents.agents.action_agent.runtime.handlers.nodes.llm.turn_input import (
+        build_executing_turn,
+    )
+
+    updated, runtime = await _initialized_with_home(
+        tmp_path, monkeypatch, user_agents_md="Be brief.\n"
+    )
+    executing = _executing_agent()
 
     def head(of: ActionAgentState) -> bytes:
         turn = build_executing_turn(executing, of, runtime, tools=())  # type: ignore[arg-type]
@@ -921,13 +964,16 @@ async def test_pantaray_agents_md_rides_in_a_head_that_resume_keeps_identical(
         "# AGENTS.md instructions for ~/.pantaray\n\n"
         "<INSTRUCTIONS>\nBe brief.\n\n</INSTRUCTIONS>"
     )
+    # Pantaray's default comes first, so the user's file is read as overriding it.
     assert (
         first.index("### Workspace Context Rules")
-        < first.index(block)
+        < first.index(PANTARAY_DEFAULT_AGENTS_MD + "\n\n" + block)
         < first.index("## Suggestion Summary")
     )
     # Editing the file mid-run must not reach the cached head; resume restores it.
-    (home / ".pantaray" / "AGENTS.md").write_text("Changed.\n", encoding="utf-8")
+    (tmp_path / "home" / ".pantaray" / "AGENTS.md").write_text(
+        "Changed.\n", encoding="utf-8"
+    )
     restored = restore_runtime_state_checkpoint(
         build_runtime_state_checkpoint(updated),
         expected_action_id="action-1",
