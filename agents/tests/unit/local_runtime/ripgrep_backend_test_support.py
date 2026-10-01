@@ -27,6 +27,7 @@ def install_fake_ripgrep_backend(monkeypatch: pytest.MonkeyPatch) -> None:
 def _fake_files(
     *,
     cwd: Path,
+    sandbox_profile: str,
     glob_pattern: str,
     limit: int,
     follow_symlinks: bool = False,
@@ -64,6 +65,7 @@ def _fake_files(
 def _fake_grep(
     *,
     cwd: Path,
+    sandbox_profile: str,
     pattern: str,
     include_glob: str | None,
     max_matches: int,
@@ -132,6 +134,7 @@ def _iter_workspace_files(
     # Like ripgrep: a pruned directory is not descended from ".", while an
     # explicit search path is walked even when it lies under one.
     pruned = {path.casefold() for path in pruned_relative_paths}
+    # Like ripgrep without --follow: a link is neither listed nor walked.
     for start in (".", *extra_search_paths):
         for dirpath, dirnames, filenames in os.walk(
             workspace_path / start,
@@ -147,7 +150,8 @@ def _iter_workspace_files(
             dirnames.sort()
             for filename in sorted(filenames):
                 path = Path(dirpath) / filename
-                yield path.relative_to(workspace_path).as_posix()
+                if follow_symlinks or not path.is_symlink():
+                    yield path.relative_to(workspace_path).as_posix()
 
 
 def _matches_relative_glob(relative_path: str, pattern: str) -> bool:

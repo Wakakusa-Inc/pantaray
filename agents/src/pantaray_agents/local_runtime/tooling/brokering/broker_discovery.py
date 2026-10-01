@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
 from pantaray_agents.schema.agent.base import JSONValue
+from pantaray_agents.schema.read_access import READ_ACCESS_SCOPE_FULL_ACCESS
 
 from ..action_plan_document import ACTION_PLAN_FILENAME
+from ..sandbox.seatbelt_profiles import render_ripgrep_seatbelt_profile
 from .broker_common import (
     BrokerContext,
     BrokerPolicyError,
@@ -16,11 +18,8 @@ from .broker_common import (
 from .broker_discovery_paths import (
     DiscoveryPath,
     DiscoveryTruncationReason,
-    discovery_child_path,
     entry_for_discovery_path,
-    is_safe_discovery_path,
     list_discovery_paths,
-    safe_is_file,
 )
 from .broker_discovery_ripgrep import (
     RipgrepGrepMatch,
@@ -36,7 +35,7 @@ from .broker_protocol import (
 from .manifest_paths import (
     ResolvedManifestPath,
 )
-from .private_app_storage import private_app_storage
+from .private_app_storage import PrivateAppStorage, private_app_storage
 from .tool_path_policy import (
     hidden_read_path_filter,
     resolve_read_tool_path,
@@ -66,13 +65,6 @@ class PreparedGrepLine:
 class GrepAppendResult:
     output_bytes: int
     truncation_reason: DiscoveryTruncationReason | None
-
-
-@dataclass(frozen=True, slots=True)
-class ResolvedGrepMatch:
-    path: str
-    line_number: int
-    line: str
 
 
 def _resolve_directory(
@@ -168,9 +160,13 @@ def run_glob_executor(
     )
     _reject_unsafe_glob_pattern(request.pattern, field_name="pattern")
     is_hidden = hidden_read_path_filter(context)
-    scope = private_app_storage(context).search_scope(base.path)
+    storage = private_app_storage(context)
+    scope = storage.search_scope(base.path)
     backend_result = run_ripgrep_files(
         cwd=base.path,
+        sandbox_profile=_ripgrep_sandbox_profile(
+            context=context, base=base, storage=storage
+        ),
         glob_pattern=request.pattern,
         limit=request.limit,
         follow_symlinks=False,
@@ -182,11 +178,10 @@ def run_glob_executor(
         extra_search_paths=scope.own_roots,
         include_path=lambda path: not is_hidden(path),
     )
-    selected = _resolve_ripgrep_relative_paths(
-        is_hidden=is_hidden,
-        base=base,
-        relative_paths=backend_result.relative_paths,
-    )
+    selected = [
+        DiscoveryPath(path=_backend_path(base, relative_path), kind="file")
+        for relative_path in backend_result.relative_paths
+    ]
     matches = [
         entry_for_discovery_path(path) for path in _sort_discovery_paths(selected)
     ]
@@ -215,25 +210,25 @@ def run_glob_executor(
     )
 
 
-def _resolve_ripgrep_relative_paths(
+def _ripgrep_sandbox_profile(
     *,
-    is_hidden: Callable[[Path], bool],
+    context: BrokerContext,
     base: ResolvedManifestPath,
-    relative_paths: Iterable[str],
-) -> list[DiscoveryPath]:
-    selected: list[DiscoveryPath] = []
-    for relative_path in relative_paths:
-        try:
-            path = (base.path / PurePosixPath(relative_path)).resolve(strict=True)
-        except OSError:
-            continue
-        if (
-            not is_hidden(path)
-            and is_safe_discovery_path(base=base, path=path)
-            and safe_is_file(path)
-        ):
-            selected.append(discovery_child_path(base=base, child=path, kind="file"))
-    return selected
+    storage: PrivateAppStorage,
+) -> str:
+    # ripgrep reopens what it walks by name, so only the kernel's check on what
+    # it really opens holds; the backend's paths are reported as they come.
+    full_access = context.read_access_scope == READ_ACCESS_SCOPE_FULL_ACCESS
+    return render_ripgrep_seatbelt_profile(
+        read_roots=("/",) if full_access else (str(base.root.canonical_real_path),),
+        private_storage_roots=tuple(str(root) for root in storage.storage_roots),
+        readable_private_roots=tuple(str(root) for root in storage.readable_roots),
+        action_plan_path=str(context.scratch_root_path / ACTION_PLAN_FILENAME),
+    )
+
+
+def _backend_path(base: ResolvedManifestPath, relative_path: str) -> Path:
+    return base.path / PurePosixPath(relative_path)
 
 
 def _private_plan_relative_to_base(
@@ -267,51 +262,18 @@ def _discovery_entry_json(entry: dict[str, object]) -> dict[str, JSONValue]:
     }
 
 
-def _resolve_ripgrep_match(
-    *,
-    is_hidden: Callable[[Path], bool],
-    base: ResolvedManifestPath,
-    match: RipgrepGrepMatch,
-) -> ResolvedGrepMatch | None:
-    try:
-        path = (base.path / PurePosixPath(match.relative_path)).resolve(strict=True)
-    except OSError:
-        return None
-    if (
-        is_hidden(path)
-        or not is_safe_discovery_path(base=base, path=path)
-        or not safe_is_file(path)
-    ):
-        return None
-    return ResolvedGrepMatch(
-        path=str(discovery_child_path(base=base, child=path, kind="file").path),
-        line_number=match.line_number,
-        line=match.line,
-    )
-
-
 def _append_grep_match(
     *,
-    is_hidden: Callable[[Path], bool],
     matches: list[dict[str, JSONValue]],
     output_bytes: int,
     base: ResolvedManifestPath,
     match: RipgrepGrepMatch,
 ) -> GrepAppendResult:
-    resolved_match = _resolve_ripgrep_match(
-        is_hidden=is_hidden,
-        base=base,
-        match=match,
-    )
-    if resolved_match is None:
-        return GrepAppendResult(
-            output_bytes=output_bytes,
-            truncation_reason=None,
-        )
+    path = str(_backend_path(base, match.relative_path))
     prepared_line = _prepare_grep_line(
-        path=resolved_match.path,
-        line_number=resolved_match.line_number,
-        line=resolved_match.line,
+        path=path,
+        line_number=match.line_number,
+        line=match.line,
     )
     if output_bytes + prepared_line.byte_size > GREP_MAX_OUTPUT_BYTES:
         return GrepAppendResult(
@@ -320,8 +282,8 @@ def _append_grep_match(
         )
     matches.append(
         {
-            "path": resolved_match.path,
-            "line_number": resolved_match.line_number,
+            "path": path,
+            "line_number": match.line_number,
             "line": prepared_line.line,
         }
     )
@@ -406,9 +368,13 @@ def run_grep_executor(
     if request.include_glob is not None:
         _reject_unsafe_glob_pattern(request.include_glob, field_name="include_glob")
     is_hidden = hidden_read_path_filter(context)
-    scope = private_app_storage(context).search_scope(base.path)
+    storage = private_app_storage(context)
+    scope = storage.search_scope(base.path)
     backend_result = run_ripgrep_grep(
         cwd=base.path,
+        sandbox_profile=_ripgrep_sandbox_profile(
+            context=context, base=base, storage=storage
+        ),
         pattern=request.pattern,
         include_glob=request.include_glob,
         max_matches=request.max_matches,
@@ -428,7 +394,6 @@ def run_grep_executor(
     output_bytes = 0
     for backend_match in backend_result.matches:
         append_result = _append_grep_match(
-            is_hidden=is_hidden,
             matches=matches,
             output_bytes=output_bytes,
             base=base,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ from pantaray_agents.schema.agent.base import JSONValue
 from .broker_common import BrokerPolicyError
 
 RIPGREP_COMMAND = "rg"
+SANDBOX_EXEC = "/usr/bin/sandbox-exec"
 # Discovery runs outside the command sandbox; never select a workspace executable.
 RIPGREP_TRUSTED_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin"
 RIPGREP_TIMEOUT_SECONDS = 5.0
@@ -103,6 +105,7 @@ RipgrepTruncationReason = Literal["limit", "timeout", "output_bytes"]
 def run_ripgrep_files(
     *,
     cwd: Path,
+    sandbox_profile: str,
     glob_pattern: str,
     limit: int,
     follow_symlinks: bool = False,
@@ -147,6 +150,7 @@ def run_ripgrep_files(
             *extra_search_paths,
         ),
         cwd=cwd,
+        sandbox_profile=sandbox_profile,
         handle_line=handle_line,
     )
     _raise_if_ripgrep_glob_failed(result=result)
@@ -164,6 +168,7 @@ def run_ripgrep_files(
 def run_ripgrep_grep(
     *,
     cwd: Path,
+    sandbox_profile: str,
     pattern: str,
     include_glob: str | None,
     max_matches: int,
@@ -231,6 +236,7 @@ def run_ripgrep_grep(
     result = _run_ripgrep_lines(
         argv=tuple(argv),
         cwd=cwd,
+        sandbox_profile=sandbox_profile,
         handle_line=handle_line,
     )
     _raise_if_ripgrep_grep_failed(result=result)
@@ -298,10 +304,11 @@ def _run_ripgrep_lines(
     *,
     argv: tuple[str, ...],
     cwd: Path,
+    sandbox_profile: str,
     handle_line: LineHandler,
 ) -> RipgrepRunResult:
     process = subprocess.Popen(
-        argv,
+        _sandboxed_argv(argv, sandbox_profile),
         cwd=cwd,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -360,6 +367,20 @@ def _run_ripgrep_lines(
         stdout_truncated=stdout_truncated,
         stopped_early=stopped_early,
     )
+
+
+def _sandboxed_argv(argv: tuple[str, ...], sandbox_profile: str) -> tuple[str, ...]:
+    """``argv`` under the seatbelt profile that bounds what ripgrep may read.
+
+    Only macOS has sandbox-exec, and it is the only platform the app ships on.
+    The unit tests also run on Linux, where this returns the command unchanged.
+    """
+
+    # Keep both paths type-checked on Linux CI; mypy folds a direct sys.platform guard.
+    on_macos = sys.platform == "darwin"
+    if not on_macos:
+        return argv
+    return (SANDBOX_EXEC, "-p", sandbox_profile, *argv)
 
 
 def _parse_json_line(line: str) -> dict[str, JSONValue] | None:
