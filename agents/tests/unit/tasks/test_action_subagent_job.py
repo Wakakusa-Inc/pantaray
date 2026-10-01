@@ -63,6 +63,9 @@ from pantaray_agents.local_runtime.tooling.repository import (
     create_capability_grant,
     upsert_approval_preference,
 )
+from pantaray_agents.local_runtime.tooling.sandbox.sandbox_denial import (
+    WRITE_FOLDER_REQUEST_HINT,
+)
 from pantaray_agents.local_runtime.tooling.tool_result_storage import (
     ACTION_TOOL_RESULT_INLINE_CHARACTER_LIMIT,
 )
@@ -1066,6 +1069,51 @@ def test_failed_command_output_stays_bounded_in_the_child_transcript(
     assert transcript[0].count("[truncated]") == 2
     # The entry stays bounded however large the command output was.
     assert len(transcript[0]) < 3 * ACTION_TOOL_RESULT_INLINE_CHARACTER_LIMIT
+
+
+def test_a_likely_denied_write_does_not_tell_the_child_to_request_folders(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # A subagent's folder request is refused without asking, so the hint the
+    # broker adds for the parent Action would only send it into that refusal.
+    db_path, payload = _running_child(
+        tmp_path,
+        profile_id=SUBAGENT_MODEL_SETTINGS[0].profile_id,
+        claim_workspace=True,
+    )
+    _allow_workspace_commands(db_path)
+    stderr = "Error: Operation not permitted (os error 1)\n"
+
+    async def denied_command(**_kwargs: object) -> UnprojectedBrokerToolOutcome:
+        return UnprojectedBrokerToolOutcome(
+            status="error",
+            output={
+                "status": "error",
+                "exit_code": 1,
+                "stdout": "",
+                "stderr": stderr,
+                "error": {
+                    "type": "CommandExecutionError",
+                    "message": stderr,
+                    "llm_feedback": WRITE_FOLDER_REQUEST_HINT,
+                    "exit_code": 1,
+                },
+            },
+            stdout_text="",
+            stderr_text=stderr,
+        )
+
+    monkeypatch.setattr(broker_module, "run_command_via_sandbox", denied_command)
+    client = _Client(calls=(_BASH_CALL, _REPORT_CALL))
+    monkeypatch.setattr(subagent_job, "build_local_llm_proxy_client", lambda: client)
+    with bind_local_runtime_db_execution_context(
+        db_path=db_path, busy_timeout_ms=1_000
+    ):
+        subagent_job.run_action_subagent_job(payload)
+
+    assert _results(client, 1) == [("bash", "error")]
+    assert "Operation not permitted" in _items(client, 1)
+    assert "additional_write_folders" not in _items(client, 1)
 
 
 def _enqueue_sibling_child(db_path: Path) -> None:
