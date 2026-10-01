@@ -116,7 +116,7 @@ it('空状態でも起動ボタンは右上の1つだけで、keyboardから開�
   expect(await screen.findByRole('alert')).toHaveTextContent('history.openOverlayFailed');
 });
 
-it('CTAの隣に設定中のショートカットをキーキャップで表示する', async () => {
+it('設定中のショートカットはCTAの中に薄いキーキャップで出し、名前は変えない', async () => {
   const getState = vi.fn(async () => ({ accelerator: 'Option+Space', failure: null }));
   window.electron = {
     process: { platform: 'darwin' },
@@ -125,16 +125,16 @@ it('CTAの隣に設定中のショートカットをキーキャップで表示�
   } as unknown as Window['electron'];
   const { container, rerender } = render(<SuggestionHistoryPage />);
 
-  expect(screen.getByText('shortcut.hint.loading')).toBeInTheDocument();
-  const keycaps = await screen.findByRole('img', { name: 'shortcut.hint.label' });
-  expect([...keycaps.querySelectorAll('kbd')].map((key) => key.textContent)).toEqual([
-    '⌥',
-    'Space',
-  ]);
-  expect(keycaps.closest('.history-toolbar')).not.toBeNull();
-  expect(keycaps.nextElementSibling).toBe(
-    screen.getByRole('button', { name: 'history.newConversation' })
-  );
+  const cta = screen.getByRole('button', { name: 'history.newConversation' });
+  // While the shortcut loads, the button shows nothing extra.
+  expect(cta.querySelector('.shortcut-keycaps')).toBeNull();
+  expect(cta).not.toHaveAttribute('title');
+  await waitFor(() => expect(cta).toHaveAttribute('aria-keyshortcuts', 'Alt+Space'));
+  const keys = cta.querySelector('.history-new-conversation-keys');
+  expect(keys).toHaveAttribute('aria-hidden', 'true');
+  expect([...keys!.querySelectorAll('kbd')].map((key) => key.textContent)).toEqual(['⌥', 'Space']);
+  expect(cta).toHaveAccessibleName('history.newConversation');
+  expect(container.querySelectorAll('.shortcut-keycaps')).toHaveLength(1);
   expect(translate('ja', 'shortcut.hint.label', { keys: 'Option Space' })).toBe(
     'ショートカット: Option Space'
   );
@@ -154,7 +154,7 @@ it('CTAの隣に設定中のショートカットをキーキャップで表示�
   );
 });
 
-it('ショートカットが登録できていないときはキーキャップを出さない', async () => {
+it('ショートカットが登録できていないときはキーキャップを出さず、CTAの説明で伝える', async () => {
   window.electron = {
     process: { platform: 'darwin' },
     shortcut: {
@@ -166,8 +166,48 @@ it('ショートカットが登録できていないときはキーキャップ�
   } as unknown as Window['electron'];
   render(<SuggestionHistoryPage />);
 
-  expect(await screen.findByText('shortcut.hint.unavailable')).toBeInTheDocument();
-  expect(screen.queryByRole('img', { name: 'shortcut.hint.label' })).toBeNull();
+  const cta = screen.getByRole('button', { name: 'history.newConversation' });
+  await waitFor(() => expect(cta).toHaveAttribute('title', 'shortcut.hint.unavailable'));
+  expect(cta).toHaveAccessibleDescription('shortcut.hint.unavailable');
+  expect(cta).not.toHaveAttribute('aria-keyshortcuts');
+  expect(cta.querySelector('.shortcut-keycaps')).toBeNull();
+});
+
+it('行は最終更新の日ごとに、今日・昨日・日付の見出しの下にまとめる', () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 9, 2, 9));
+  window.electron = {} as unknown as Window['electron'];
+  mocks.error = null;
+  mocks.unreadActionId = null;
+  const row = (id: string, updatedAt: Date) => ({
+    kind: 'suggestion' as const,
+    suggestion_id: id,
+    title: id,
+    updated_at: updatedAt.toISOString(),
+    status: 'idle' as const,
+  });
+  mocks.itemsOverride = [
+    row('T1', new Date(2026, 9, 2, 8)),
+    row('T2', new Date(2026, 9, 2, 0)),
+    row('Y1', new Date(2026, 9, 1, 23)),
+    row('O1', new Date(2026, 8, 29, 8)),
+  ];
+  try {
+    render(<SuggestionHistoryPage />);
+
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
+      'history.day.today',
+      'history.day.yesterday',
+      '9月29日',
+    ]);
+    // Under today and yesterday a row shows its time; older rows keep the full date.
+    expect(screen.getByRole('button', { name: /^T1/ })).toHaveTextContent(/^T108:00$/);
+    expect(screen.getByRole('button', { name: /^O1/ })).toHaveTextContent('2026年9月29日 08:00');
+    expect(HISTORY_MESSAGES.ja['history.day.today']).toBe('今日');
+    expect(HISTORY_MESSAGES.en['history.day.yesterday']).toBe('Yesterday');
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('Conversation行はOverlayを開き、実際の表示前に既読にしない', async () => {
