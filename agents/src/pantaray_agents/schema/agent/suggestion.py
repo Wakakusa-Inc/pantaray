@@ -104,17 +104,28 @@ class SuggestionPromptInsightItem(TypedDict, total=False):
     confidence: float
 
 
+class SuggestionDecidedContent(TypedDict):
+    """What the decision run decided to say: the writer's only input."""
+
+    interaction_contract: SuggestionInteractionContract
+    message_point: str
+    deliverable: str | None
+    agent_session: bool
+
+
 class SuggestionExtraction(TypedDict):
     """LLM抽出結果（内部処理用）。
 
     - thinking: 提案に至った思考プロセス（best-effort、取得できない場合はNone）。
-    - answer: LLMが返した最終提案テキスト（提案なしの場合は空文字）。
+    - answer: 利用者に見せる提案文。判断の時点では空で、文面の LLM 呼び出しが埋める。
+    - decided: 判断が決めた伝える中身（提案なしの場合は None）。
     - has_suggestion: 提案有無（True: 提案あり, False: 提案なし）。
     - interaction_contract: 提案の操作契約（提案なしの場合は None）。
     """
 
     thinking: str | None
     answer: str
+    decided: SuggestionDecidedContent | None
     suggestion_summary: str | None
     target_context: SuggestionTargetContext | None
     prompt_text: str
@@ -141,12 +152,21 @@ class SuggestionStructuredOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     has_suggestion: bool = Field(description="提案の有無")
-    answer: str = Field(
-        max_length=ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
-        description="提案本文。提案なしの場合は空文字列",
-    )
     interaction_contract: SuggestionInteractionContract | None = Field(
         default=None, description="提案の操作契約"
+    )
+    message_point: str = Field(
+        max_length=ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
+        description="伝える一点（気づきか大事な事実）。提案なしの場合は空文字列",
+    )
+    deliverable: str | None = Field(
+        default=None,
+        max_length=ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS,
+        description="action_offer で承認すると手に入るもの。それ以外は null",
+    )
+    agent_session: bool | None = Field(
+        default=None,
+        description="本人がこの作業を AI エージェントのセッションで進めているか",
     )
     suggestion_summary: str | None = Field(
         description=(

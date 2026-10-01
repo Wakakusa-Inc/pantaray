@@ -236,8 +236,10 @@ class MockLLMClient:
             "suggestion": json.dumps(
                 {
                     "has_suggestion": False,
-                    "answer": "",
                     "interaction_contract": None,
+                    "message_point": "",
+                    "deliverable": None,
+                    "agent_session": None,
                     "suggestion_summary": None,
                     "target_context": None,
                 }

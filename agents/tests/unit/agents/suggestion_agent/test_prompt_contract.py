@@ -11,6 +11,10 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
     SuggestionFetchedContext,
     SuggestionStableMemoryContext,
 )
+from pantaray_agents.agents.suggestion_agent.writer import (
+    SUGGESTION_WRITER_PROMPT_NAME,
+    build_writer_messages,
+)
 from pantaray_agents.mock.mock_agent_repository import MockSuggestionAgentRepository
 from pantaray_agents.mock.mock_llm_client import MockLLMClient
 from pantaray_agents.mock.suggestion_research import (
@@ -61,8 +65,27 @@ def test_real_prompt_renders_context_and_answer_language(
 
     for value in (*context.values(), "pending-work-evidence"):
         assert value in rendered
-    assert f"natural {label}" in instruction
+    assert f"notes in {label}" in instruction
     assert "{answer_language}" not in instruction
+
+
+@pytest.mark.parametrize("label", ["Japanese", "English"])
+def test_real_writer_prompt_renders_only_the_decided_content(label: str) -> None:
+    system, prompt = build_writer_messages(
+        PromptLoader().load_config(SUGGESTION_WRITER_PROMPT_NAME),
+        {
+            "interaction_contract": "action_offer",
+            "message_point": "decided-point",
+            "deliverable": "decided-deliverable",
+            "agent_session": True,
+        },
+        answer_language=label,
+    )
+
+    assert f"natural {label}" in system
+    assert "{" not in prompt
+    for value in ("offer", "decided-point", "decided-deliverable", "yes"):
+        assert value in prompt
 
 
 def test_prompt_examples_are_accepted_by_the_suggestion_parser(

@@ -55,8 +55,10 @@ def _turn(
 def _terminal_payload() -> dict[str, JSONValue]:
     return {
         "has_suggestion": True,
-        "answer": "反証も確認したうえで、共通契約を直して検証まで進めますか？",
         "interaction_contract": "action_offer",
+        "message_point": "共通契約に反例があり、呼び出し側の対処では直らない。",
+        "deliverable": "共通契約の修正と検証",
+        "agent_session": False,
         "suggestion_summary": "### Target\nPantaray\n\n### Work Surface\nUnknown\n\n### Why This Suggestion\nEvidence\n\n### Expected Action\nFix and verify\n\n### Source Context\nObserved\n\n### Ambiguity\nNone",
         "target_context": {
             "organization_name": "Wakakusa",
@@ -109,10 +111,11 @@ def _fixed_research_tools() -> FixedSuggestionResearchTools:
 
 
 def test_terminal_tool_declares_action_message_content_limit() -> None:
-    answer_schema = _terminal_tool().parameters["properties"]["answer"]
+    properties = _terminal_tool().parameters["properties"]
 
-    assert isinstance(answer_schema, dict)
-    assert answer_schema["maxLength"] == ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS
+    assert "answer" not in properties
+    for field in ("message_point", "deliverable"):
+        assert properties[field]["maxLength"] == ACTION_MESSAGE_CONTENT_MAX_CODEPOINTS
 
 
 @pytest.mark.asyncio
@@ -263,7 +266,7 @@ async def test_suggestion_react_returns_invalid_submission_for_repair(
         pending_results.append(kwargs["tool_result"])
         if len(pending_results) == 1:
             invalid = _terminal_payload()
-            invalid["answer"] = ""
+            invalid["message_point"] = ""
             return _turn(
                 SUBMIT_SUGGESTION_TOOL_NAME,
                 invalid,
