@@ -31,6 +31,9 @@ RIPGREP_GLOB_ERROR_MARKERS = (
     "error parsing glob",
 )
 RIPGREP_COMMON_ARGS = (
+    # A config file named by the inherited RIPGREP_CONFIG_PATH would change what
+    # a search returns, and its --pre would run a program nobody approved.
+    "--no-config",
     "--hidden",
     "--no-ignore",
     "--color",

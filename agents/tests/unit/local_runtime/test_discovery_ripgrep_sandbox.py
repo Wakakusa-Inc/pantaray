@@ -127,6 +127,25 @@ async def test_outward_link_in_the_workspace_is_not_searched(
     assert SENTINEL_NAME not in visible
 
 
+@pytest.mark.asyncio
+async def test_inherited_ripgrep_config_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path, context, repo, _folder = _bootstrap_runtime_db_with_registered_folder(
+        tmp_path
+    )
+    (repo / "inside.txt").write_text("needle inside\n", encoding="utf-8")
+    config = repo / "ripgreprc"
+    config.write_text("--invert-match\n", encoding="utf-8")
+    monkeypatch.setenv("RIPGREP_CONFIG_PATH", str(config))
+
+    visible = await _visible_text(
+        db_path=db_path, context=context, tool_id="grep", base_path=str(repo)
+    )
+
+    assert "needle inside" in visible
+
+
 @pytest.mark.parametrize("tool_id", ["grep", "glob"])
 @pytest.mark.asyncio
 async def test_folder_swapped_for_outward_link_reads_nothing_outside_workspace(

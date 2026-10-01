@@ -58,6 +58,7 @@ def test_ripgrep_files_uses_fixed_argv(
     assert captured["argv"] == (
         "/trusted/bin/rg",
         "--files",
+        "--no-config",
         "--hidden",
         "--no-ignore",
         "--color",
@@ -141,6 +142,7 @@ def test_ripgrep_grep_uses_fixed_argv(
     assert captured["argv"] == (
         "/trusted/bin/rg",
         "--json",
+        "--no-config",
         "--hidden",
         "--no-ignore",
         "--color",
