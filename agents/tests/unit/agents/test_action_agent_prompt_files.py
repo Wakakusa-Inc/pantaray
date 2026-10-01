@@ -142,10 +142,9 @@ def test_executing_prompt_delegates_model_guidance_to_spawn_tool_metadata() -> N
 
     assert "delegate them to subagents and run them in parallel" in section
     assert "Request all their `spawn_subagent` calls in the same turn" in section
-    assert "Work directly when each part is smaller than that" in section
-    assert "not the parts you delegate" in section
-    assert "self-contained brief" in section
-    assert "quoted in the brief so it does not read it again" in section
+    assert "reasonably substantial, self-contained piece of work" in section
+    assert "Brief each subagent in detail so it does not redo your work" in section
+    assert "quote content you have already read" in section
     assert "Parallel subagents must not write the same files" in section
     assert "Do not spawn a subagent just to run one command or one check" in section
     assert "choose an explicit model from the tool definition" in section
