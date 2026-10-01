@@ -28,7 +28,19 @@ from pantaray_agents.agents.action_agent.support.conversation_projection import 
     project_action_conversation,
 )
 from pantaray_agents.agents.action_agent.support.formatter import ActionAgentFormatter
+from pantaray_agents.local_runtime.memory_catalog.checkpoint import (
+    serialize_memory_epoch,
+)
+from pantaray_agents.local_runtime.memory_catalog.epoch import (
+    merge_memory_context_epochs,
+)
+from pantaray_agents.local_runtime.memory_catalog.models import (
+    MemoryContextEpoch,
+    MemoryContextItem,
+    ResolvedContextItem,
+)
 from pantaray_agents.schema.agent.action import StepType
+from pantaray_agents.utils.prompt_loader import load_config
 from pantaray_llm.contracts.conversation import (
     AnthropicProviderTurn,
     LlmConversation,
@@ -737,3 +749,77 @@ def test_build_executing_turn_splits_at_the_history_and_sends_the_items() -> Non
         ).sends_conversation
         is False
     )
+
+
+def _memory_epoch(fragment_id: str, content: str) -> MemoryContextEpoch:
+    return MemoryContextEpoch(
+        epoch_id="epoch-1",
+        run_id="run-1",
+        user_id="user-1",
+        items=(
+            ResolvedContextItem(
+                item=MemoryContextItem(
+                    context_handle=f"ctx_{fragment_id}",
+                    source="activity_summary",
+                    label="summary",
+                    source_path="summary.md",
+                    heading_path=None,
+                    content=content,
+                    observed_at="2026-09-19T00:00:00Z",
+                ),
+                user_id="user-1",
+                fragment_id=fragment_id,
+                revision_id=f"rev-{fragment_id}",
+                node_id=f"node-{fragment_id}",
+                reference_depth=0,
+            ),
+        ),
+    )
+
+
+def test_memory_found_mid_run_moves_neither_the_head_nor_the_turn_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every THINK appends its turn context, so memory must not ride in it."""
+
+    monkeypatch.setattr(turn_input, "local_now_for_model", lambda: "NOW")
+    agent = cast(
+        Any,
+        SimpleNamespace(
+            executing_prompt=load_config("action/executing").prompt,
+            executing_system_instruction="SYS",
+            DEFAULT_SYSTEM_INSTRUCTION="D",
+            executing_tool_use_rule=lambda key: "RULE",
+        ),
+    )
+    runtime = cast(
+        Any,
+        SimpleNamespace(
+            services=SimpleNamespace(rendering=_RENDERING),
+            request=SimpleNamespace(language="ja"),
+        ),
+    )
+    state = _state([_user(1)])
+    start = _memory_epoch("start", "START FRAGMENT")
+    state["memory_context_epoch"] = serialize_memory_epoch(start)
+    # What initialize_context stores for the run.
+    state["context"]["linkable_persisted_memory"] = (
+        _RENDERING.render_linkable_memory_context(state)
+    )
+    first = turn_input.build_executing_turn(agent, state, runtime, tools=())
+
+    # memory_search merges what it found into the live epoch.
+    state["memory_context_epoch"] = serialize_memory_epoch(
+        merge_memory_context_epochs(
+            base=start, added=_memory_epoch("found", "FOUND FRAGMENT")
+        )
+    )
+    second = turn_input.build_executing_turn(agent, state, runtime, tools=())
+
+    assert "[ctx_start]" in first.head
+    assert "## Memory Source Coverage" in first.head
+    assert second.head == first.head
+    assert "FOUND FRAGMENT" not in second.head + second.tail
+    assert second.tail == first.tail
+    assert "START FRAGMENT" not in first.tail
+    assert "## Memory Source Coverage" not in first.tail

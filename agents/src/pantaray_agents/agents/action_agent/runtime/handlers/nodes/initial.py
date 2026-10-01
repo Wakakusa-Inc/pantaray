@@ -191,6 +191,11 @@ async def initialize_context(
                 else ""
             ),
             "memory_source_coverage": memory_source_coverage,
+            # Rendered once here: memory_search and get_memory_reference extend
+            # the live epoch mid-run, and the prompt head must not move with it.
+            "linkable_persisted_memory": (
+                runtime.services.rendering.render_linkable_memory_context(state)
+            ),
             "prompt_name": runtime.state_config["prompt_name"],
             "prompt_version": runtime.state_config["prompt_version"],
         }

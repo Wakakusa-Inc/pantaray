@@ -173,7 +173,9 @@ def build_executing_turn(
         "memory_artifact_references": rendering.render_memory_artifact_references(
             state
         ),
-        "linkable_persisted_memory": rendering.render_linkable_memory_context(state),
+        "linkable_persisted_memory": state["context"].get(
+            "linkable_persisted_memory", ""
+        ),
         "supervisor_pending_final_answer": (
             rendering.render_supervisor_pending_final_answer(state)
         ),
