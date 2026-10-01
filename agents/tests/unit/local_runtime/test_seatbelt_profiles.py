@@ -24,6 +24,7 @@ from pantaray_agents.local_runtime.tooling.sandbox.command_sandbox_request impor
 from pantaray_agents.local_runtime.tooling.sandbox.macos_runtime import user_temp_dir
 from pantaray_agents.local_runtime.tooling.sandbox.seatbelt_profiles import (
     MACOS_SYSTEM_RUNTIME_READ_ROOTS,
+    render_ripgrep_seatbelt_profile,
     render_seatbelt_profile,
 )
 
@@ -311,3 +312,16 @@ def test_login_environment_profile_adds_keychain_and_agent() -> None:
     assert login_profile.index('    (subpath "/")') < login_profile.index(
         '(deny file-read* (require-all (require-any\n    (subpath "/app-data")'
     )
+
+
+def test_ripgrep_profile_without_own_roots_denies_all_private_storage() -> None:
+    profile = render_ripgrep_seatbelt_profile(
+        read_roots=("/",),
+        private_storage_roots=("/app-data",),
+        readable_private_roots=(),
+        action_plan_path="/app-data/workspace/plan.md",
+    )
+
+    # sandbox-exec rejects an empty (require-any), which would fail every search.
+    assert '(deny file-read* (require-any\n    (subpath "/app-data")\n))' in profile
+    assert "require-not" not in profile

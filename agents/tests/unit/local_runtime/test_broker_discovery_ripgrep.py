@@ -27,6 +27,7 @@ def test_ripgrep_files_uses_fixed_argv(
         *,
         argv: tuple[str, ...],
         cwd: Path,
+        sandbox_profile: str,
         handle_line: broker_discovery_ripgrep.LineHandler,
     ) -> broker_discovery_ripgrep.RipgrepRunResult:
         captured["argv"] = argv
@@ -47,6 +48,7 @@ def test_ripgrep_files_uses_fixed_argv(
 
     result = broker_discovery_ripgrep.run_ripgrep_files(
         cwd=tmp_path,
+        sandbox_profile="",
         glob_pattern="src/*.py",
         limit=1,
         excluded_relative_path="src/action[1]/plan.md",
@@ -86,6 +88,7 @@ def test_ripgrep_grep_uses_fixed_argv(
         *,
         argv: tuple[str, ...],
         cwd: Path,
+        sandbox_profile: str,
         handle_line: broker_discovery_ripgrep.LineHandler,
     ) -> broker_discovery_ripgrep.RipgrepRunResult:
         captured["argv"] = argv
@@ -127,6 +130,7 @@ def test_ripgrep_grep_uses_fixed_argv(
 
     result = broker_discovery_ripgrep.run_ripgrep_grep(
         cwd=tmp_path,
+        sandbox_profile="",
         pattern="needle",
         include_glob="**/*.py",
         max_matches=10,
@@ -176,6 +180,7 @@ def test_ripgrep_grep_timeout_truncates_without_pattern_error(
         *,
         argv: tuple[str, ...],
         cwd: Path,
+        sandbox_profile: str,
         handle_line: broker_discovery_ripgrep.LineHandler,
     ) -> broker_discovery_ripgrep.RipgrepRunResult:
         return broker_discovery_ripgrep.RipgrepRunResult(
@@ -191,6 +196,7 @@ def test_ripgrep_grep_timeout_truncates_without_pattern_error(
 
     result = broker_discovery_ripgrep.run_ripgrep_grep(
         cwd=tmp_path,
+        sandbox_profile="",
         pattern="needle",
         include_glob=None,
         max_matches=10,
@@ -214,6 +220,7 @@ def test_ripgrep_files_classifies_glob_parse_errors(
         *,
         argv: tuple[str, ...],
         cwd: Path,
+        sandbox_profile: str,
         handle_line: broker_discovery_ripgrep.LineHandler,
     ) -> broker_discovery_ripgrep.RipgrepRunResult:
         return broker_discovery_ripgrep.RipgrepRunResult(
@@ -230,6 +237,7 @@ def test_ripgrep_files_classifies_glob_parse_errors(
     with pytest.raises(BrokerPolicyError) as exc_info:
         broker_discovery_ripgrep.run_ripgrep_files(
             cwd=tmp_path,
+            sandbox_profile="",
             glob_pattern="[",
             limit=10,
         )
@@ -254,6 +262,7 @@ def test_ripgrep_runner_drains_stderr_without_timeout(
     result = broker_discovery_ripgrep._run_ripgrep_lines(
         argv=(sys.executable, "-c", script),
         cwd=tmp_path,
+        sandbox_profile="(version 1)\n(allow default)",
         handle_line=lambda line: True,
     )
 
@@ -290,6 +299,7 @@ def test_ripgrep_grep_classifies_backend_failures(
         *,
         argv: tuple[str, ...],
         cwd: Path,
+        sandbox_profile: str,
         handle_line: broker_discovery_ripgrep.LineHandler,
     ) -> broker_discovery_ripgrep.RipgrepRunResult:
         return broker_discovery_ripgrep.RipgrepRunResult(
@@ -306,6 +316,7 @@ def test_ripgrep_grep_classifies_backend_failures(
     with pytest.raises(BrokerPolicyError) as exc_info:
         broker_discovery_ripgrep.run_ripgrep_grep(
             cwd=tmp_path,
+            sandbox_profile="",
             pattern="needle",
             include_glob="**/*.py",
             max_matches=10,

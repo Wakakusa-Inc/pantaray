@@ -67,30 +67,3 @@ def entry_for_discovery_path(path: DiscoveryPath) -> dict[str, object]:
         "kind": path.kind,
         "name": path.path.name,
     }
-
-
-def discovery_child_path(
-    *,
-    base: ResolvedManifestPath,
-    child: Path,
-    kind: Literal["file", "directory"],
-) -> DiscoveryPath:
-    del base
-    return DiscoveryPath(path=child, kind=kind)
-
-
-def is_safe_discovery_path(*, base: ResolvedManifestPath, path: Path) -> bool:
-    if path.is_symlink():
-        return False
-    try:
-        path.resolve(strict=True).relative_to(base.root.canonical_real_path)
-    except (OSError, ValueError):
-        return False
-    return True
-
-
-def safe_is_file(path: Path) -> bool:
-    try:
-        return path.is_file()
-    except OSError:
-        return False
