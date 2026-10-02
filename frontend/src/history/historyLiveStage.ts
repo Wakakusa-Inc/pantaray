@@ -28,12 +28,16 @@ export function selectHistoryLiveStage(snapshot: ActionLiveSnapshot): HistoryLiv
   const running = lifecycle
     ? lifecycle.status === 'processing'
     : page !== null && RUNNING_ACTION_STATUSES.has(page.action.status);
-  // The row's approval badge already says it is waiting; a line would only repeat it.
-  if (!running || snapshot.approvalBlockers.length > 0) return null;
+  if (!running) return null;
 
   const runId = lifecycle?.processId ?? page?.action.latest_run_id ?? null;
+  const pageRun = page?.runs.find((run) => run.run_id === runId);
+  // The row's approval badge already says it is waiting; a line would only repeat it. A page read
+  // after a restart says so before the approval blockers arrive over the socket.
+  if (snapshot.approvalBlockers.length > 0 || pageRun?.status === 'approval_pending') return null;
+
   const lines =
-    page !== null && page.runs.some((run) => run.run_id === runId)
+    page !== null && pageRun !== undefined
       ? projectActionConversationView([page], [], snapshot.transientToolSteps).items.flatMap(
           (item) => (item.kind === 'run' && item.runId === runId ? item.lines : [])
         )

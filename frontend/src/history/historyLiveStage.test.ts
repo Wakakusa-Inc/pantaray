@@ -80,6 +80,11 @@ it('prefers the running tool, then the latest message, then thinking', () => {
   expect(
     selectHistoryLiveStage(snapshot({ page: running, approvalBlockers: [blocker] }))
   ).toBeNull();
+  expect(
+    selectHistoryLiveStage(
+      snapshot({ page: page('processing', [{ ...running.runs[0], status: 'approval_pending' }]) })
+    )
+  ).toBeNull();
   expect(selectHistoryLiveStage(snapshot({ page: running }))).toEqual({
     kind: 'tool',
     label: 'read',
