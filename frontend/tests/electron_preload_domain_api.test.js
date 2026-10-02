@@ -37,6 +37,13 @@ function createIpcRenderer() {
   };
 }
 
+function actionUpdate(actionId, status) {
+  return {
+    kind: 'action_updated',
+    snapshot: { actionId, page: { action: { action_id: actionId, status } }, lifecycle: null },
+  };
+}
+
 const ipcPolicy = {
   assertValidInvokeChannel: () => {},
   isValidReceiveChannel: () => true,
@@ -81,16 +88,44 @@ test('Action preload API forwards typed invokes and retains the latest update pe
     ['history:deleteItem', { kind: 'conversation', id: 'a1' }],
   ]);
 
-  const update = (actionId, page) => ({ kind: 'action_updated', snapshot: { actionId, page } });
-  ipcRenderer.emit('action:conversationUpdated', update('a1', 1));
-  ipcRenderer.emit('action:conversationUpdated', update('a2', 1));
-  ipcRenderer.emit('action:conversationUpdated', update('a1', 2));
+  ipcRenderer.emit('action:conversationUpdated', actionUpdate('a1', 'queued'));
+  ipcRenderer.emit('action:conversationUpdated', actionUpdate('a2', 'processing'));
+  ipcRenderer.emit('action:conversationUpdated', actionUpdate('a1', 'processing'));
   const received = [];
   api.actions.onConversationUpdated((value) => received.push(value));
   // Each Action's latest update, oldest change first, so a late subscriber sees every Action.
-  assert.deepEqual(received, [update('a2', 1), update('a1', 2)]);
+  assert.deepEqual(received, [actionUpdate('a2', 'processing'), actionUpdate('a1', 'processing')]);
   ipcRenderer.emit('action:conversationUpdated', { kind: 'reset' });
   api.actions.onConversationUpdated(() => assert.fail('reset update was retained'));
+});
+
+test('Action preload keeps running Actions and only the latest finished ones for replay', () => {
+  const ipcRenderer = createIpcRenderer();
+  const { actions } = createActionsApi({ ipcRenderer });
+  ipcRenderer.emit('action:conversationUpdated', actionUpdate('running', 'processing'));
+  for (let index = 0; index < 50; index += 1) {
+    ipcRenderer.emit('action:conversationUpdated', actionUpdate(`done-${index}`, 'processing'));
+    ipcRenderer.emit('action:conversationUpdated', actionUpdate(`done-${index}`, 'success'));
+  }
+  // The completion event alone already ends a run whose page read is still pending.
+  const completed = {
+    kind: 'action_updated',
+    snapshot: {
+      actionId: 'fast',
+      page: null,
+      lifecycle: { processId: 'p-fast', status: 'error' },
+    },
+  };
+  ipcRenderer.emit('action:conversationUpdated', completed);
+
+  const replayed = [];
+  actions.onConversationUpdated((update) => replayed.push(update));
+  assert.deepEqual(
+    replayed.map((update) => update.snapshot.actionId),
+    ['running', ...Array.from({ length: 19 }, (_, index) => `done-${index + 31}`), 'fast']
+  );
+  // An Overlay that subscribes after its fast run finished still gets the terminal update.
+  assert.deepEqual(replayed.at(-1), completed);
 });
 
 for (const hasFreshUpdate of [false, true]) {
