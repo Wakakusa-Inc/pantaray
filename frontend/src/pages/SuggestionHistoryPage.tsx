@@ -70,8 +70,6 @@ function liveStageText(
   t: (key: MessageKey) => string
 ): string {
   switch (stage.kind) {
-    case 'approval':
-      return t('history.live.approvalPending');
     case 'tool':
       return resolveToolLine(stage.label, language, {
         subject: stage.subject,

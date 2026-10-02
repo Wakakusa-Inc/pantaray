@@ -72,13 +72,14 @@ const blocker = {
   commandSummary: {},
 };
 
-it('prefers approval, then the running tool, then the latest message, then thinking', () => {
+it('prefers the running tool, then the latest message, then thinking', () => {
   const entries = [assistant(1, '## **Plan**\nread the notes'), tool(2, 'processing')];
   const running = page('processing', [runningRun('R1', entries)]);
 
-  expect(selectHistoryLiveStage(snapshot({ page: running, approvalBlockers: [blocker] }))).toEqual({
-    kind: 'approval',
-  });
+  // The approval badge already says the run waits; the line would only repeat it.
+  expect(
+    selectHistoryLiveStage(snapshot({ page: running, approvalBlockers: [blocker] }))
+  ).toBeNull();
   expect(selectHistoryLiveStage(snapshot({ page: running }))).toEqual({
     kind: 'tool',
     label: 'read',

@@ -5,7 +5,6 @@ type ToolEntry = ActionLiveSnapshot['transientToolSteps'][number]['entry'];
 
 /** What a running Action is doing now, in the order the History line prefers them. */
 export type HistoryLiveStage =
-  | { kind: 'approval' }
   | { kind: 'tool'; label: string; subject: string | null; outcome: ToolEntry['outcome'] }
   | { kind: 'message'; text: string }
   | { kind: 'thinking' };
@@ -29,8 +28,8 @@ export function selectHistoryLiveStage(snapshot: ActionLiveSnapshot): HistoryLiv
   const running = lifecycle
     ? lifecycle.status === 'processing'
     : page !== null && RUNNING_ACTION_STATUSES.has(page.action.status);
-  if (!running) return null;
-  if (snapshot.approvalBlockers.length > 0) return { kind: 'approval' };
+  // The row's approval badge already says it is waiting; a line would only repeat it.
+  if (!running || snapshot.approvalBlockers.length > 0) return null;
 
   const runId = lifecycle?.processId ?? page?.action.latest_run_id ?? null;
   const lines =

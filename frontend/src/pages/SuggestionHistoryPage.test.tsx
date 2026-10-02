@@ -344,13 +344,16 @@ function livePage(
   };
 }
 
-function liveUpdate(page: ActionConversationPage): ActionLiveUpdate {
+function liveUpdate(
+  page: ActionConversationPage,
+  approvalBlockers: ActionLiveSnapshot['approvalBlockers'] = []
+): ActionLiveUpdate {
   const snapshot: ActionLiveSnapshot = {
     actionId: page.action.action_id,
     page,
     pageVersion: 1,
     transientToolSteps: [],
-    approvalBlockers: [],
+    approvalBlockers,
     lifecycle: null,
   };
   return { kind: 'action_updated', snapshot };
@@ -414,22 +417,32 @@ it('実行中の会話だけ行の下に今の動きを1行で出し、終われ
   expect(row).not.toHaveAccessibleName(/読み取っています/);
   expect(container.querySelector('.history-item-live')).toHaveAttribute('aria-hidden', 'true');
 
-  publish(
-    liveUpdate(
-      livePage('A1', 'processing', [
-        {
-          step_kind: 'assistant',
-          step_id: 'assistant-3',
-          step_number: 3,
-          content: 'Found it\nmore',
-        },
-      ])
-    )
-  );
+  const found = livePage('A1', 'processing', [
+    { step_kind: 'assistant', step_id: 'assistant-3', step_number: 3, content: 'Found it\nmore' },
+  ]);
+  publish(liveUpdate(found));
   publish(liveUpdate(livePage('A2', 'success', [])));
   expect(lines()).toEqual(['Found it', null]);
   expect(screen.getByRole('button', { name: /^A1/ })).toBe(row);
   expect(row).toHaveFocus();
+
+  // While an approval is pending the badge says so; the line would only repeat it.
+  publish(
+    liveUpdate(found, [
+      {
+        actionId: 'A1',
+        processId: 'A1-run',
+        approvalSessionId: 'session-1',
+        toolRequestId: 'request-1',
+        toolId: 'bash',
+        intentClass: 'write',
+        commandSummary: {},
+      },
+    ])
+  );
+  expect(lines()).toEqual([null, null]);
+  publish(liveUpdate(found));
+  expect(lines()).toEqual(['Found it', null]);
 
   publish({ kind: 'reset' });
   expect(lines()).toEqual([null, null]);
