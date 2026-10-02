@@ -25,16 +25,13 @@
   min-width: 0;
 }
 
-/* The preload paints every input and select with !important glass styles
-   (electron/preload/dom_bootstrap.js), so the fields' own fill and edge are !important too. */
 .workspace-input,
 .workspace-folder-assignment select {
-  backdrop-filter: none;
-  background-color: var(--fog-mist) !important;
-  border: 1px solid transparent !important;
+  background-color: var(--fog-mist);
+  border: 1px solid transparent;
   border-radius: 9px;
   box-sizing: border-box;
-  color: var(--fog-text) !important;
+  color: var(--fog-text);
   font: inherit;
   font-size: 13px;
   height: 34px;
@@ -48,12 +45,12 @@
 }
 
 .workspace-input::placeholder {
-  color: var(--fog-text-3) !important;
+  color: var(--fog-text-3);
 }
 
 .workspace-input:focus,
 .workspace-folder-assignment select:focus {
-  border-color: var(--border-color-hover) !important;
+  border-color: var(--border-color-hover);
   box-shadow: none;
   outline: none;
 }
