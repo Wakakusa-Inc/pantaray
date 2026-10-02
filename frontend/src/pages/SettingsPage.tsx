@@ -58,7 +58,7 @@ const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div className="settings-page-shell">
+    <div className="app-split">
       <aside className="app-split-master settings-page-nav" aria-label={t('nav.settings')}>
         <h2 className="app-split-title settings-page-nav-title">{t('nav.settings')}</h2>
         {SETTINGS_SECTIONS.map((sectionId) => {

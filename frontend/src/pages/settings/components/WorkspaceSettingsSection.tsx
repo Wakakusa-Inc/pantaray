@@ -51,7 +51,7 @@ export function WorkspaceSettingsSection({ notice, t }: WorkspaceSettingsSection
   }, [clearFocusRequest, focusRequest]);
 
   return (
-    <div className="workspace-page">
+    <div className="app-split">
       <aside className="app-split-master workspace-master">
         <div className="workspace-master-header">
           <h2 className="app-split-title">{t('settings.workspace.title')}</h2>

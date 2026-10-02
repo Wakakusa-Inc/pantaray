@@ -108,6 +108,14 @@
   padding: 0;
 }
 
+/* A split page: its own navigation column, then its content. */
+.app-split {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
 /* The split pages' second column: a darker band with the page's own navigation. */
 .app-split-master {
   box-sizing: border-box;
@@ -147,6 +155,31 @@
 
 .app-split-detail .app-connection-notice {
   margin-bottom: 0;
+}
+
+/* Narrow effective widths (a small window zoomed in): the second column stacks above the
+   content and the page scrolls as one, starting below the drag strip so nothing scrolls under
+   it. */
+@media (max-width: 760px) {
+  .app-split {
+    flex-direction: column;
+    margin-top: 40px;
+    overflow-y: auto;
+  }
+
+  .app-split-master {
+    flex: 0 0 auto;
+    padding-top: 12px;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--fog-line);
+  }
+
+  .app-split-detail {
+    flex: 0 0 auto;
+    overflow-y: visible;
+    padding: 24px 24px 32px;
+  }
 }
 
 /* Recording: a light in the rail that opens the recording controls. */
@@ -272,6 +305,7 @@
 .app-connection-notice p {
   flex: 1 1 280px;
   margin: 0;
+  word-break: auto-phrase;
 }
 
 .app-connection-notice a {

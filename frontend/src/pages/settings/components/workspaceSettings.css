@@ -1,11 +1,4 @@
 /* Master-detail: the project list on a darker band, the selection beside it. */
-.workspace-page {
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-  min-width: 0;
-}
-
 .workspace-master-header {
   align-items: center;
   display: flex;

@@ -1,10 +1,3 @@
-.settings-page-shell {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-
 .settings-page-nav {
   overflow-y: auto;
 }
@@ -513,23 +506,6 @@
 }
 
 @media (max-width: 760px) {
-  .settings-page-shell {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .settings-page-nav {
-    border-bottom: 1px solid var(--border-color);
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 0 0 12px;
-  }
-
-  .settings-page-nav-item {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
   .settings-control-row {
     align-items: stretch;
     flex-direction: column;
