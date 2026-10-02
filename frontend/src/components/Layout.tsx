@@ -67,12 +67,13 @@ const Layout: React.FC = () => {
     return email[0].toUpperCase();
   };
 
-  // A page with its own columns shows the AI-connection notice in its right column, which
-  // exists only once the local owner it belongs to is published.
+  // A page with its own columns shows the AI-connection notice in its right column. Workspace
+  // has those columns only once the local owner it belongs to is published.
   const isSplitPage =
-    location.pathname === '/workspace' &&
-    runtimeState.status === 'ready' &&
-    runtimeState.owner !== null;
+    location.pathname === '/settings' ||
+    (location.pathname === '/workspace' &&
+      runtimeState.status === 'ready' &&
+      runtimeState.owner !== null);
 
   const navItems = [
     { path: '/history', label: t('nav.history'), Icon: Clock },

@@ -52,9 +52,9 @@ export function WorkspaceSettingsSection({ notice, t }: WorkspaceSettingsSection
 
   return (
     <div className="workspace-page">
-      <aside className="workspace-master">
+      <aside className="app-split-master workspace-master">
         <div className="workspace-master-header">
-          <h2 className="workspace-master-title">{t('settings.workspace.title')}</h2>
+          <h2 className="app-split-title">{t('settings.workspace.title')}</h2>
           {settings ? (
             <WorkspaceListToolbar
               organizations={settings.organizations}
@@ -105,7 +105,7 @@ export function WorkspaceSettingsSection({ notice, t }: WorkspaceSettingsSection
         ) : null}
       </aside>
 
-      <section className="workspace-detail">
+      <section className="app-split-detail">
         {notice}
         {settings === null ? (
           controller.showLoading ? (
