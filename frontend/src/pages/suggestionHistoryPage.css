@@ -54,24 +54,11 @@
   pointer-events: none;
 }
 
-/* The preload paints every input with !important glass styles (dom_bootstrap.js), so the
-   field's own fill, edge and placeholder have to be !important to show. */
 .history-search .history-search__input {
   height: 38px;
   padding-left: 34px;
-  border: 1px solid transparent !important;
   border-radius: 10px;
-  background-color: var(--fog-mist) !important;
-  backdrop-filter: none;
   font-size: 13.5px;
-}
-
-.history-search .history-search__input::placeholder {
-  color: var(--fog-text-3) !important;
-}
-
-.history-search .history-search__input:focus {
-  border-color: var(--border-color-hover) !important;
 }
 
 /* Chromium's default clear button is blue; draw it in the field's muted text color. */

@@ -571,11 +571,11 @@ body.overlay-window #root {
   height: 34px;
   width: 100%;
   padding: var(--space-xs) var(--space-sm);
-  background: var(--surface-bg);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-size: var(--text-meta-size);
+  background-color: var(--fog-mist);
+  color: var(--fog-text);
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font-size: 13px;
   font-weight: 400;
   transition: all 0.15s ease;
   -webkit-appearance: none;
@@ -583,14 +583,15 @@ body.overlay-window #root {
 }
 
 .history-filter-input::placeholder {
-  color: var(--text-muted);
+  color: var(--fog-text-3);
 }
 
+/* Colour only, so the select keeps its arrow image. */
 .history-filter-input:focus,
 .history-filter-select:focus {
   outline: none;
   border-color: var(--border-color-hover);
-  background: var(--surface-bg-hover);
+  background-color: var(--fog-mist-strong);
 }
 
 .history-filter-input:disabled,
