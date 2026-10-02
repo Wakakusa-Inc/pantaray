@@ -4,8 +4,10 @@
     - suggestion_chunk を送るのは以下を満たすとき *だけ*:
       - DB行の status が success
       - has_suggestion が True
+      - delivery_state が released（保留を経て見せると決まった）
       - answer が空でない
     - 上記を満たさない場合、suggestion_chunk は送られない。
+    - 保留のまま期限切れ・置き換えになった提案は「提案なし」として完了する。
 """
 
 from __future__ import annotations
@@ -29,27 +31,62 @@ from pantaray_agents.schema.repositories.repository import RepositoryResult
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("row", "expect_chunk"),
+    ("row", "expect_chunk", "expect_has_suggestion"),
     [
         (
-            {"status": "success", "has_suggestion": True, "answer": "Do X"},
+            {
+                "status": "success",
+                "has_suggestion": True,
+                "answer": "Do X",
+                "delivery_state": "released",
+            },
+            True,
             True,
         ),
         (
-            {"status": "success", "has_suggestion": True, "answer": ""},
+            {
+                "status": "success",
+                "has_suggestion": True,
+                "answer": "",
+                "delivery_state": "released",
+            },
             False,
+            True,
         ),
         (
             {"status": "success", "has_suggestion": False, "answer": "Do X"},
+            False,
+            False,
+        ),
+        (
+            {
+                "status": "success",
+                "has_suggestion": True,
+                "answer": "Do X",
+                "delivery_state": "expired",
+            },
+            False,
+            False,
+        ),
+        (
+            {
+                "status": "success",
+                "has_suggestion": True,
+                "answer": "Do X",
+                "delivery_state": "superseded",
+            },
+            False,
             False,
         ),
         (
             {"status": "timeout", "has_suggestion": True, "answer": "Do X"},
             False,
+            True,
         ),
         (
             {"status": "error", "has_suggestion": True, "answer": "Do X"},
             False,
+            True,
         ),
     ],
 )
@@ -57,6 +94,7 @@ async def test_suggestion_chunk_is_emitted_iff_success_has_suggestion_and_answer
     monkeypatch: pytest.MonkeyPatch,
     row: dict,
     expect_chunk: bool,
+    expect_has_suggestion: bool,
 ) -> None:
     monkeypatch.setattr(deps, "is_mock_mode", lambda: False)
 
@@ -127,7 +165,4 @@ async def test_suggestion_chunk_is_emitted_iff_success_has_suggestion_and_answer
     pdata = last_completed.get("data") or {}
     assert isinstance(pdata, dict)
     assert pdata.get("status") == row.get("status")
-    expected_has_suggestion = (
-        None if row.get("has_suggestion") is None else bool(row.get("has_suggestion"))
-    )
-    assert pdata.get("has_suggestion") == expected_has_suggestion
+    assert pdata.get("has_suggestion") is expect_has_suggestion

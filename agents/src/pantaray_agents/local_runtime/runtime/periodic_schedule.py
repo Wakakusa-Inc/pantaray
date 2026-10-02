@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
@@ -35,6 +36,10 @@ from .memory_repair_scheduler import (
 )
 from .reaper import run_local_periodic_reaper_once
 from .session_store import read_configured
+from .suggestion_release import (
+    SUGGESTION_RELEASE_INTERVAL_SECONDS,
+    release_held_suggestion,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +131,15 @@ def _run_memory_agent_dispatch(context: PeriodicTaskContext) -> None:
     )
 
 
+def _run_suggestion_release(context: PeriodicTaskContext) -> None:
+    release_held_suggestion(
+        db_path=context.db_path,
+        busy_timeout_ms=context.busy_timeout_ms,
+        user_id=context.owner_user_id,
+        now=datetime.now(UTC),
+    )
+
+
 def build_periodic_schedule(
     *, embedding_slot: MemoryEmbeddingProjectionSlot
 ) -> tuple[PeriodicTask, ...]:
@@ -171,6 +185,12 @@ def build_periodic_schedule(
             interval_seconds=MEMORY_AGENT_DISPATCH_INTERVAL_SECONDS,
             is_ready=_owner_is_settled,
             run=_run_memory_agent_dispatch,
+        ),
+        PeriodicTask(
+            name="suggestion_release",
+            interval_seconds=SUGGESTION_RELEASE_INTERVAL_SECONDS,
+            is_ready=_owner_is_settled,
+            run=_run_suggestion_release,
         ),
         PeriodicTask(
             name="memory_embedding_projection",

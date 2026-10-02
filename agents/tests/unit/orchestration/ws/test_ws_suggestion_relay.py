@@ -65,6 +65,27 @@ class _SucceededRepository(_ProcessingRepository):
                 "status": "success",
                 "has_suggestion": True,
                 "answer": "resumed answer",
+                "delivery_state": "released",
+            }
+        )
+
+
+class _HeldRepository(_ProcessingRepository):
+    """A stored Suggestion the release task has not decided on yet."""
+
+    def __init__(self) -> None:
+        self.delivery_state = "held"
+
+    async def get_suggestion(self, *, user_id: str, suggestion_id: str):  # noqa: ANN201
+        return RepositoryResult(
+            data={
+                "user_id": user_id,
+                "suggestion_id": suggestion_id,
+                "status": "success",
+                "has_suggestion": True,
+                "answer": "held answer",
+                "interaction_contract": "message_only",
+                "delivery_state": self.delivery_state,
             }
         )
 
@@ -399,3 +420,107 @@ async def test_a_session_whose_send_failed_no_longer_counts_as_deliverable(
     finally:
         await broken.close()
         await healthy.close()
+
+
+async def _relay_until_completed(
+    handler: WSOrchestrationHandler, websocket: MagicMock, *, ticks: int
+) -> list[str]:
+    for _ in range(ticks):
+        if "process_completed" in _sent_events(websocket):
+            break
+        await asyncio.sleep(0.01)
+    return _sent_events(websocket)
+
+
+@pytest.mark.asyncio
+async def test_a_held_suggestion_is_delivered_only_once_released(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = _HeldRepository()
+    handler, websocket = _build_handler(
+        monkeypatch, client_state=WebSocketState.CONNECTED, repository=repository
+    )
+    try:
+        await handler._relay_live_suggestion_processes()
+        held_events = await _relay_until_completed(handler, websocket, ticks=10)
+
+        repository.delivery_state = "released"
+        released_events = await _relay_until_completed(handler, websocket, ticks=50)
+    finally:
+        await handler.close()
+
+    assert held_events == ["process_started"]
+    assert released_events == [
+        "process_started",
+        "suggestion_chunk",
+        "process_completed",
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ended_state", ["expired", "superseded"])
+async def test_a_suggestion_that_ends_unshown_completes_as_no_suggestion(
+    monkeypatch: pytest.MonkeyPatch, ended_state: str
+) -> None:
+    repository = _HeldRepository()
+    handler, websocket = _build_handler(
+        monkeypatch, client_state=WebSocketState.CONNECTED, repository=repository
+    )
+    try:
+        await handler._relay_live_suggestion_processes()
+        repository.delivery_state = ended_state
+        events = await _relay_until_completed(handler, websocket, ticks=50)
+    finally:
+        await handler.close()
+
+    assert events == ["process_started", "process_completed"]
+    completed = websocket.send_json.call_args_list[-1].args[0]["data"]
+    assert completed["has_suggestion"] is False
+    assert completed.get("interaction_contract") is None
+
+
+def test_discovery_finds_a_held_suggestion_whose_run_ended_before_the_session(
+    tmp_path: Path,
+) -> None:
+    """A reconnect after the run finished still owes the user a held Suggestion."""
+    import sqlite3
+
+    db_path = _migrated_db(tmp_path)
+    finished_at = "2026-09-30T00:00:01.000Z"
+    with sqlite3.connect(db_path) as connection:
+        for suggestion_id, delivery_state in (
+            ("held", "held"),
+            ("released", "released"),
+            ("expired", "expired"),
+        ):
+            connection.execute(
+                "INSERT INTO agent_suggestions(suggestion_id, user_id, status,"
+                " answer, has_suggestion, interaction_contract, delivery_state,"
+                " created_at, updated_at)"
+                " VALUES (?, 'user-1', 'success', 'answer', 1, 'message_only', ?,"
+                " ?, ?)",
+                (suggestion_id, delivery_state, finished_at, finished_at),
+            )
+            connection.execute(
+                "INSERT INTO processes(process_id, user_id, kind, status,"
+                " suggestion_id, started_at, updated_at, completed_at,"
+                " heartbeat_at, next_event_seq)"
+                " VALUES (?, 'user-1', 'suggestion', 'completed', ?, ?, ?, ?, ?, 1)",
+                (
+                    f"p-{suggestion_id}",
+                    suggestion_id,
+                    finished_at,
+                    finished_at,
+                    finished_at,
+                    finished_at,
+                ),
+            )
+
+    found = suggestion_relay.read_relayable_suggestion_processes(
+        db_path=db_path,
+        busy_timeout_ms=1000,
+        user_id="user-1",
+        since="2026-09-30T01:00:00.000Z",
+    )
+
+    assert found == [LiveSuggestionProcess("p-held", "held")]

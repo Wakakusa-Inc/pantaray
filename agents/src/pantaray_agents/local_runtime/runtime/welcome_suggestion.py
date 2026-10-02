@@ -3,10 +3,11 @@
 A first Suggestion needs recorded activity, so a new user would otherwise see
 nothing for the first several minutes. This message says Pantaray is learning
 their work and can take a request at any time. It is stored as an ordinary
-finished `message_only` Suggestion without running the SuggestionAgent, so the
-relay shows it, History lists it, and a reply continues it like any other
-Suggestion. Like any Suggestion it is only stored while a session can show it;
-the route refuses it otherwise, and the desktop app asks again.
+finished `message_only` Suggestion without running the SuggestionAgent, and
+released rather than held, so the relay shows it at once, History lists it, and
+a reply continues it like any other Suggestion. Like any Suggestion it is only
+stored while a session can show it; the route refuses it otherwise, and the
+desktop app asks again.
 
 Whether to greet is decided here, from the owner's rows, not by the desktop
 app: settings files follow a guest into a new account while these rows do not,
@@ -70,8 +71,8 @@ def record_welcome_suggestion(
             INSERT INTO agent_suggestions(
                 suggestion_id, user_id, status, answer, prompt_name,
                 prompt_version, has_suggestion, interaction_contract,
-                created_at, updated_at
-            ) VALUES (?, ?, 'success', ?, ?, ?, 1, 'message_only', ?, ?)
+                delivery_state, created_at, updated_at
+            ) VALUES (?, ?, 'success', ?, ?, ?, 1, 'message_only', 'released', ?, ?)
             """,
             (
                 suggestion_id,
