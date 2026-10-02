@@ -38,7 +38,6 @@ export const COMMON_MESSAGES = defineMessages({
     'desktopAppOnly.body': 'This page is only available in the desktop app.',
     'desktopAppOnly.goToLogin': 'Go to login',
     'shortcut.hint.label': 'Shortcut: {keys}',
-    'shortcut.hint.loading': 'Loading shortcut…',
     'shortcut.hint.unavailable': 'Shortcut unavailable',
   },
   ja: {
@@ -77,7 +76,6 @@ export const COMMON_MESSAGES = defineMessages({
     'desktopAppOnly.body': 'このページはデスクトップアプリ専用です。ブラウザからは閲覧できません。',
     'desktopAppOnly.goToLogin': 'ログインへ移動',
     'shortcut.hint.label': 'ショートカット: {keys}',
-    'shortcut.hint.loading': 'ショートカットを読み込み中…',
     'shortcut.hint.unavailable': 'ショートカット未設定',
   },
 });
