@@ -63,8 +63,9 @@ type MemoryUpdateStepRecorder = Callable[[ReactLoopStep], Awaitable[None]]
 # target file first. The Agent Experience run needed 10 turns / 16 tool calls for
 # a single category, so this starts at roughly three times that budget. No
 # measurement exists yet; tighten it once real runs report their tool-call counts.
-MEMORY_UPDATE_MAX_LLM_TURNS = 30
-MEMORY_UPDATE_MAX_TOOL_CALLS = 48
+# Writing an endeavor's big picture searches its history first, which doubles it.
+MEMORY_UPDATE_MAX_LLM_TURNS = 60
+MEMORY_UPDATE_MAX_TOOL_CALLS = 96
 
 
 @dataclass(frozen=True, slots=True)
