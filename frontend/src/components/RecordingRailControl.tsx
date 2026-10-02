@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type RefObject } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 
 import { useI18n } from '@/context/useI18n';
 import { useDismissablePopover } from '@/pages/settings/useDismissablePopover';
@@ -13,9 +13,6 @@ export function RecordingRailControl() {
   const capture = useScreenshotCaptureStatus();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
-  // Stable, so the popover's focus-on-open effect runs once per opening, not on every
-  // status change while it is open.
-  const close = useCallback(() => setIsOpen(false), []);
 
   const label = capture.captureStatusUnavailable
     ? t('settings.screenshotCapture.unavailable')
@@ -50,7 +47,11 @@ export function RecordingRailControl() {
         />
       </button>
       {isOpen ? (
-        <RecordingPopover capture={capture} triggerRef={triggerRef} onDismiss={close} />
+        <RecordingPopover
+          capture={capture}
+          triggerRef={triggerRef}
+          onDismiss={() => setIsOpen(false)}
+        />
       ) : null}
     </div>
   );
