@@ -7,17 +7,6 @@
   overflow: hidden;
 }
 
-/* The list fades into the ground instead of ending on a hard edge. */
-.history-container::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 56px;
-  background: linear-gradient(180deg, rgba(17, 22, 31, 0), #11161f);
-  pointer-events: none;
-}
 
 .history-header {
   display: flex;
@@ -155,6 +144,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* The rows fade out at the bottom edge by masking the list itself: a coloured overlay
+     cannot match the window's gradient and haze, and showed as a band. */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 56px), transparent);
   padding-bottom: 64px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;

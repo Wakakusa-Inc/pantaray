@@ -337,7 +337,7 @@ function createMainWindow(options = {}) {
     transparent: false,
     // The middle stop of the renderer's fog ground (index.css --app-background), so the
     // window shows the same color before the first paint.
-    backgroundColor: '#151a24',
+    backgroundColor: '#0f131a',
     hasShadow: true,
     resizable: true,
     fullscreenable: true,

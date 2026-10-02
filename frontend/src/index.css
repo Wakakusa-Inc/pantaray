@@ -12,10 +12,10 @@
 }
 
 :root {
-  /* Fog: a grey-indigo ground with a faint haze rising from the bottom edge. */
+  /* Fog: a dark grey-indigo ground with a barely visible haze rising from the bottom edge. */
   --app-background:
-    radial-gradient(120% 70% at 50% 110%, rgba(150, 166, 194, 0.09), rgba(0, 0, 0, 0) 60%),
-    linear-gradient(180deg, #1a202b 0%, #151a24 45%, #11161f 100%);
+    radial-gradient(120% 70% at 50% 110%, rgba(150, 166, 194, 0.035), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, #12161e 0%, #0f131a 45%, #0b0e14 100%);
   /* Fog tokens for the main window. Light is reserved for what needs attention. */
   --fog-mist: rgba(170, 186, 212, 0.07);
   --fog-mist-strong: rgba(170, 186, 212, 0.1);
