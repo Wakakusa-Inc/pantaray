@@ -112,10 +112,21 @@
   z-index: 6;
 }
 
-/* The editor sits right after the project heading, so its picker opens toward the detail. */
+/* In the detail column the picker hangs from the whole header row, not from the editor that
+   follows a heading of any length, so it starts at the column's left edge and fits its width. */
+.workspace-detail-header {
+  position: relative;
+}
+
+.workspace-detail-header .workspace-project-organization-editor {
+  position: static;
+}
+
 .workspace-detail-header .workspace-project-organization-popover {
+  box-sizing: border-box;
   left: 0;
   right: auto;
+  width: min(280px, 100%);
 }
 
 /* Option text sits 9px in (8px padding + 1px border), so the heading and the new-organization
