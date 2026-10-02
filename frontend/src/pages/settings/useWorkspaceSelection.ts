@@ -38,7 +38,8 @@ export function resolveSelection(
 /**
  * Adjusts the selection while rendering the settings that changed it, so the new detail is in
  * the same commit as the focus request that targets it (a created project's add-folder button,
- * the heading of the project that follows a deleted one).
+ * the heading of the project that follows a deleted one). What is shown is always what is
+ * stored, so a later change follows the project on screen, not an earlier choice.
  */
 export function useWorkspaceSelection(
   projectIds: readonly string[] | null,
@@ -46,18 +47,26 @@ export function useWorkspaceSelection(
 ) {
   const [selection, setSelection] = useState<WorkspaceSelection | null>(null);
   const [knownIds, setKnownIds] = useState(projectIds);
-  if (projectIds !== null && !sameIds(knownIds, projectIds)) {
+  if (projectIds === null) return { selection: null, select: setSelection };
+
+  let next = selection;
+  if (!sameIds(knownIds, projectIds)) {
     setKnownIds(projectIds);
     // The first read is the baseline: nothing in it was just created.
-    if (knownIds !== null) setSelection(followProjectChange(knownIds, projectIds, selection));
+    if (knownIds !== null) next = followProjectChange(knownIds, projectIds, selection);
   }
-  return {
-    selection:
-      projectIds === null ? null : resolveSelection(projectIds, hasUnassignedFolders, selection),
-    select: setSelection,
-  };
+  const shown = resolveSelection(projectIds, hasUnassignedFolders, next);
+  if (!sameSelection(shown, selection)) setSelection(shown);
+  return { selection: shown, select: setSelection };
 }
 
 function sameIds(left: readonly string[] | null, right: readonly string[]): boolean {
   return left !== null && left.length === right.length && left.every((id, i) => id === right[i]);
+}
+
+function sameSelection(left: WorkspaceSelection | null, right: WorkspaceSelection | null): boolean {
+  if (left === null || right === null) return left === right;
+  if (left.kind === 'project')
+    return right.kind === 'project' && left.projectId === right.projectId;
+  return right.kind === 'unassigned';
 }
