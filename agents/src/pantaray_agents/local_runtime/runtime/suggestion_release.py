@@ -2,9 +2,9 @@
 
 A stored Suggestion is held instead of shown at once, so the moment it reaches
 the user can be chosen. A periodic task decides what becomes of it: one that
-waited too long, or that recording was turned off behind, ends unshown
-(`expired`); any other is released now. Only a released Suggestion is shown by
-the relay, listed in History and remembered.
+waited too long, that recording was turned off behind, or that no session can
+show now ends unshown (`expired`); any other is released now. Only a released
+Suggestion is shown by the relay, listed in History and remembered.
 """
 
 from __future__ import annotations
@@ -33,14 +33,23 @@ type HeldSuggestionOutcome = Literal["released", "expired"]
 
 
 def held_suggestion_outcome(
-    *, held_since: datetime, now: datetime, capture_paused: bool
+    *,
+    held_since: datetime,
+    now: datetime,
+    capture_paused: bool,
+    session_can_show: bool,
 ) -> HeldSuggestionOutcome:
     """Whether a held Suggestion is shown now or ends unshown.
 
-    Turning recording off stops new Suggestions, the same rule the Suggestion
-    job applies before it stores one.
+    Recording turned off and no session to show it are the rules the Suggestion
+    job applies before it stores one: a Suggestion is only useful when it is
+    made, so nothing shows it later.
     """
-    if capture_paused or now - held_since >= SUGGESTION_HOLD_LIMIT:
+    if (
+        capture_paused
+        or not session_can_show
+        or now - held_since >= SUGGESTION_HOLD_LIMIT
+    ):
         return "expired"
     return "released"
 
@@ -51,6 +60,7 @@ def release_held_suggestion(
     busy_timeout_ms: int,
     user_id: str,
     now: datetime,
+    session_can_show: bool,
 ) -> HeldSuggestionOutcome | None:
     """Release or expire the owner's held Suggestion; None when none is held.
 
@@ -77,6 +87,7 @@ def release_held_suggestion(
             held_since=parse_utc_iso(str(held["updated_at"])),
             now=now,
             capture_paused=store.is_capture_paused(connection, user_id),
+            session_can_show=session_can_show,
         )
         connection.execute(
             """

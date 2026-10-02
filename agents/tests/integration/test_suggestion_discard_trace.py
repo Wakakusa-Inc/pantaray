@@ -203,7 +203,11 @@ async def test_a_discarded_suggestion_keeps_no_answer_or_run_trace(
     # Held until released; Memory takes the text only once it is shown.
     assert "memory_revisions.inline_body" not in delivered
     release_held_suggestion(
-        db_path=db_path, busy_timeout_ms=1_000, user_id=USER_ID, now=datetime.now(UTC)
+        db_path=db_path,
+        busy_timeout_ms=1_000,
+        user_id=USER_ID,
+        now=datetime.now(UTC),
+        session_can_show=True,
     )
     assert "memory_revisions.inline_body" in _rows_containing(db_path, DELIVERED_ANSWER)
 

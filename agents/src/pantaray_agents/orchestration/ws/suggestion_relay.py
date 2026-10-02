@@ -79,9 +79,9 @@ def read_relayable_suggestion_processes(
     Live processes are always candidates. A process that already finished is a
     candidate only when it finished after `since` (the session start), so a run
     shorter than one relay tick is still delivered exactly once to this session
-    without keeping a delivery ledger. A process whose Suggestion is still held
-    is a candidate too: its run may have ended before this session started, but
-    it has not been shown yet.
+    without keeping a delivery ledger. So is a process whose Suggestion is still
+    held, or was released after `since` (possibly before this session's first
+    tick); a reaction also moves `updated_at`, so a reacted one is not.
     """
     with contextlib.closing(sqlite3.connect(db_path)) as connection:
         configure_connection(connection, busy_timeout_ms)
@@ -98,12 +98,19 @@ def read_relayable_suggestion_processes(
                     AND julianday(completed_at) >= julianday(?))
                 OR suggestion_id IN (
                     SELECT suggestion_id FROM agent_suggestions
-                    WHERE user_id = ? AND delivery_state = 'held'
+                    WHERE user_id = ?
+                      AND (
+                        delivery_state = 'held'
+                        OR (delivery_state = 'released'
+                            AND julianday(updated_at) >= julianday(?)
+                            AND user_reaction IS NULL
+                            AND action_status IS NULL)
+                      )
                 )
               )
             ORDER BY started_at ASC
             """,
-            (user_id, *LIVE_SUGGESTION_PROCESS_STATUSES, since, user_id),
+            (user_id, *LIVE_SUGGESTION_PROCESS_STATUSES, since, user_id, since),
         ).fetchall()
     return [LiveSuggestionProcess(str(row[0]), str(row[1])) for row in rows]
 

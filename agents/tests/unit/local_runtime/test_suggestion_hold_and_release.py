@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
+from unittest.mock import MagicMock
 from uuid import UUID
 
 import pytest
@@ -19,10 +19,7 @@ from pantaray_agents.local_runtime.runtime.suggestion_release import (
     SUGGESTION_HOLD_LIMIT,
     release_held_suggestion,
 )
-from pantaray_agents.local_runtime.runtime.utc_timestamps import (
-    format_utc_iso,
-    parse_utc_iso,
-)
+from pantaray_agents.local_runtime.runtime.utc_timestamps import parse_utc_iso
 from pantaray_agents.local_runtime.storage.migrations import load_default_migrations
 from pantaray_agents.local_runtime.storage.transactions import immediate_transaction
 from pantaray_agents.schema.agent.base import StatusType
@@ -33,16 +30,6 @@ from .migrated_db import prepare_test_database
 
 BUSY_TIMEOUT_MS = 1_000
 USER_ID = "user-1"
-
-
-class _NoActivity:
-    async def get_recent_activity_logs(self, *, user_id: str, limit: int):
-        return SimpleNamespace(data=[], error=None)
-
-    async def get_recent_activity_summary(
-        self, *, user_id: str, summary_type: str, limit: int
-    ):
-        return SimpleNamespace(data=[], error=None)
 
 
 @pytest.fixture
@@ -68,7 +55,7 @@ async def _store(
     repository = LocalSuggestionRepository(
         db_path=str(db_path),
         busy_timeout_ms=BUSY_TIMEOUT_MS,
-        activity_repository=_NoActivity(),
+        activity_repository=MagicMock(),
     )
     await repository.create_processing_suggestion_row(
         user_id=USER_ID, suggestion_id=suggestion_id
@@ -151,6 +138,7 @@ async def test_release_shows_the_held_suggestion_and_remembers_it(
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
         now=released_at,
+        session_can_show=True,
     )
 
     assert outcome == "released"
@@ -164,6 +152,7 @@ async def test_release_shows_the_held_suggestion_and_remembers_it(
             busy_timeout_ms=BUSY_TIMEOUT_MS,
             user_id=USER_ID,
             now=released_at,
+            session_can_show=True,
         )
         is None
     )
@@ -187,6 +176,7 @@ async def test_a_suggestion_held_for_the_limit_expires_unremembered(
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
         now=_held_since(db_path, "held") + waited,
+        session_can_show=True,
     )
 
     assert result == outcome
@@ -225,29 +215,11 @@ async def test_turning_recording_off_expires_the_held_suggestion(
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
         now=datetime.now(UTC),
+        session_can_show=True,
     )
 
     assert result == "expired"
     assert _remembered(db_path) == set()
-
-
-def test_the_welcome_is_shown_without_being_held(db_path: Path) -> None:
-    from pantaray_agents.local_runtime.runtime.welcome_suggestion import (
-        record_welcome_suggestion,
-        welcome_suggestion_id,
-    )
-
-    with open_memory_catalog_connection(
-        db_path=db_path, busy_timeout_ms=BUSY_TIMEOUT_MS
-    ) as connection:
-        assert record_welcome_suggestion(
-            connection=connection,
-            user_id=USER_ID,
-            answer="Hello",
-            now=format_utc_iso(datetime.now(UTC)),
-        )
-
-    assert _states(db_path) == {welcome_suggestion_id(USER_ID): "released"}
 
 
 @pytest.mark.asyncio
@@ -265,6 +237,7 @@ async def test_the_next_run_sees_the_held_suggestion_but_not_unshown_ones(
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
         now=_held_since(db_path, "expired") + SUGGESTION_HOLD_LIMIT,
+        session_can_show=True,
     )
     await _store(db_path, "shown")
     release_held_suggestion(
@@ -272,13 +245,14 @@ async def test_the_next_run_sees_the_held_suggestion_but_not_unshown_ones(
         busy_timeout_ms=BUSY_TIMEOUT_MS,
         user_id=USER_ID,
         now=_held_since(db_path, "shown"),
+        session_can_show=True,
     )
     await _store(db_path, "superseded")
     await _store(db_path, "held")
     repository = LocalSuggestionRepository(
         db_path=str(db_path),
         busy_timeout_ms=BUSY_TIMEOUT_MS,
-        activity_repository=_NoActivity(),
+        activity_repository=MagicMock(),
     )
 
     recent = await repository.get_recent_suggestions(USER_ID, days=30, limit=5)

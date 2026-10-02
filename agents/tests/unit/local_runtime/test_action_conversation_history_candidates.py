@@ -151,30 +151,20 @@ def test_query_page_contract(history_connection: sqlite3.Connection) -> None:
 def test_history_lists_only_suggestions_that_were_shown(
     history_connection: sqlite3.Connection,
 ) -> None:
-    """Held, expired and superseded Suggestions never reached the user."""
     history_connection.executemany(
-        """INSERT INTO agent_suggestions(
-        suggestion_id,user_id,status,answer,has_suggestion,interaction_contract,
-        delivery_state,created_at,updated_at)
+        """INSERT INTO agent_suggestions(suggestion_id,user_id,status,answer,
+        has_suggestion,interaction_contract,delivery_state,created_at,updated_at)
         VALUES (?,'user-1','success','Standalone unshown',1,'message_only',?,
                 '2026-08-30T00:09:00.123Z','2026-08-30T00:09:00.123Z')""",
-        (
-            ("suggestion-held", "held"),
-            ("suggestion-expired", "expired"),
-            ("suggestion-superseded", "superseded"),
-        ),
+        [(f"unshown-{state}", state) for state in ("held", "expired", "superseded")],
     )
 
     for search_text, expected in (
         ("", {"suggestion-invalid", "suggestion-message"}),
         ("standalone", {"suggestion-message"}),
     ):
-        listed = {
-            item.stable_id
-            for item in _read(history_connection, search_text=search_text).candidates
-            if item.kind == "suggestion"
-        }
-        assert listed == expected
+        candidates = _read(history_connection, search_text=search_text).candidates
+        assert {c.stable_id for c in candidates if c.kind == "suggestion"} == expected
 
 
 def test_search_contract(history_connection: sqlite3.Connection) -> None:

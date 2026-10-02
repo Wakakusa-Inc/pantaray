@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -10,6 +12,12 @@ import pytest
 from starlette.websockets import WebSocketState
 
 import pantaray_agents.dependencies as deps
+from pantaray_agents.local_runtime.agent_state import LocalSuggestionRepository
+from pantaray_agents.local_runtime.runtime.periodic_schedule import (
+    PeriodicTaskContext,
+    _run_suggestion_release,
+)
+from pantaray_agents.local_runtime.runtime.utc_timestamps import format_utc_iso
 from pantaray_agents.orchestration.session.store import InMemorySessionStore
 from pantaray_agents.orchestration.ws import (
     deliverable_sessions,
@@ -308,8 +316,6 @@ def _bare_handler(
 
 
 def _migrated_db(tmp_path: Path) -> Path:
-    import sqlite3
-
     from pantaray_agents.local_runtime.storage.migrations import (
         apply_migrations,
         load_default_migrations,
@@ -330,8 +336,6 @@ async def test_a_welcome_waits_until_a_session_can_relay_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A socket is bound before its relay window starts; a welcome saved then is lost."""
-    import sqlite3
-
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
@@ -479,48 +483,144 @@ async def test_a_suggestion_that_ends_unshown_completes_as_no_suggestion(
     assert completed.get("interaction_contract") is None
 
 
-def test_discovery_finds_a_held_suggestion_whose_run_ended_before_the_session(
+def _seed_finished_suggestion(
+    db_path: Path,
+    suggestion_id: str,
+    delivery_state: str,
+    *,
+    finished_at: str,
+    updated_at: str | None = None,
+    user_reaction: str | None = None,
+) -> None:
+    """A stored Suggestion whose run (process) completed at `finished_at`."""
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "INSERT INTO agent_suggestions(suggestion_id, user_id, status, answer,"
+            " has_suggestion, interaction_contract, user_reaction, delivery_state,"
+            " created_at, updated_at) VALUES (?, 'user-1', 'success', 'Answer', 1,"
+            " 'action_offer', ?, ?, ?, ?)",
+            (
+                suggestion_id,
+                user_reaction,
+                delivery_state,
+                finished_at,
+                updated_at or finished_at,
+            ),
+        )
+        connection.execute(
+            "INSERT INTO processes(process_id, user_id, kind, status, suggestion_id,"
+            " started_at, updated_at, completed_at, heartbeat_at, next_event_seq)"
+            " VALUES (?, 'user-1', 'suggestion', 'completed', ?, ?, ?, ?, ?, 1)",
+            (f"p-{suggestion_id}", suggestion_id, *[finished_at] * 4),
+        )
+
+
+def test_discovery_finds_suggestions_held_or_released_since_the_session_began(
     tmp_path: Path,
 ) -> None:
-    """A reconnect after the run finished still owes the user a held Suggestion."""
-    import sqlite3
-
+    """A reconnect after the run finished still owes the user what was not shown."""
     db_path = _migrated_db(tmp_path)
-    finished_at = "2026-09-30T00:00:01.000Z"
-    with sqlite3.connect(db_path) as connection:
-        for suggestion_id, delivery_state in (
-            ("held", "held"),
-            ("released", "released"),
-            ("expired", "expired"),
-        ):
-            connection.execute(
-                "INSERT INTO agent_suggestions(suggestion_id, user_id, status,"
-                " answer, has_suggestion, interaction_contract, delivery_state,"
-                " created_at, updated_at)"
-                " VALUES (?, 'user-1', 'success', 'answer', 1, 'message_only', ?,"
-                " ?, ?)",
-                (suggestion_id, delivery_state, finished_at, finished_at),
-            )
-            connection.execute(
-                "INSERT INTO processes(process_id, user_id, kind, status,"
-                " suggestion_id, started_at, updated_at, completed_at,"
-                " heartbeat_at, next_event_seq)"
-                " VALUES (?, 'user-1', 'suggestion', 'completed', ?, ?, ?, ?, ?, 1)",
-                (
-                    f"p-{suggestion_id}",
-                    suggestion_id,
-                    finished_at,
-                    finished_at,
-                    finished_at,
-                    finished_at,
-                ),
-            )
-
-    found = suggestion_relay.read_relayable_suggestion_processes(
-        db_path=db_path,
-        busy_timeout_ms=1000,
-        user_id="user-1",
-        since="2026-09-30T01:00:00.000Z",
+    before, since, after = (f"2026-09-30T0{hour}:00:00.000Z" for hour in (0, 1, 2))
+    _seed_finished_suggestion(db_path, "held", "held", finished_at=before)
+    _seed_finished_suggestion(db_path, "shown", "released", finished_at=before)
+    _seed_finished_suggestion(db_path, "expired", "expired", finished_at=before)
+    _seed_finished_suggestion(
+        db_path, "released-now", "released", finished_at=before, updated_at=after
+    )
+    # A reaction after the session began moves updated_at; it is not a release.
+    _seed_finished_suggestion(
+        db_path,
+        "reacted-now",
+        "released",
+        finished_at=before,
+        updated_at=after,
+        user_reaction="rejected",
     )
 
-    assert found == [LiveSuggestionProcess("p-held", "held")]
+    found = suggestion_relay.read_relayable_suggestion_processes(
+        db_path=db_path, busy_timeout_ms=1000, user_id="user-1", since=since
+    )
+
+    assert sorted(found) == [
+        LiveSuggestionProcess("p-held", "held"),
+        LiveSuggestionProcess("p-released-now", "released-now"),
+    ]
+
+
+def _release_tick_then_state(db_path: Path) -> tuple[str, int]:
+    """Run the periodic release task once; the row's state and Memory nodes."""
+    _run_suggestion_release(
+        PeriodicTaskContext(
+            db_path=db_path,
+            busy_timeout_ms=1000,
+            artifact_root=db_path.parent / "artifacts",
+            owner_user_id="user-1",
+            worker_is_idle=True,
+        )
+    )
+    with sqlite3.connect(db_path) as connection:
+        return connection.execute(
+            "SELECT delivery_state, (SELECT COUNT(*) FROM memory_nodes"
+            " WHERE source_record_id = 'held') FROM agent_suggestions"
+            " WHERE suggestion_id = 'held'"
+        ).fetchone()
+
+
+def _seed_held_a_minute_ago(db_path: Path) -> None:
+    held_at = format_utc_iso(datetime.now(UTC) - timedelta(minutes=1))
+    _seed_finished_suggestion(db_path, "held", "held", finished_at=held_at)
+
+
+@pytest.mark.asyncio
+async def test_a_suggestion_held_while_no_session_is_open_is_never_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Save, disconnect, release, reconnect: it ends unshown and unremembered."""
+    db_path = _migrated_db(tmp_path)
+    _seed_held_a_minute_ago(db_path)
+
+    assert _release_tick_then_state(db_path) == ("expired", 0)
+    handler, websocket = _bare_handler(
+        monkeypatch, session_id="sess-reconnected", db_path=db_path
+    )
+    try:
+        handler.start_suggestion_relay()
+        await asyncio.sleep(0.1)
+    finally:
+        await handler.close()
+
+    assert _sent_events(websocket) == []
+
+
+@pytest.mark.asyncio
+async def test_a_release_before_the_first_relay_tick_is_delivered_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reconnect, release, first discovery: the session still shows it, once."""
+    db_path = _migrated_db(tmp_path)
+    _seed_held_a_minute_ago(db_path)
+    handler, websocket = _bare_handler(
+        monkeypatch, session_id="sess-reconnected", db_path=db_path
+    )
+    handler._get_suggestion_repository = AsyncMock(  # type: ignore[method-assign]
+        return_value=LocalSuggestionRepository(
+            db_path=str(db_path), busy_timeout_ms=1000, activity_repository=MagicMock()
+        )
+    )
+    monkeypatch.setattr(
+        suggestion_job_timing, "SUGGESTION_JOB_POLL_INTERVAL_SECONDS", 0.01
+    )
+    try:
+        handler.start_suggestion_relay()
+        # The relay loop has not run yet: this release lands before its first tick.
+        assert _release_tick_then_state(db_path) == ("released", 1)
+        await _relay_until_completed(handler, websocket, ticks=100)
+        await asyncio.sleep(0.1)  # later discovery ticks must not relay it again
+    finally:
+        await handler.close()
+
+    assert _sent_events(websocket) == [
+        "process_started",
+        "suggestion_chunk",
+        "process_completed",
+    ]

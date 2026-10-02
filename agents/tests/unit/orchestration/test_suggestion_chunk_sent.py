@@ -31,71 +31,32 @@ from pantaray_agents.schema.repositories.repository import RepositoryResult
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("row", "expect_chunk", "expect_has_suggestion"),
+    ("status", "answer", "has_suggestion", "delivery_state", "chunk", "shown"),
     [
-        (
-            {
-                "status": "success",
-                "has_suggestion": True,
-                "answer": "Do X",
-                "delivery_state": "released",
-            },
-            True,
-            True,
-        ),
-        (
-            {
-                "status": "success",
-                "has_suggestion": True,
-                "answer": "",
-                "delivery_state": "released",
-            },
-            False,
-            True,
-        ),
-        (
-            {"status": "success", "has_suggestion": False, "answer": "Do X"},
-            False,
-            False,
-        ),
-        (
-            {
-                "status": "success",
-                "has_suggestion": True,
-                "answer": "Do X",
-                "delivery_state": "expired",
-            },
-            False,
-            False,
-        ),
-        (
-            {
-                "status": "success",
-                "has_suggestion": True,
-                "answer": "Do X",
-                "delivery_state": "superseded",
-            },
-            False,
-            False,
-        ),
-        (
-            {"status": "timeout", "has_suggestion": True, "answer": "Do X"},
-            False,
-            True,
-        ),
-        (
-            {"status": "error", "has_suggestion": True, "answer": "Do X"},
-            False,
-            True,
-        ),
+        ("success", "Do X", True, "released", True, True),
+        ("success", "", True, "released", False, True),
+        ("success", "Do X", False, None, False, False),
+        ("success", "Do X", True, "expired", False, False),
+        ("success", "Do X", True, "superseded", False, False),
+        ("timeout", "Do X", True, None, False, True),
+        ("error", "Do X", True, None, False, True),
     ],
 )
 async def test_suggestion_chunk_is_emitted_iff_success_has_suggestion_and_answer(
     monkeypatch: pytest.MonkeyPatch,
-    row: dict,
-    expect_chunk: bool,
-    expect_has_suggestion: bool,
+    status: str,
+    answer: str,
+    has_suggestion: bool,
+    delivery_state: str | None,
+    chunk: bool,
+    shown: bool,
 ) -> None:
+    row = {
+        "status": status,
+        "has_suggestion": has_suggestion,
+        "answer": answer,
+        "delivery_state": delivery_state,
+    }
     monkeypatch.setattr(deps, "is_mock_mode", lambda: False)
 
     monkeypatch.setattr(
@@ -152,10 +113,7 @@ async def test_suggestion_chunk_is_emitted_iff_success_has_suggestion_and_answer
     events = [m.get("event") for m in sent if isinstance(m, dict)]
     assert "process_completed" in events
 
-    if expect_chunk:
-        assert "suggestion_chunk" in events
-    else:
-        assert "suggestion_chunk" not in events
+    assert ("suggestion_chunk" in events) is chunk
 
     last_completed = next(
         m
@@ -165,4 +123,4 @@ async def test_suggestion_chunk_is_emitted_iff_success_has_suggestion_and_answer
     pdata = last_completed.get("data") or {}
     assert isinstance(pdata, dict)
     assert pdata.get("status") == row.get("status")
-    assert pdata.get("has_suggestion") is expect_has_suggestion
+    assert pdata.get("has_suggestion") is shown

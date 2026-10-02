@@ -13,6 +13,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
 
+from pantaray_agents.orchestration.ws.deliverable_sessions import (
+    owner_has_deliverable_session,
+)
+
 from .activity_summary_scheduler import (
     _SCHEDULER_INTERVAL_SECONDS,
     run_activity_summary_scheduler_once,
@@ -137,6 +141,7 @@ def _run_suggestion_release(context: PeriodicTaskContext) -> None:
         busy_timeout_ms=context.busy_timeout_ms,
         user_id=context.owner_user_id,
         now=datetime.now(UTC),
+        session_can_show=owner_has_deliverable_session(context.owner_user_id),
     )
 
 
