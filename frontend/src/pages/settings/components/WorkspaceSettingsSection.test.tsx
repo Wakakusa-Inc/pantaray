@@ -873,6 +873,50 @@ describe('WorkspaceSettingsSection', () => {
     });
   });
 
+  it('deletes the project shown after the unassigned fallback and selects the next one', async () => {
+    const user = userEvent.setup();
+    const folder = (folderId: string, projectIds: string[]) => ({
+      folder_id: folderId,
+      display_name: folderId,
+      real_path: `/workspace/${folderId}`,
+      canonical_real_path: `/workspace/${folderId}`,
+      organization_ids: [],
+      project_ids: projectIds,
+    });
+    const workspaceSettings = installDeletionFocusSettings(
+      [
+        { project_id: 'project-a', display_name: 'Project A', sort_order: 0, organization_ids: [] },
+        { project_id: 'project-b', display_name: 'Project B', sort_order: 1, organization_ids: [] },
+      ],
+      [folder('loose', []), folder('held', ['project-a'])]
+    );
+    workspaceSettings.updateFolderLinks.mockImplementation(async () =>
+      folder('loose', ['project-b'])
+    );
+
+    renderWorkspaceSettingsSection();
+    await user.click(
+      await screen.findByRole('button', { name: 'settings.workspace.unassigned.title' })
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'settings.workspace.unassigned.project loose' }),
+      'project-b'
+    );
+    await user.click(screen.getByRole('button', { name: 'settings.workspace.unassigned.assign' }));
+    // Nothing is left unassigned, so the first project is shown.
+    expect(await screen.findByRole('heading', { name: 'Project A' })).toBeInTheDocument();
+
+    // Deleting it leaves its folder unassigned; the next project still takes its place.
+    await user.click(screen.getByRole('button', { name: 'common.delete Project A' }));
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Project B' })).toHaveFocus();
+    });
+    expect(screen.getByRole('button', { name: 'Project B' })).toHaveAttribute(
+      'aria-current',
+      'true'
+    );
+  });
+
   it('focuses the add project button after deleting the final project', async () => {
     const user = userEvent.setup();
     installDeletionFocusSettings([
