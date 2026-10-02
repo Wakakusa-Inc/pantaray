@@ -229,6 +229,16 @@ html:lang(ja) .history-day {
   letter-spacing: var(--text-meta-tracking);
 }
 
+.history-item-live {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--fog-text-3);
+  font-size: var(--text-meta-size);
+  letter-spacing: var(--text-meta-tracking);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .history-item-status {
   display: flex;
   align-items: center;

@@ -1,6 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { ActionConversationPage } from '../../electron/src/actions/actionContracts';
+import type {
+  ActionLiveSnapshot,
+  ActionLiveUpdate,
+} from '../../electron/src/actions/actionLiveCore';
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
 
 import { COMMON_MESSAGES } from '@/i18n/messageCatalog/common';
@@ -306,6 +311,128 @@ it('バッジは running / approval_pending だけに出し、idle には出さ�
     'history.status.running',
     'history.status.approvalPending',
   ]);
+});
+
+function livePage(
+  actionId: string,
+  status: ActionConversationPage['action']['status'],
+  entries: ActionConversationPage['runs'][number]['entries']
+): ActionConversationPage {
+  return {
+    action: {
+      action_id: actionId,
+      suggestion_id: null,
+      approved_suggestion: null,
+      status,
+      latest_run_id: `${actionId}-run`,
+      resumable: false,
+    },
+    runs: [
+      {
+        run_id: `${actionId}-run`,
+        status: status === 'success' ? 'success' : 'running',
+        started_at: '2026-10-02T00:00:00.000000Z',
+        completed_at: status === 'success' ? '2026-10-02T00:01:00.000000Z' : null,
+        completion_event_id: status === 'success' ? 'C' : null,
+        entries,
+        final_output: status === 'success' ? 'Done' : null,
+        error: null,
+      },
+    ],
+    unadopted_messages: [],
+    next_cursor: null,
+  };
+}
+
+function liveUpdate(page: ActionConversationPage): ActionLiveUpdate {
+  const snapshot: ActionLiveSnapshot = {
+    actionId: page.action.action_id,
+    page,
+    pageVersion: 1,
+    transientToolSteps: [],
+    approvalBlockers: [],
+    lifecycle: null,
+  };
+  return { kind: 'action_updated', snapshot };
+}
+
+it('実行中の会話だけ行の下に今の動きを1行で出し、終われば消す。行は作り直さない', () => {
+  const listeners = new Set<(update: ActionLiveUpdate) => void>();
+  window.electron = {
+    actions: {
+      onConversationUpdated: (callback: (update: ActionLiveUpdate) => void) => {
+        listeners.add(callback);
+        return () => listeners.delete(callback);
+      },
+    },
+  } as unknown as Window['electron'];
+  const publish = (update: ActionLiveUpdate) =>
+    act(() => listeners.forEach((listener) => listener(update)));
+  mocks.error = null;
+  mocks.unreadActionId = null;
+  const conversation = (actionId: string): ConversationHistoryListItem => ({
+    kind: 'conversation',
+    action_id: actionId,
+    title: actionId,
+    updated_at: '2026-08-30T01:02:03.000Z',
+    status: 'running',
+    latest_completion_event_id: null,
+  });
+  mocks.itemsOverride = [conversation('A1'), conversation('A2')];
+  const { container } = render(<SuggestionHistoryPage />);
+  const lines = () =>
+    [...container.querySelectorAll('.history-item')].map(
+      (row) => row.querySelector('.history-item-live')?.textContent ?? null
+    );
+  const row = screen.getByRole('button', { name: /^A1/ });
+  row.focus();
+  expect(lines()).toEqual([null, null]);
+
+  publish(
+    liveUpdate(
+      livePage('A1', 'processing', [
+        {
+          step_kind: 'tool',
+          step_id: 'tool-2',
+          step_number: 2,
+          label: 'read',
+          status: 'processing',
+          outcome: 'completed',
+          subject: 'notes.md',
+          output_preview: null,
+          output_available: false,
+          images: [],
+        },
+        { step_kind: 'assistant', step_id: 'assistant-1', step_number: 1, content: 'Looking' },
+      ])
+    )
+  );
+  publish(liveUpdate(livePage('A2', 'queued', [])));
+  expect(lines()).toEqual(['notes.md を読み取っています', 'overlay.thinking']);
+  // Visual only: the line stays out of the row's accessible name and is not a live region.
+  expect(row).toHaveAccessibleName(/^A1/);
+  expect(row).not.toHaveAccessibleName(/読み取っています/);
+  expect(container.querySelector('.history-item-live')).toHaveAttribute('aria-hidden', 'true');
+
+  publish(
+    liveUpdate(
+      livePage('A1', 'processing', [
+        {
+          step_kind: 'assistant',
+          step_id: 'assistant-3',
+          step_number: 3,
+          content: 'Found it\nmore',
+        },
+      ])
+    )
+  );
+  publish(liveUpdate(livePage('A2', 'success', [])));
+  expect(lines()).toEqual(['Found it', null]);
+  expect(screen.getByRole('button', { name: /^A1/ })).toBe(row);
+  expect(row).toHaveFocus();
+
+  publish({ kind: 'reset' });
+  expect(lines()).toEqual([null, null]);
 });
 
 it('日の見出しが増えたり行が別の日へ移ったりしても、残った行はフォーカスを保つ', () => {

@@ -2,6 +2,7 @@ import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useLayoutEffect, useState } from 'react';
 
 import type { ConversationHistoryListItem } from '../../electron/src/history/historyContracts';
+import { resolveToolLine } from '@/components/action-conversation/toolDisplayName';
 import { HistoryDeleteDialog } from '@/components/history/HistoryDeleteDialog';
 import HistorySearchField from '@/components/history/HistorySearchField';
 import { getConversationHistoryStatusMeta } from '@/components/history/statusTokens';
@@ -13,6 +14,8 @@ import {
 } from '@/components/shortcut/useGlobalShortcutHint';
 import { useI18n } from '@/context/useI18n';
 import { groupHistoryByDay } from '@/history/historyDayGroups';
+import type { HistoryLiveStage } from '@/history/historyLiveStage';
+import { useHistoryLiveStages } from '@/hooks/useHistoryLiveStages';
 import { itemIdentity, useSuggestionHistory } from '@/hooks/useSuggestionHistory';
 import { getLocaleForUiLanguage } from '@/i18n/translate';
 import type { MessageKey } from '@/i18n/types';
@@ -59,6 +62,27 @@ async function openConversation(actionId: string): Promise<void> {
   const open = window.electron?.history?.openConversation;
   if (!open) throw new Error('Conversation overlay bridge is unavailable.');
   await open({ actionId });
+}
+
+function liveStageText(
+  stage: HistoryLiveStage,
+  language: 'en' | 'ja',
+  t: (key: MessageKey) => string
+): string {
+  switch (stage.kind) {
+    case 'approval':
+      return t('history.live.approvalPending');
+    case 'tool':
+      return resolveToolLine(stage.label, language, {
+        subject: stage.subject,
+        running: true,
+        outcome: stage.outcome,
+      }).text;
+    case 'message':
+      return stage.text;
+    case 'thinking':
+      return t('overlay.thinking');
+  }
 }
 
 async function openNewConversation(): Promise<void> {
@@ -155,6 +179,7 @@ const SuggestionHistoryPage = () => {
     removeItem,
   } = useSuggestionHistory();
   const { t, language, formatDateTime } = useI18n();
+  const liveStages = useHistoryLiveStages();
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState<ConversationHistoryListItem | null>(
     null
@@ -254,6 +279,8 @@ const SuggestionHistoryPage = () => {
             ...day.items.map((item) => {
               const identity = itemIdentity(item);
               const statusMeta = getConversationHistoryStatusMeta(item.status);
+              const liveStage =
+                item.kind === 'conversation' ? liveStages.get(item.action_id) : undefined;
               const content = (
                 <div className="history-item-body">
                   <div className="history-item-text">
@@ -265,6 +292,12 @@ const SuggestionHistoryPage = () => {
                           : formatDateTime(new Date(item.updated_at))}
                       </span>
                     </div>
+                    {liveStage ? (
+                      // Visual only: it changes on every step, and the badge carries the status.
+                      <p className="history-item-live" aria-hidden="true">
+                        {liveStageText(liveStage, language, t)}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="history-item-status">
                     {isUnread(item) ? <span aria-label={t('history.unread')}>●</span> : null}

@@ -43,7 +43,7 @@ const ipcPolicy = {
   isValidSendChannel: () => true,
 };
 
-test('Action preload API forwards typed invokes and retains only the latest targeted update', async () => {
+test('Action preload API forwards typed invokes and retains the latest update per Action', async () => {
   const ipcRenderer = createIpcRenderer();
   const api = createPreloadApi({
     initialUiLanguage: 'ja',
@@ -81,15 +81,14 @@ test('Action preload API forwards typed invokes and retains only the latest targ
     ['history:deleteItem', { kind: 'conversation', id: 'a1' }],
   ]);
 
-  const latest = { kind: 'action_updated', snapshot: { actionId: 'a2', page: 2 } };
-  ipcRenderer.emit('action:conversationUpdated', {
-    kind: 'action_updated',
-    snapshot: { actionId: 'a1', page: 1 },
-  });
-  ipcRenderer.emit('action:conversationUpdated', latest);
+  const update = (actionId, page) => ({ kind: 'action_updated', snapshot: { actionId, page } });
+  ipcRenderer.emit('action:conversationUpdated', update('a1', 1));
+  ipcRenderer.emit('action:conversationUpdated', update('a2', 1));
+  ipcRenderer.emit('action:conversationUpdated', update('a1', 2));
   const received = [];
-  api.actions.onConversationUpdated((update) => received.push(update));
-  assert.deepEqual(received, [latest]);
+  api.actions.onConversationUpdated((value) => received.push(value));
+  // Each Action's latest update, oldest change first, so a late subscriber sees every Action.
+  assert.deepEqual(received, [update('a2', 1), update('a1', 2)]);
   ipcRenderer.emit('action:conversationUpdated', { kind: 'reset' });
   api.actions.onConversationUpdated(() => assert.fail('reset update was retained'));
 });
