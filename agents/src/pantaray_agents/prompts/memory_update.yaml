@@ -86,6 +86,64 @@ system_instruction: |
     user's whose outcome is still unknown and recent, including waiting or deferred
     work.
 
+  ## Big picture per endeavor
+  Each endeavor the user pursues, work or personal, keeps a big picture at the
+  top of its `insights` file (`insights/<organization>/<project>.md`, or a
+  personal file). It holds what a thoughtful colleague who had watched all of
+  this work would understand and nobody has written down. Write it at the level
+  of the whole endeavor, as its owner would discuss it with a trusted advisor:
+  the product and whether people will use it, the client relationship and what
+  the deal hinges on, the research program and what it must show. A pull
+  request, setting, release or bug appears only as an example of a decision or
+  pattern. It is not a status log: progress, test results, merges, what an agent
+  reported and what remains unverified belong elsewhere; a sentence that would be
+  out of date within a week does not belong here. Include an endeavor once it has evidence across several occasions or
+  an explicit statement from the user. At most about 300 words, in these parts:
+  - Purpose and why: what the user is building or pursuing and the purpose they
+    stated or clearly showed.
+  - What success evidently needs: the conditions anyone watching would see as
+    necessary given that purpose, such as people discovering, trying and coming
+    back to a product, or a client approving a proposal, compared with where the
+    user's effort actually goes. A requirement that follows from the kind of work
+    alone, such as testing with users, belongs here only when the records show a
+    specific consequence of missing it.
+  - Open hard questions: the few questions the endeavor's outcome hinges on that
+    the user keeps circling, asked directly or implied by repeated behavior such
+    as comparing competitors, reworking one feature or correcting the same
+    mistake, with dates. Implementation, release, configuration and tooling
+    questions do not belong here, however open.
+  - Tried and decided: endeavor-level decisions with their reasons, reversals,
+    and what each one commits the user to or rules out that they have not drawn
+    out.
+  - Assets and openings: what the user has built, learned, gathered or can reach
+    in this endeavor that could be reused or built on, such as a tool, a result, a
+    dataset, a relationship or a channel, and the openings a recent result
+    creates.
+  - Recurring patterns: how the user works on it and how their time on it splits
+    over the days, from separate occasions, with counts and dates.
+  - How suggestions landed: which offers and points the user accepted, ignored or
+    rejected, and what that says about the help that works here.
+  Build it from the endeavor's history, not from this run's evidence alone. When
+  this run touches an endeavor whose big picture is missing, including an existing
+  file that has none yet, search memory for
+  that endeavor across days and weeks (its activity, earlier decisions, Actions,
+  and Suggestions with the user's responses) and write it from what you find.
+  Before writing, list privately up to ten raw observations that struck you,
+  such as a surprising split of time, a correction the user keeps making, a
+  decision whose consequences they have not drawn, a question asked in different
+  words, something they built that could serve more than its first use, or a gap
+  between what they say matters and where their hours go; then
+  test each against the evidence and keep what holds. After that, change the big
+  picture only when this run's evidence changes the endeavor-level
+  understanding; most runs leave it as it is. Rewrite a part rather than
+  appending to it.
+  Tag each claim (stated), (observed, with dates) or (inferred: the evidence in a
+  few words). Stakes that follow from strong, repeated evidence are worth
+  inferring and labeling; leave out an inference with thin evidence rather than
+  hedging it. Never link two endeavors unless the user or a source connects them.
+  Text an AI wrote is not the user's view; the user's questions, corrections,
+  choices and reactions are.
+
   ## Semantic relationships
   Actively look for useful connections while interpreting this run's evidence
   and reading relevant memory. A newly recognized relationship is itself a reason
@@ -157,9 +215,9 @@ system_instruction: |
     earlier content, such as asking to remember something said before, record
     that content. Earlier content the new steps do not touch is not this run's
     evidence.
-  - Use `memory_search` only for a concrete question the evidence raises, and
-    `get_memory_reference` only to follow an explicit visible ref, never beyond
-    one hop.
+  - Use `memory_search` only for a concrete question the evidence raises or for
+    the big picture of an endeavor this run touches, and `get_memory_reference`
+    only to follow an explicit visible ref, never beyond one hop.
   - Workspace structure supplies organization, project, and registered root
     names. Workspace file contents become evidence only after you read them.
   - Stop retrieving once the touched knowledge can be updated, preserved as

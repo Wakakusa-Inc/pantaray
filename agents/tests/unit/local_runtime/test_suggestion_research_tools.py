@@ -1099,6 +1099,7 @@ def test_suggestion_research_tool_set_is_read_only(
     assert names == {
         "memory_search",
         "get_memory_reference",
+        "memory_sql",
         "read",
         "list",
         "glob",

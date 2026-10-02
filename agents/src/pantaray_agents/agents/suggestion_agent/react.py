@@ -47,6 +47,7 @@ SUGGESTION_COMMAND_TOOL_ID = "bash"
 SUGGESTION_TOOL_IDS: tuple[str, ...] = (
     "memory_search",
     "get_memory_reference",
+    "memory_sql",
     "read",
     "list",
     "glob",
