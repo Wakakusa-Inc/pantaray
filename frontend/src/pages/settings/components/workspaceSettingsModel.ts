@@ -38,6 +38,7 @@ export const workspaceFocusId = {
   organizationInput: 'ws-organization-input' as FocusKey,
   projectAdd: 'ws-project-add' as FocusKey,
   projectDelete: (projectId: string): FocusKey => `ws-project-delete-${projectId}`,
+  projectHeading: (projectId: string): FocusKey => `ws-project-heading-${projectId}`,
   projectFolderAdd: (projectId: string): FocusKey => `ws-project-folder-add-${projectId}`,
   projectOrganizationAdd: (projectId: string): FocusKey =>
     `ws-project-organization-add-${projectId}`,

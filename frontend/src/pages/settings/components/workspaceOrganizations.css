@@ -88,8 +88,8 @@
   width: 24px;
 }
 
-.workspace-project-card:hover .workspace-organization-add-trigger,
-.workspace-project-card:focus-within .workspace-organization-add-trigger,
+.workspace-detail-header:hover .workspace-organization-add-trigger,
+.workspace-detail-header:focus-within .workspace-organization-add-trigger,
 .workspace-organization-add-trigger[aria-expanded='true'] {
   opacity: 1;
 }

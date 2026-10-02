@@ -1,7 +1,4 @@
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { ChevronDown, ChevronRight, GripVertical, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 
 import type { Translate } from '../types';
 import { WorkspaceFolderRow } from './WorkspaceFolderRow';
@@ -17,8 +14,7 @@ import {
   type WorkspaceProject,
 } from './workspaceSettingsModel';
 
-interface SortableProjectCardProps {
-  disabled: boolean;
+interface WorkspaceProjectDetailProps {
   folders: WorkspaceFolder[];
   organizations: WorkspaceOrganization[];
   project: WorkspaceProject;
@@ -40,13 +36,8 @@ interface SortableProjectCardProps {
   projectLinksBusy: boolean;
 }
 
-export function SortableProjectCard(props: SortableProjectCardProps) {
-  const [isExpanded, setIsExpanded] = useState(props.folders.length === 0);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: props.project.project_id,
-    disabled: props.disabled,
-  });
-
+/** The selected project: its name, organizations and folders, and the actions on them. */
+export function WorkspaceProjectDetail(props: WorkspaceProjectDetailProps) {
   const chooseFolder = async () => {
     const selectedPath = await props.onSelectFolder();
     if (!selectedPath) return;
@@ -59,39 +50,16 @@ export function SortableProjectCard(props: SortableProjectCardProps) {
   };
 
   return (
-    <article
-      ref={setNodeRef}
-      className={`workspace-project-card${isDragging ? ' is-dragging' : ''}`}
-      data-project-id={props.project.project_id}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-    >
-      <div className="workspace-project-card-header">
-        <button
-          type="button"
-          className="workspace-project-drag-handle"
-          disabled={props.disabled}
-          aria-label={props.t('settings.workspace.drag.handle', {
-            name: props.project.display_name,
-          })}
-          {...attributes}
-          {...listeners}
+    <article className="workspace-detail-body">
+      <div className="workspace-detail-header">
+        {/* Focus lands here when the project before it is deleted. */}
+        <h1
+          id={workspaceFocusId.projectHeading(props.project.project_id)}
+          className="workspace-detail-title"
+          tabIndex={-1}
         >
-          <GripVertical size={15} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="workspace-project-disclosure"
-          aria-expanded={isExpanded}
-          onClick={() => setIsExpanded((current) => !current)}
-        >
-          {isExpanded ? (
-            <ChevronDown size={15} aria-hidden="true" />
-          ) : (
-            <ChevronRight size={15} aria-hidden="true" />
-          )}
-          <span className="workspace-project-name">{props.project.display_name}</span>
-        </button>
-
+          {props.project.display_name}
+        </h1>
         <ProjectOrganizationEditor
           busy={props.projectLinksBusy}
           createBusy={props.organizationCreateBusy}
@@ -101,12 +69,6 @@ export function SortableProjectCard(props: SortableProjectCardProps) {
           onCreateOrganization={props.onCreateOrganization}
           onUpdate={props.onUpdateOrganizations}
         />
-
-        <span
-          className={`workspace-project-folder-count${props.folders.length === 0 ? ' is-empty' : ''}`}
-        >
-          {props.t('settings.workspace.folderCount', { count: props.folders.length })}
-        </span>
 
         <button
           type="button"
@@ -120,9 +82,10 @@ export function SortableProjectCard(props: SortableProjectCardProps) {
           <Trash2 size={14} aria-hidden="true" />
         </button>
       </div>
+      <p className="workspace-detail-description">{props.t('settings.workspace.description')}</p>
 
-      {isExpanded ? (
-        <div className="workspace-project-card-details">
+      <div className="workspace-detail-panel">
+        <div className="workspace-detail-folders">
           {props.folders.map((folder) => (
             <WorkspaceFolderRow
               key={folder.folder_id}
@@ -151,6 +114,8 @@ export function SortableProjectCard(props: SortableProjectCardProps) {
               }}
             />
           ))}
+        </div>
+        <div className="workspace-detail-panel-footer">
           <button
             type="button"
             id={workspaceFocusId.projectFolderAdd(props.project.project_id)}
@@ -158,10 +123,11 @@ export function SortableProjectCard(props: SortableProjectCardProps) {
             onClick={() => void chooseFolder()}
             className="workspace-button workspace-button-primary workspace-project-add-folder"
           >
+            <Plus size={14} aria-hidden="true" />
             {props.t('settings.workspace.selectFolder')}
           </button>
         </div>
-      ) : null}
+      </div>
     </article>
   );
 }
