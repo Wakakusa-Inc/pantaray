@@ -102,6 +102,12 @@
   padding: 46px 56px 0 48px;
 }
 
+/* A page with its own columns runs edge to edge and pads each column itself. */
+.app-surface--split {
+  flex-direction: row;
+  padding: 0;
+}
+
 /* Recording: a light in the rail that opens the recording controls. */
 .app-recording {
   position: relative;

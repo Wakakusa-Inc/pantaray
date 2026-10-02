@@ -15,7 +15,7 @@ import './Layout.css';
  * The main window's shell: an icon rail on the left on every page, and the page beside it.
  */
 const Layout: React.FC = () => {
-  const { user, signOut, authStatus } = useAuth();
+  const { user, signOut, authStatus, runtimeState } = useAuth();
   const needsLogin = authStatus === 'expired';
   const hasAccount = authStatus === 'authenticated' || needsLogin;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -66,6 +66,13 @@ const Layout: React.FC = () => {
     }
     return email[0].toUpperCase();
   };
+
+  // A page with its own columns shows the AI-connection notice in its right column, which
+  // exists only once the local owner it belongs to is published.
+  const isSplitPage =
+    location.pathname === '/workspace' &&
+    runtimeState.status === 'ready' &&
+    runtimeState.owner !== null;
 
   const navItems = [
     { path: '/history', label: t('nav.history'), Icon: Clock },
@@ -149,8 +156,8 @@ const Layout: React.FC = () => {
       </LocalOwnerBoundary>
 
       <main className="app-main">
-        <div className="app-surface">
-          <AiConnectionNotice />
+        <div className={isSplitPage ? 'app-surface app-surface--split' : 'app-surface'}>
+          {isSplitPage ? null : <AiConnectionNotice />}
           <Outlet />
         </div>
         <UpdateReadyNotice />
