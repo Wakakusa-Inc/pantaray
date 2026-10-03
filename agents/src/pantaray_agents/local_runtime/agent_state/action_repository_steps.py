@@ -35,6 +35,7 @@ from pantaray_agents.schema.repositories.repository import (
 )
 from pantaray_llm.contracts.conversation import LlmProviderTurn
 
+from ..runtime.action_checkpoint_retention import prune_action_checkpoints_in_connection
 from .action_llm_turn_commit import (
     ActionLlmTurnCommitError,
     save_action_llm_turn_in_connection,
@@ -263,6 +264,10 @@ class LocalActionRepositoryStepsMixin:
                     else:
                         save_action_llm_turn_in_connection(
                             connection, payload=payload, turn=llm_turn
+                        )
+                    if runtime_state_checkpoint is not None:
+                        prune_action_checkpoints_in_connection(
+                            connection, user_id=user_id, action_id=action_id
                         )
                     if (
                         step_type
