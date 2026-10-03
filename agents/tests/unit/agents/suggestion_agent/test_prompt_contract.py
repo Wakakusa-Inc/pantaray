@@ -11,6 +11,7 @@ from pantaray_agents.agents.suggestion_agent.context_types import (
     SuggestionFetchedContext,
     SuggestionStableMemoryContext,
 )
+from pantaray_agents.agents.suggestion_agent.output import parse_suggestion_output
 from pantaray_agents.agents.suggestion_agent.writer import (
     SUGGESTION_WRITER_PROMPT_NAME,
     SUGGESTION_WRITER_VOICE_PROMPT_NAMES,
@@ -105,8 +106,6 @@ def test_prompt_examples_are_accepted_by_the_suggestion_parser(
     assert examples
     for example in examples:
         payload = json.loads(example)
-        parsed = suggestion_agent._parse_suggestion_output(  # noqa: SLF001
-            raw_text=example, parsed_output=None
-        )
+        parsed = parse_suggestion_output(raw_text=example, parsed_output=None)
         assert parsed["has_suggestion"] == payload["has_suggestion"]
         assert parsed["interaction_contract"] == payload["interaction_contract"]

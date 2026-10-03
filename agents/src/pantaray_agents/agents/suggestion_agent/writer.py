@@ -63,6 +63,15 @@ def build_writer_messages(
     return system, prompt
 
 
+def writer_voice_instruction(
+    answer_language: str, load_config: Callable[[str], PromptConfig]
+) -> str | None:
+    """Return the voice supplement for the answer language, or None when it has none."""
+
+    name = SUGGESTION_WRITER_VOICE_PROMPT_NAMES.get(answer_language)
+    return load_config(name).system_instruction if name else None
+
+
 def check_written_answer(text: str) -> str:
     """Return the trimmed text, or reject text the user could not be shown."""
 
@@ -146,6 +155,7 @@ async def write_suggestion_answer(
 __all__ = [
     "SUGGESTION_WRITER_PROMPT_NAME",
     "SUGGESTION_WRITER_VOICE_PROMPT_NAMES",
+    "writer_voice_instruction",
     "SUGGESTION_WRITER_STAGE",
     "SuggestionTextGenerator",
     "build_writer_messages",

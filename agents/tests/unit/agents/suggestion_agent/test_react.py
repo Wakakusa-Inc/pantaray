@@ -13,6 +13,7 @@ from pantaray_agents.agents.artifact_react import (
 )
 from pantaray_agents.agents.core.mixins.llm_tool_use_mixin import LlmToolCallTurn
 from pantaray_agents.agents.suggestion_agent import SuggestionAgent
+from pantaray_agents.agents.suggestion_agent.output import parse_suggestion_output
 from pantaray_agents.agents.suggestion_agent.react import (
     SUBMIT_SUGGESTION_TOOL_NAME,
     SUGGESTION_COMMAND_TOOL_ID,
@@ -158,7 +159,7 @@ async def test_suggestion_react_can_disconfirm_then_submit(
         system_instruction="system",
         research_tools=_fixed_research_tools(),
         generate_tool_call=generate_tool_call,
-        parse_output=suggestion_agent._parse_suggestion_output,  # noqa: SLF001
+        parse_output=parse_suggestion_output,
         record_step=record_step,
         discard_llm_thoughts=lambda: "private thought",
     )
@@ -212,7 +213,7 @@ async def test_suggestion_react_final_turn_exposes_only_submit(
         system_instruction="system",
         research_tools=_fixed_research_tools(),
         generate_tool_call=generate_tool_call,
-        parse_output=suggestion_agent._parse_suggestion_output,  # noqa: SLF001
+        parse_output=parse_suggestion_output,
         record_step=lambda _step: _completed(),
         discard_llm_thoughts=lambda: None,
     )
@@ -247,7 +248,7 @@ async def test_suggestion_react_runs_without_the_command_tool(
             )
         ),
         generate_tool_call=generate_tool_call,
-        parse_output=suggestion_agent._parse_suggestion_output,  # noqa: SLF001
+        parse_output=parse_suggestion_output,
         record_step=lambda _step: _completed(),
         discard_llm_thoughts=lambda: None,
     )
@@ -289,7 +290,7 @@ async def test_suggestion_react_returns_invalid_submission_for_repair(
         system_instruction="system",
         research_tools=_fixed_research_tools(),
         generate_tool_call=generate_tool_call,
-        parse_output=suggestion_agent._parse_suggestion_output,  # noqa: SLF001
+        parse_output=parse_suggestion_output,
         record_step=lambda _step: _completed(),
         discard_llm_thoughts=lambda: None,
     )
@@ -367,7 +368,7 @@ async def test_raw_activity_reaches_the_model_but_no_stored_step(
         system_instruction="system",
         research_tools=FixedSuggestionResearchTools(tools),
         generate_tool_call=generate_tool_call,
-        parse_output=suggestion_agent._parse_suggestion_output,  # noqa: SLF001
+        parse_output=parse_suggestion_output,
         record_step=record_step,
         discard_llm_thoughts=lambda: None,
     )
