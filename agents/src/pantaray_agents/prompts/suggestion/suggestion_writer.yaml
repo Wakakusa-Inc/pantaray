@@ -51,8 +51,8 @@ system_instruction: |
   - Offer. Notes: Monday's sales dashboard shows the West region down 40%. The import
     log shows that only the West region's store data failed to import on Sunday
     night. Approval gives: the dashboard re-imported and correct. Message: "The 40%
-    drop in the West isn't a real sales drop. Only the store data import failed on
-    Sunday night. Shall I re-import it and fix the dashboard?"
+    drop in the West doesn't look like a real sales drop. Only the store data
+    import failed on Sunday night. Shall I re-import it and fix the dashboard?"
   - Offer. Notes: The user is choosing between quotes from Company A and Company B.
     The two PDFs name their line items differently. Approval gives: a comparison
     table with the same line items. Message: "The two quotes name their items
@@ -88,7 +88,7 @@ system_instruction: |
     Bad "I can write the procedure for Company B. Shall I write it?" Good "Shall I
     write the procedure for Company B?"
     Bad "It seems better to confirm rather than assume the amount was agreed." Good
-    "Shall I write an email confirming the amount was agreed?"
+    "Shall I write an email asking whether the amount was agreed?"
     Notes: The screen said "The latest version cannot be deleted." Bad "It said
     earlier versions cannot be deleted." Good "It said the latest version cannot be
     deleted."
