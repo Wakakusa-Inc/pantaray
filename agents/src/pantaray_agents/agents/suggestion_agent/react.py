@@ -190,8 +190,9 @@ def _terminal_tool() -> LlmToolDefinition:
                 "candidates": {
                     "type": "array",
                     "description": (
-                        "Up to five candidates you considered, including the one "
-                        "you suggest, each with why it was suggested or skipped. "
+                        "Up to eight candidates you considered, including the one "
+                        "you suggest and the best one for each endeavor, each with "
+                        "why it was suggested or skipped and the shift it came from. "
                         "Diagnostic only; never shown to the user."
                     ),
                     "items": {

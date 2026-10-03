@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from pantaray_agents.agents.core.mixins import llm_generation_mixin as mixin_mod
 from pantaray_agents.agents.suggestion_agent import SuggestionAgent
+from pantaray_agents.agents.suggestion_agent.output import parse_suggestion_output
 from pantaray_agents.mock.mock_llm_client import MockLLMClient
 from pantaray_agents.schema.agent.suggestion import (
     SuggestionStructuredOutput,
@@ -153,7 +154,7 @@ def test_parse_suggestion_output_without_suggestion(
     suggestion_agent: SuggestionAgent,
 ) -> None:
     payload = _no_suggestion_output()
-    result = suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+    result = parse_suggestion_output(
         raw_text=json.dumps(payload, ensure_ascii=False),
         parsed_output=SuggestionStructuredOutput.model_validate(payload),
     )
@@ -170,7 +171,7 @@ def test_parse_suggestion_output_with_plain_suggestion(
     payload = _suggestion_output(
         "I want my schedule to be structured so that I can focus in the morning."
     )
-    result = suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+    result = parse_suggestion_output(
         raw_text=json.dumps(payload, ensure_ascii=False),
         parsed_output=SuggestionStructuredOutput.model_validate(payload),
     )
@@ -202,7 +203,7 @@ def test_parse_suggestion_output_requires_a_deliverable_exactly_for_an_offer(
     payload["deliverable"] = deliverable
 
     with pytest.raises(ValueError, match="deliverable must be given exactly"):
-        suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+        parse_suggestion_output(
             raw_text=json.dumps(payload, ensure_ascii=False),
             parsed_output=SuggestionStructuredOutput.model_validate(payload),
         )
@@ -215,7 +216,7 @@ def test_parse_suggestion_output_rejects_missing_suggestion_summary(
     payload["suggestion_summary"] = None
 
     with pytest.raises(ValueError, match="suggestion_summary must be non-empty"):
-        suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+        parse_suggestion_output(
             raw_text=json.dumps(payload, ensure_ascii=False),
             parsed_output=SuggestionStructuredOutput.model_validate(payload),
         )
@@ -228,7 +229,7 @@ def test_parse_suggestion_output_rejects_blank_suggestion_summary(
     payload["suggestion_summary"] = "   "
 
     with pytest.raises(ValueError, match="suggestion_summary must be non-empty"):
-        suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+        parse_suggestion_output(
             raw_text=json.dumps(payload, ensure_ascii=False),
             parsed_output=SuggestionStructuredOutput.model_validate(payload),
         )
@@ -241,7 +242,7 @@ def test_parse_suggestion_output_rejects_null_target_context_when_suggestion_exi
     payload["target_context"] = None
 
     with pytest.raises(ValueError, match="target_context must be an object"):
-        suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+        parse_suggestion_output(
             raw_text=json.dumps(payload, ensure_ascii=False),
             parsed_output=SuggestionStructuredOutput.model_validate(payload),
         )
@@ -311,7 +312,7 @@ def test_parse_suggestion_output_empty_text(
     suggestion_agent: SuggestionAgent,
 ) -> None:
     with pytest.raises(ValueError, match="Empty structured suggestion response"):
-        suggestion_agent._parse_suggestion_output(  # noqa: SLF001
+        parse_suggestion_output(
             raw_text="   ",
             parsed_output=None,
         )
