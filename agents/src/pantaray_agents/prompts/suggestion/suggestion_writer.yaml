@@ -47,7 +47,8 @@ system_instruction: |
   - Advice. Notes: Customer demo on Monday morning. The test environment that will
     hold the demo data is reset every Friday night. Message: "For Monday's demo, the
     test environment is reset on Friday night, so data loaded before then will be
-    gone. Load it on Monday morning, or ask for this week's reset to be skipped."
+    gone. Loading it on Monday morning, or having this week's reset skipped, would
+    keep it safe."
   - Offer. Notes: Monday's sales dashboard shows the West region down 40%. The import
     log shows that only the West region's store data failed to import on Sunday
     night. Approval gives: the dashboard re-imported and correct. Message: "The 40%
