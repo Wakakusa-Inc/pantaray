@@ -18,6 +18,9 @@ from pantaray_agents.schema.agent.suggestion import SuggestionDecidedContent
 from pantaray_agents.utils.prompt_loader import PromptConfig
 
 SUGGESTION_WRITER_PROMPT_NAME = "suggestion/suggestion_writer"
+# Voice rules that hold only in one language, keyed by the answer-language label;
+# any other language is written with the base prompt alone.
+SUGGESTION_WRITER_VOICE_PROMPT_NAMES = {"Japanese": "suggestion/suggestion_writer_ja"}
 # Runs on the Suggestion inference profile: Cloud serves only the purposes of its
 # pinned pantaray-llm, so a writer-specific purpose would need a Cloud release.
 SUGGESTION_WRITER_STAGE = "suggestion_writer"
@@ -37,8 +40,13 @@ def build_writer_messages(
     decided: SuggestionDecidedContent,
     *,
     answer_language: str,
+    voice_instruction: str | None = None,
 ) -> tuple[str, str]:
-    """Return (system instruction, prompt) built from the decided content only."""
+    """Return (system instruction, prompt) built from the decided content only.
+
+    `voice_instruction` is the answer language's voice supplement, appended to the
+    base system instruction when that language has one.
+    """
 
     if not config.system_instruction:
         raise ValueError("The Suggestion writer prompt has no system_instruction")
@@ -50,6 +58,8 @@ def build_writer_messages(
         deliverable=decided["deliverable"] or "(none)",
     )
     system = config.system_instruction.replace("{answer_language}", answer_language)
+    if voice_instruction:
+        system = f"{system.rstrip()}\n\n{voice_instruction}"
     return system, prompt
 
 
@@ -74,6 +84,7 @@ async def write_suggestion_answer(
     decided: SuggestionDecidedContent,
     answer_language: str,
     config: PromptConfig,
+    voice_instruction: str | None,
     generate_text: SuggestionTextGenerator,
     record_step: SuggestionStepRecorder,
 ) -> str:
@@ -84,7 +95,10 @@ async def write_suggestion_answer(
     """
 
     system, prompt = build_writer_messages(
-        config, decided, answer_language=answer_language
+        config,
+        decided,
+        answer_language=answer_language,
+        voice_instruction=voice_instruction,
     )
     await record_step(
         ReactLoopStep(
@@ -131,6 +145,7 @@ async def write_suggestion_answer(
 
 __all__ = [
     "SUGGESTION_WRITER_PROMPT_NAME",
+    "SUGGESTION_WRITER_VOICE_PROMPT_NAMES",
     "SUGGESTION_WRITER_STAGE",
     "SuggestionTextGenerator",
     "build_writer_messages",

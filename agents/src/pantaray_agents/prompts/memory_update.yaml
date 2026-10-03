@@ -112,12 +112,12 @@ system_instruction: |
     when the record shows it, such as the sender name or position, text typed in
     the compose box, or a message sent right after typing, and leave it out when
     authorship is unclear. Quote
-    or near-quote each in the words and language they used, even inside an
-    English file: a Japanese statement stays in Japanese, such as
-    「月末までに試作を見せたい」. Do not translate it or
-    rephrase it into business jargon. Add its date and where it was said, named
-    from the record that holds it: a message in a Completed Action turn or
-    `history_fetch` was said to Pantaray (「Pantaray との会話、3/14」), not to
+    or near-quote each in the words and language they used, even when the file
+    around it is written in another language: keep the quote in the user's own
+    language, untranslated, and do not rephrase it into business jargon. Add its
+    date and where it was said, named from the record that holds it: a message in
+    a Completed Action turn or `history_fetch` was said to Pantaray ("Pantaray
+    conversation, 3/14"), not to
     ChatGPT or Claude; an activity or source record names its own app. Where the
     user has said nothing, infer an aim only from sustained
     behavior, such as returning to the endeavor again and again, effort with no
